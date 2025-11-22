@@ -34,29 +34,75 @@
     <!-- Generate cabinets -->
     <!-- Cabinet dimensions -->
     <xacro:property name="cab_width" value="${config['cabinet_dimensions']['exterior']['x']}"/>
+    <xacro:property name="num_cabinets" value="${len(cabinets)}"/>
 
-    <!-- For now, create first cabinet as a test -->
-    <!-- TODO: Implement full iteration over all cabinets -->
-    <xacro:if value="${len(cabinets) &gt; 0}">
+    <!-- Explicit cabinet generation (xacro doesn't support dynamic iteration) -->
+    <!-- Cabinet 1 -->
+    <xacro:if value="${num_cabinets &gt;= 1}">
       <xacro:property name="cab1_size" value="${cabinets[0]['size']}"/>
-      <!-- Left row: cab_x = (i-1) * width = 0*0.7 = 0.0 -->
-      <!-- Right row: cab_x = i * width = 1*0.7 = 0.7 (due to 180° rotation) -->
-      <xacro:property name="cab1_x" value="${0.0 if side == 'left' else cab_width}"/>
-      <xacro:property name="cab1_y" value="0.0"/>
-      <xacro:property name="cab1_z" value="0.0"/>
-      <xacro:property name="cab1_rot_z" value="${0.0 if side == 'left' else 3.14159}"/>
-
+      <xacro:property name="cab1_x" value="${0.0 if side == 'left' else 1 * cab_width}"/>
       <xacro:cabinet
         side="${side}"
         cabinet_num="1"
         size_name="${cab1_size}"
         parent_link="side_${side_abbrev}"
         position_x="${cab1_x}"
-        position_y="${cab1_y}"
-        position_z="${cab1_z}"
-        rotation_z="${cab1_rot_z}"
+        position_y="0.0"
+        position_z="0.0"
+        rotation_z="${0.0 if side == 'left' else 3.14159}"
         config="${config}"/>
     </xacro:if>
+
+    <!-- Cabinet 2 -->
+    <xacro:if value="${num_cabinets &gt;= 2}">
+      <xacro:property name="cab2_size" value="${cabinets[1]['size']}"/>
+      <xacro:property name="cab2_x" value="${1 * cab_width if side == 'left' else 2 * cab_width}"/>
+      <xacro:cabinet
+        side="${side}"
+        cabinet_num="2"
+        size_name="${cab2_size}"
+        parent_link="side_${side_abbrev}"
+        position_x="${cab2_x}"
+        position_y="0.0"
+        position_z="0.0"
+        rotation_z="${0.0 if side == 'left' else 3.14159}"
+        config="${config}"/>
+    </xacro:if>
+
+    <!-- Cabinet 3 -->
+    <xacro:if value="${num_cabinets &gt;= 3}">
+      <xacro:property name="cab3_size" value="${cabinets[2]['size']}"/>
+      <xacro:property name="cab3_x" value="${2 * cab_width if side == 'left' else 3 * cab_width}"/>
+      <xacro:cabinet
+        side="${side}"
+        cabinet_num="3"
+        size_name="${cab3_size}"
+        parent_link="side_${side_abbrev}"
+        position_x="${cab3_x}"
+        position_y="0.0"
+        position_z="0.0"
+        rotation_z="${0.0 if side == 'left' else 3.14159}"
+        config="${config}"/>
+    </xacro:if>
+
+    <!-- Cabinet 4 -->
+    <xacro:if value="${num_cabinets &gt;= 4}">
+      <xacro:property name="cab4_size" value="${cabinets[3]['size']}"/>
+      <xacro:property name="cab4_x" value="${3 * cab_width if side == 'left' else 4 * cab_width}"/>
+      <xacro:cabinet
+        side="${side}"
+        cabinet_num="4"
+        size_name="${cab4_size}"
+        parent_link="side_${side_abbrev}"
+        position_x="${cab4_x}"
+        position_y="0.0"
+        position_z="0.0"
+        rotation_z="${0.0 if side == 'left' else 3.14159}"
+        config="${config}"/>
+    </xacro:if>
+
+    <!-- Add more cabinet slots if needed (5, 6, 7, 8...) -->
+    <!-- Each follows the same pattern with incremented numbers -->
 
   </xacro:macro>
 
