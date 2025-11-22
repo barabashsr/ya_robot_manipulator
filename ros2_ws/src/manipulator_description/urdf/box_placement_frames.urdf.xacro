@@ -100,13 +100,16 @@
       <xacro:property name="frame_y" value="0.0"/>
 
       <!-- Create frame link (no geometry, just coordinate frame) -->
-      <link name="${side}_cab${cabinet_num}_box_placement_${current_row}_${current_col}"/>
+      <!-- Simplified naming: addr_{side_abbrev}_{cab}_{row}_{col} -->
+      <!-- Example: addr_l_1_2_3 = left row, cabinet 1, row 2, column 3 -->
+      <xacro:property name="side_abbrev" value="${'l' if side == 'left' else 'r'}"/>
+      <link name="addr_${side_abbrev}_${cabinet_num}_${current_row}_${current_col}"/>
 
       <!-- Attach to cabinet -->
-      <joint name="${side}_cab${cabinet_num}_box_placement_${current_row}_${current_col}_to_cabinet"
+      <joint name="addr_${side_abbrev}_${cabinet_num}_${current_row}_${current_col}_to_cab"
              type="fixed">
         <parent link="${parent_link}"/>
-        <child link="${side}_cab${cabinet_num}_box_placement_${current_row}_${current_col}"/>
+        <child link="addr_${side_abbrev}_${cabinet_num}_${current_row}_${current_col}"/>
         <origin xyz="${frame_x} ${frame_y} ${frame_z}" rpy="0 0 0"/>
       </joint>
 

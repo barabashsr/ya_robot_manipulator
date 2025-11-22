@@ -15,13 +15,16 @@
     <xacro:property name="row_offset" value="${row_config['offset']}"/>
     <xacro:property name="cabinets" value="${row_config['cabinets']}"/>
 
+    <!-- Simplified side naming: side_l or side_r -->
+    <xacro:property name="side_abbrev" value="${'l' if side == 'left' else 'r'}"/>
+
     <!-- Row base link -->
-    <link name="${side}_cabinet_row_base"/>
+    <link name="side_${side_abbrev}"/>
 
     <!-- Fixed joint to parent -->
-    <joint name="${side}_cabinet_row_to_parent" type="fixed">
+    <joint name="side_${side_abbrev}_to_base" type="fixed">
       <parent link="${parent_link}"/>
-      <child link="${side}_cabinet_row_base"/>
+      <child link="side_${side_abbrev}"/>
       <origin xyz="${row_offset['x']} ${row_offset['y']} ${row_offset['z']}" rpy="0 0 0"/>
     </joint>
 
@@ -47,7 +50,7 @@
         side="${side}"
         cabinet_num="1"
         size_name="${cab1_size}"
-        parent_link="${side}_cabinet_row_base"
+        parent_link="side_${side_abbrev}"
         position_x="${cab1_x}"
         position_y="${cab1_y}"
         position_z="${cab1_z}"
