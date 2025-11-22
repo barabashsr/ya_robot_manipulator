@@ -152,6 +152,11 @@ materials:
       b: 0.0
       a: 0.5
 
+# Visualization options
+visualization:
+  show_address_boxes: true  # Show boxes at all address frames for testing
+  address_box_default_color: "light_blue"  # Default box color
+
 # Runtime flags (for future storage_manager_node)
 runtime:
   generate_departments_on_demand: true

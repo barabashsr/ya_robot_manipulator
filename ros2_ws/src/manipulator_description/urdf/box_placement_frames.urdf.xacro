@@ -23,6 +23,13 @@
     <xacro:property name="box_col_config" value="${config['box_configurations']['columns_' + str(num_cols)]}"/>
     <xacro:property name="box_row_config" value="${config['box_configurations']['rows_' + str(num_rows)]}"/>
 
+    <!-- Get visualization settings -->
+    <xacro:property name="viz_config" value="${config['visualization']}"/>
+    <xacro:property name="show_boxes" value="${viz_config['show_address_boxes']}"/>
+    <xacro:property name="box_width" value="${box_col_config['width']}"/>
+    <xacro:property name="box_depth" value="${config['department_configurations']['departments_' + str(num_depts)]['depth'] * num_depts}"/>
+    <xacro:property name="box_height" value="${box_row_config['height']}"/>
+
     <!-- Generate placement frames using recursive macros -->
     <xacro:placement_rows
       current_row="1"
@@ -32,7 +39,11 @@
       cabinet_num="${cabinet_num}"
       parent_link="${parent_link}"
       box_col_config="${box_col_config}"
-      box_row_config="${box_row_config}"/>
+      box_row_config="${box_row_config}"
+      show_boxes="${show_boxes}"
+      box_width="${box_width}"
+      box_depth="${box_depth}"
+      box_height="${box_height}"/>
 
   </xacro:macro>
 
@@ -45,7 +56,11 @@
     cabinet_num
     parent_link
     box_col_config
-    box_row_config">
+    box_row_config
+    show_boxes
+    box_width
+    box_depth
+    box_height">
 
     <xacro:if value="${current_row &lt;= max_rows}">
       <!-- Create frames for all columns in this row -->
@@ -58,7 +73,11 @@
         cabinet_num="${cabinet_num}"
         parent_link="${parent_link}"
         box_col_config="${box_col_config}"
-        box_row_config="${box_row_config}"/>
+        box_row_config="${box_row_config}"
+        show_boxes="${show_boxes}"
+        box_width="${box_width}"
+        box_depth="${box_depth}"
+        box_height="${box_height}"/>
 
       <!-- Recurse for next row -->
       <xacro:placement_rows
@@ -69,7 +88,11 @@
         cabinet_num="${cabinet_num}"
         parent_link="${parent_link}"
         box_col_config="${box_col_config}"
-        box_row_config="${box_row_config}"/>
+        box_row_config="${box_row_config}"
+        show_boxes="${show_boxes}"
+        box_width="${box_width}"
+        box_depth="${box_depth}"
+        box_height="${box_height}"/>
     </xacro:if>
 
   </xacro:macro>
@@ -84,7 +107,11 @@
     cabinet_num
     parent_link
     box_col_config
-    box_row_config">
+    box_row_config
+    show_boxes
+    box_width
+    box_depth
+    box_height">
 
     <xacro:if value="${current_col &lt;= max_cols}">
       <!-- Calculate frame position (v2.2 formulas) -->
@@ -99,11 +126,24 @@
       <!-- Y: At front of cabinet (0.0 in cabinet local frame) -->
       <xacro:property name="frame_y" value="0.0"/>
 
-      <!-- Create frame link (no geometry, just coordinate frame) -->
+      <!-- Create frame link -->
       <!-- Simplified naming: addr_{side_abbrev}_{cab}_{row}_{col} -->
       <!-- Example: addr_l_1_2_3 = left row, cabinet 1, row 2, column 3 -->
       <xacro:property name="side_abbrev" value="${'l' if side == 'left' else 'r'}"/>
-      <link name="addr_${side_abbrev}_${cabinet_num}_${current_row}_${current_col}"/>
+
+      <link name="addr_${side_abbrev}_${cabinet_num}_${current_row}_${current_col}">
+        <!-- Optional: Show box visual for testing -->
+        <!-- Box centered at address frame origin -->
+        <xacro:if value="${show_boxes}">
+          <visual>
+            <origin xyz="0 ${box_depth/2.0} 0" rpy="0 0 0"/>
+            <geometry>
+              <box size="${box_width} ${box_depth} ${box_height}"/>
+            </geometry>
+            <material name="box_light_blue"/>
+          </visual>
+        </xacro:if>
+      </link>
 
       <!-- Attach to cabinet -->
       <joint name="addr_${side_abbrev}_${cabinet_num}_${current_row}_${current_col}_to_cab"
@@ -123,7 +163,11 @@
         cabinet_num="${cabinet_num}"
         parent_link="${parent_link}"
         box_col_config="${box_col_config}"
-        box_row_config="${box_row_config}"/>
+        box_row_config="${box_row_config}"
+        show_boxes="${show_boxes}"
+        box_width="${box_width}"
+        box_depth="${box_depth}"
+        box_height="${box_height}"/>
     </xacro:if>
 
   </xacro:macro>
