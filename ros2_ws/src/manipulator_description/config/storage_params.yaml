@@ -1,0 +1,159 @@
+# Storage System Configuration
+# Based on storage-spec-v2.2
+
+# Cabinet dimensions
+cabinet_dimensions:
+  exterior:
+    x: 0.7      # Width (along X-axis)
+    y: 0.66     # Depth (along Y-axis)
+    z: 1.4      # Height (along Z-axis)
+  wall_thickness: 0.02  # 20mm walls
+  interior:
+    x: 0.66     # exterior.x - 2*wall_thickness
+    y: 0.62     # exterior.y - 2*wall_thickness
+    z: 1.36     # exterior.z - 2*wall_thickness
+
+# Cabinet row definitions
+cabinet_rows:
+  left:
+    offset:
+      x: 0.0    # Start position along rail
+      y: 0.4    # Distance from manipulator base_link
+      z: 0.0    # Base height
+    cabinets:
+      - size: "4x10x10"
+      - size: "4x10x10"
+      - size: "4x6x10"
+      - size: "5x12x14"
+
+  right:
+    offset:
+      x: 0.0
+      y: -0.4   # Opposite side from base_link
+      z: 0.0
+    cabinets:
+      - size: "5x12x14"
+      - size: "5x8x14"
+      - size: "6x14x16"
+      - size: "4x10x10"
+
+# Cabinet models grouped by columns x rows (not departments)
+# Note: Meshes disabled - using primitive geometry (boxes) until STL files are created
+cabinet_models:
+  "4x10":
+    mesh: null  # Mesh files not yet created
+    use_mesh_collision: false
+
+  "4x6":
+    mesh: null
+    use_mesh_collision: false
+
+  "5x12":
+    mesh: null
+    use_mesh_collision: false
+
+  "5x8":
+    mesh: null
+    use_mesh_collision: false
+
+  "6x14":
+    mesh: null
+    use_mesh_collision: false
+
+# Box configurations grouped by columns and rows
+box_configurations:
+  columns_4:
+    width: 0.06
+    offset_x: 0.05
+    step_x: 0.07
+    mesh:
+      visual: "package://manipulator_description/meshes/boxes/box_4col_visual.stl"
+      collision: null  # use primitive
+    use_mesh_collision: false
+
+  columns_5:
+    width: 0.055
+    offset_x: 0.045
+    step_x: 0.065
+    mesh:
+      visual: "package://manipulator_description/meshes/boxes/box_5col_visual.stl"
+      collision: null
+    use_mesh_collision: false
+
+  columns_6:
+    width: 0.048
+    offset_x: 0.04
+    step_x: 0.058
+    mesh:
+      visual: "package://manipulator_description/meshes/boxes/box_6col_visual.stl"
+      collision: null
+    use_mesh_collision: false
+
+  rows_6:
+    height: 0.15
+    offset_z: 0.05
+    step_z: 0.16
+
+  rows_8:
+    height: 0.115
+    offset_z: 0.045
+    step_z: 0.125
+
+  rows_10:
+    height: 0.09
+    offset_z: 0.04
+    step_z: 0.1
+
+  rows_12:
+    height: 0.075
+    offset_z: 0.035
+    step_z: 0.083
+
+  rows_14:
+    height: 0.065
+    offset_z: 0.03
+    step_z: 0.071
+
+# Department configurations
+department_configurations:
+  departments_10:
+    depth: 0.02
+    offset_y: 0.005
+    step_y: 0.024  # includes 4mm wall
+
+  departments_14:
+    depth: 0.0131
+    offset_y: 0.004
+    step_y: 0.0171
+
+  departments_16:
+    depth: 0.011
+    offset_y: 0.0035
+    step_y: 0.015
+
+# Material definitions for visualization
+materials:
+  cabinet:
+    color:
+      r: 0.7
+      g: 0.7
+      b: 0.7
+      a: 1.0
+  box:
+    color:
+      r: 0.3
+      g: 0.5
+      b: 0.8
+      a: 1.0
+  department_marker:
+    color:
+      r: 1.0
+      g: 0.0
+      b: 0.0
+      a: 0.5
+
+# Runtime flags (for future storage_manager_node)
+runtime:
+  generate_departments_on_demand: true
+  use_tf_broadcaster_for_departments: true
+  department_marker_size: 0.01

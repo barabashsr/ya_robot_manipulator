@@ -1,0 +1,107 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!--
+    Cabinet Macro
+
+    Creates a single cabinet with:
+    - Visual and collision geometry (mesh or primitive)
+    - Box placement frames for each box position
+  -->
+
+  <!-- Materials are included in storage_system.urdf.xacro, don't re-include -->
+  <xacro:include filename="$(find manipulator_description)/urdf/box_placement_frames.urdf.xacro"/>
+
+  <xacro:macro name="cabinet" params="
+    side
+    cabinet_num
+    size_name
+    parent_link
+    position_x
+    position_y
+    position_z
+    rotation_z
+    config">
+
+    <!-- Parse size: "NxMxD" -> columns x rows x departments -->
+    <xacro:property name="size_parts" value="${size_name.split('x')}"/>
+    <xacro:property name="num_cols" value="${int(size_parts[0])}"/>
+    <xacro:property name="num_rows" value="${int(size_parts[1])}"/>
+    <xacro:property name="num_depts" value="${int(size_parts[2])}"/>
+
+    <!-- Get cabinet model config -->
+    <xacro:property name="model_key" value="${str(num_cols) + 'x' + str(num_rows)}"/>
+    <xacro:property name="cabinet_model" value="${config['cabinet_models'].get(model_key, None)}"/>
+
+    <!-- Cabinet dimensions -->
+    <xacro:property name="cab_dims" value="${config['cabinet_dimensions']}"/>
+    <xacro:property name="cab_x" value="${cab_dims['exterior']['x']}"/>
+    <xacro:property name="cab_y" value="${cab_dims['exterior']['y']}"/>
+    <xacro:property name="cab_z" value="${cab_dims['exterior']['z']}"/>
+
+    <!-- Cabinet link -->
+    <!-- Origin is at left-bottom-front corner (for left row) or right-bottom-front corner (for right row) -->
+    <!-- Box primitive origin is at center, so we need to offset the geometry -->
+
+    <!-- Calculate offset to move box center to corner origin -->
+    <!-- For left row: offset positive in X, Y, Z (move box center away from corner) -->
+    <!-- For right row (rotated 180°): offset negative in X, positive in Y, Z -->
+    <xacro:property name="visual_offset_x" value="${cab_x / 2.0}"/>
+    <xacro:property name="visual_offset_y" value="${cab_y / 2.0}"/>
+    <xacro:property name="visual_offset_z" value="${cab_z / 2.0}"/>
+
+    <link name="${side}_cab${cabinet_num}">
+      <visual>
+        <!-- Offset box center to align with corner origin -->
+        <origin xyz="${visual_offset_x} ${visual_offset_y} ${visual_offset_z}" rpy="0 0 0"/>
+        <geometry>
+          <xacro:if value="${cabinet_model is not None and cabinet_model.get('mesh', None) is not None}">
+            <mesh filename="${cabinet_model['mesh']['visual']}" scale="1 1 1"/>
+          </xacro:if>
+          <xacro:unless value="${cabinet_model is not None and cabinet_model.get('mesh', None) is not None}">
+            <box size="${cab_x} ${cab_y} ${cab_z}"/>
+          </xacro:unless>
+        </geometry>
+        <material name="cabinet_grey"/>
+      </visual>
+
+      <collision>
+        <!-- Same offset for collision -->
+        <origin xyz="${visual_offset_x} ${visual_offset_y} ${visual_offset_z}" rpy="0 0 0"/>
+        <geometry>
+          <xacro:if value="${cabinet_model is not None and cabinet_model.get('use_mesh_collision', False)}">
+            <mesh filename="${cabinet_model['mesh']['collision']}" scale="1 1 1"/>
+          </xacro:if>
+          <xacro:unless value="${cabinet_model is not None and cabinet_model.get('use_mesh_collision', False)}">
+            <box size="${cab_x} ${cab_y} ${cab_z}"/>
+          </xacro:unless>
+        </geometry>
+      </collision>
+
+      <inertial>
+        <mass value="50.0"/>  <!-- 50kg cabinet -->
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <inertia ixx="10.0" ixy="0.0" ixz="0.0" iyy="10.0" iyz="0.0" izz="10.0"/>
+      </inertial>
+    </link>
+
+    <!-- Fixed joint to parent row -->
+    <joint name="${side}_cab${cabinet_num}_to_row" type="fixed">
+      <parent link="${parent_link}"/>
+      <child link="${side}_cab${cabinet_num}"/>
+      <origin xyz="${position_x} ${position_y} ${position_z}" rpy="0 0 ${rotation_z}"/>
+    </joint>
+
+    <!-- Generate box placement frames -->
+    <xacro:box_placement_frames
+      side="${side}"
+      cabinet_num="${cabinet_num}"
+      num_rows="${num_rows}"
+      num_cols="${num_cols}"
+      num_depts="${num_depts}"
+      config="${config}"
+      parent_link="${side}_cab${cabinet_num}"/>
+
+  </xacro:macro>
+
+</robot>

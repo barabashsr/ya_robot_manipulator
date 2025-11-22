@@ -1,0 +1,128 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!--
+    Box Placement Frames Macro
+
+    Generates virtual frames for each box position in a cabinet.
+    These frames serve as attachment points for runtime-spawned boxes.
+
+    Addressing: Top-to-bottom (row 1 = top), Left-to-right (col 1 = leftmost from manipulator view)
+  -->
+
+  <xacro:macro name="box_placement_frames" params="
+    side
+    cabinet_num
+    num_rows
+    num_cols
+    num_depts
+    config
+    parent_link">
+
+    <!-- Get box configurations -->
+    <xacro:property name="box_col_config" value="${config['box_configurations']['columns_' + str(num_cols)]}"/>
+    <xacro:property name="box_row_config" value="${config['box_configurations']['rows_' + str(num_rows)]}"/>
+
+    <!-- Generate placement frames using recursive macros -->
+    <xacro:placement_rows
+      current_row="1"
+      max_rows="${num_rows}"
+      num_cols="${num_cols}"
+      side="${side}"
+      cabinet_num="${cabinet_num}"
+      parent_link="${parent_link}"
+      box_col_config="${box_col_config}"
+      box_row_config="${box_row_config}"/>
+
+  </xacro:macro>
+
+  <!-- Recursion for rows -->
+  <xacro:macro name="placement_rows" params="
+    current_row
+    max_rows
+    num_cols
+    side
+    cabinet_num
+    parent_link
+    box_col_config
+    box_row_config">
+
+    <xacro:if value="${current_row &lt;= max_rows}">
+      <!-- Create frames for all columns in this row -->
+      <xacro:placement_cols
+        current_col="1"
+        max_cols="${num_cols}"
+        current_row="${current_row}"
+        max_rows="${max_rows}"
+        side="${side}"
+        cabinet_num="${cabinet_num}"
+        parent_link="${parent_link}"
+        box_col_config="${box_col_config}"
+        box_row_config="${box_row_config}"/>
+
+      <!-- Recurse for next row -->
+      <xacro:placement_rows
+        current_row="${current_row + 1}"
+        max_rows="${max_rows}"
+        num_cols="${num_cols}"
+        side="${side}"
+        cabinet_num="${cabinet_num}"
+        parent_link="${parent_link}"
+        box_col_config="${box_col_config}"
+        box_row_config="${box_row_config}"/>
+    </xacro:if>
+
+  </xacro:macro>
+
+  <!-- Recursion for columns -->
+  <xacro:macro name="placement_cols" params="
+    current_col
+    max_cols
+    current_row
+    max_rows
+    side
+    cabinet_num
+    parent_link
+    box_col_config
+    box_row_config">
+
+    <xacro:if value="${current_col &lt;= max_cols}">
+      <!-- Calculate frame position (v2.2 formulas) -->
+      <!-- X: Left to right -->
+      <xacro:property name="frame_x"
+        value="${box_col_config['offset_x'] + (current_col - 1) * box_col_config['step_x']}"/>
+
+      <!-- Z: Top to bottom (Row 1 = highest) -->
+      <xacro:property name="frame_z"
+        value="${box_row_config['offset_z'] + (max_rows - current_row) * box_row_config['step_z']}"/>
+
+      <!-- Y: At front of cabinet (0.0 in cabinet local frame) -->
+      <xacro:property name="frame_y" value="0.0"/>
+
+      <!-- Create frame link (no geometry, just coordinate frame) -->
+      <link name="${side}_cab${cabinet_num}_box_placement_${current_row}_${current_col}"/>
+
+      <!-- Attach to cabinet -->
+      <joint name="${side}_cab${cabinet_num}_box_placement_${current_row}_${current_col}_to_cabinet"
+             type="fixed">
+        <parent link="${parent_link}"/>
+        <child link="${side}_cab${cabinet_num}_box_placement_${current_row}_${current_col}"/>
+        <origin xyz="${frame_x} ${frame_y} ${frame_z}" rpy="0 0 0"/>
+      </joint>
+
+      <!-- Recurse for next column -->
+      <xacro:placement_cols
+        current_col="${current_col + 1}"
+        max_cols="${max_cols}"
+        current_row="${current_row}"
+        max_rows="${max_rows}"
+        side="${side}"
+        cabinet_num="${cabinet_num}"
+        parent_link="${parent_link}"
+        box_col_config="${box_col_config}"
+        box_row_config="${box_row_config}"/>
+    </xacro:if>
+
+  </xacro:macro>
+
+</robot>

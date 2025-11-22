@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!--
+    Storage System Entry Point
+
+    This file coordinates the entire storage system assembly:
+    - Left cabinet row
+    - Right cabinet row
+    - Box placement frames (static)
+
+    Boxes themselves are spawned dynamically at runtime by storage_manager_node
+  -->
+
+  <xacro:macro name="storage_system" params="parent_link config_file">
+
+    <!-- Load storage configuration -->
+    <xacro:property name="config" value="${xacro.load_yaml(config_file)}"/>
+
+    <!-- Storage system base link -->
+    <link name="storage_system_base"/>
+
+    <!-- Fixed joint to parent (typically world or base_link) -->
+    <joint name="storage_system_to_parent" type="fixed">
+      <parent link="${parent_link}"/>
+      <child link="storage_system_base"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint>
+
+    <!-- Include cabinet row macros -->
+    <xacro:include filename="$(find manipulator_description)/urdf/cabinet_row.urdf.xacro"/>
+
+    <!-- Left cabinet row -->
+    <xacro:cabinet_row
+      side="left"
+      parent_link="storage_system_base"
+      config="${config}"/>
+
+    <!-- Right cabinet row -->
+    <xacro:cabinet_row
+      side="right"
+      parent_link="storage_system_base"
+      config="${config}"/>
+
+  </xacro:macro>
+
+</robot>

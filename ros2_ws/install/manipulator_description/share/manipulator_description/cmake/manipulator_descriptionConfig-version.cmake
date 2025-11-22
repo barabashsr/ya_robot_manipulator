@@ -1,0 +1,1 @@
+/home/robo/robo/ya_robot_manipulator/ros2_ws/build/manipulator_description/ament_cmake_core/manipulator_descriptionConfig-version.cmake

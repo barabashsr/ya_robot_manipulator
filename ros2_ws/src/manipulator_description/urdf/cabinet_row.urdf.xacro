@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!--
+    Cabinet Row Macro
+
+    Creates a row of cabinets (left or right) with proper positioning.
+    Each cabinet contains box placement frames for runtime box spawning.
+  -->
+
+  <xacro:macro name="cabinet_row" params="side parent_link config">
+
+    <!-- Get row configuration -->
+    <xacro:property name="row_config" value="${config['cabinet_rows'][side]}"/>
+    <xacro:property name="row_offset" value="${row_config['offset']}"/>
+    <xacro:property name="cabinets" value="${row_config['cabinets']}"/>
+
+    <!-- Row base link -->
+    <link name="${side}_cabinet_row_base"/>
+
+    <!-- Fixed joint to parent -->
+    <joint name="${side}_cabinet_row_to_parent" type="fixed">
+      <parent link="${parent_link}"/>
+      <child link="${side}_cabinet_row_base"/>
+      <origin xyz="${row_offset['x']} ${row_offset['y']} ${row_offset['z']}" rpy="0 0 0"/>
+    </joint>
+
+    <!-- Include cabinet macro -->
+    <xacro:include filename="$(find manipulator_description)/urdf/cabinet.urdf.xacro"/>
+
+    <!-- Generate cabinets -->
+    <!-- Cabinet dimensions -->
+    <xacro:property name="cab_width" value="${config['cabinet_dimensions']['exterior']['x']}"/>
+
+    <!-- For now, create first cabinet as a test -->
+    <!-- TODO: Implement full iteration over all cabinets -->
+    <xacro:if value="${len(cabinets) &gt; 0}">
+      <xacro:property name="cab1_size" value="${cabinets[0]['size']}"/>
+      <!-- Left row: cab_x = (i-1) * width = 0*0.7 = 0.0 -->
+      <!-- Right row: cab_x = i * width = 1*0.7 = 0.7 (due to 180° rotation) -->
+      <xacro:property name="cab1_x" value="${0.0 if side == 'left' else cab_width}"/>
+      <xacro:property name="cab1_y" value="0.0"/>
+      <xacro:property name="cab1_z" value="0.0"/>
+      <xacro:property name="cab1_rot_z" value="${0.0 if side == 'left' else 3.14159}"/>
+
+      <xacro:cabinet
+        side="${side}"
+        cabinet_num="1"
+        size_name="${cab1_size}"
+        parent_link="${side}_cabinet_row_base"
+        position_x="${cab1_x}"
+        position_y="${cab1_y}"
+        position_z="${cab1_z}"
+        rotation_z="${cab1_rot_z}"
+        config="${config}"/>
+    </xacro:if>
+
+  </xacro:macro>
+
+</robot>
