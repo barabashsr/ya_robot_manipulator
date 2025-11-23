@@ -1,0 +1,1 @@
+/home/robo/robo/ya_robot_manipulator/ros2_ws/src/joy_control/launch/joy_control.launch.py

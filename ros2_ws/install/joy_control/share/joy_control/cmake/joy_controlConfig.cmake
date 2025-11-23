@@ -1,0 +1,1 @@
+/home/robo/robo/ya_robot_manipulator/ros2_ws/build/joy_control/ament_cmake_core/joy_controlConfig.cmake
