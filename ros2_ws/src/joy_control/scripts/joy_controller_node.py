@@ -121,6 +121,8 @@ class ConfigurableJoyController(Node):
                         limits = self.axis_mappings[name]['limits']
                         self.positions[name] = limits[0] if limits[0] >= 0 else (limits[0] + limits[1]) / 2.0
 
+                        self.get_logger().info(f'Loaded axis mapping: {name} -> {topic} (axis {axis_idx})')
+
                 except Exception as e:
                     self.get_logger().debug(f'Could not load mapping for {name}: {e}')
                     continue
@@ -158,8 +160,9 @@ class ConfigurableJoyController(Node):
                             'target_position': self.get_parameter(f'button_actions.{name}.target_position').value,
                             'last_state': False
                         }
+                        self.get_logger().info(f'Loaded button action: {name} on button {button_idx}')
                 except Exception as e:
-                    self.get_logger().debug(f'Could not load button action {name}: {e}')
+                    self.get_logger().warn(f'Could not load button action {name}: {e}')
                     continue
 
         except Exception as e:
@@ -174,6 +177,31 @@ class ConfigurableJoyController(Node):
                 topic,
                 10
             )
+
+        # Add publishers for button-controlled joints (not in axis_mappings)
+        # Check button actions for joints that need publishers
+        for action_name, action in self.button_actions.items():
+            joint = action.get('joint', '')
+            if joint and joint not in self.joint_publishers_dict:
+                # Need to create publisher and position tracking for this joint
+                topic = f'/{joint}_joint_controller/commands'
+                self.joint_publishers_dict[joint] = self.create_publisher(
+                    Float64MultiArray,
+                    topic,
+                    10
+                )
+                # Initialize position at 0
+                if joint not in self.positions:
+                    self.positions[joint] = 0.0
+                    # Add to axis_mappings with dummy values for limits
+                    self.axis_mappings[joint] = {
+                        'topic': topic,
+                        'axis_index': -1,
+                        'axis_scale': 1.0,
+                        'velocity_scale': 0.2,
+                        'limits': [0.0, 0.2],  # Default picker jaw limits
+                    }
+                self.get_logger().info(f'Created publisher for button-controlled joint: {joint}')
 
     def apply_deadzone(self, value, axis_index=-1):
         """Apply deadzone to axis value"""
