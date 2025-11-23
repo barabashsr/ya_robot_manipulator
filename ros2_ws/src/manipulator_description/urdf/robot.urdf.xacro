@@ -27,7 +27,8 @@
 
   <!-- Instantiate manipulator (creates base_link and entire manipulator tree) -->
   <xacro:manipulator
-    config_file="$(find manipulator_description)/config/manipulator_params.yaml"/>
+    config_file="$(find manipulator_description)/config/manipulator_params.yaml"
+    sim="true"/>
 
   <!-- Fixed joint: world -> base_link -->
   <joint name="world_to_base" type="fixed">

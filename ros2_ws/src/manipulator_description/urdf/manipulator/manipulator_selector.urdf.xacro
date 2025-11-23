@@ -29,7 +29,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="${selector['selector_frame']['mesh']}"/>
+          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/selector_frame.STL"/>
         </geometry>
         <material name="selector_frame_color">
           <color rgba="${selector['selector_frame']['color'][0]} ${selector['selector_frame']['color'][1]} ${selector['selector_frame']['color'][2]} ${selector['selector_frame']['color'][3]}"/>
@@ -40,7 +40,7 @@
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="${selector['selector_frame']['mesh']}"/>
+          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/selector_frame.STL"/>
         </geometry>
       </collision>
 
@@ -102,7 +102,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="${selector['left_container_jaw']['mesh']}"/>
+          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/left_container_jaw.STL"/>
         </geometry>
         <material name="left_container_jaw_color">
           <color rgba="${selector['left_container_jaw']['color'][0]} ${selector['left_container_jaw']['color'][1]} ${selector['left_container_jaw']['color'][2]} ${selector['left_container_jaw']['color'][3]}"/>
@@ -113,7 +113,7 @@
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="${selector['left_container_jaw']['mesh']}"/>
+          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/left_container_jaw.STL"/>
         </geometry>
       </collision>
 
@@ -171,7 +171,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="${selector['right_container_jaw']['mesh']}"/>
+          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/right_container_jaw.STL"/>
         </geometry>
         <material name="right_container_jaw_color">
           <color rgba="${selector['right_container_jaw']['color'][0]} ${selector['right_container_jaw']['color'][1]} ${selector['right_container_jaw']['color'][2]} ${selector['right_container_jaw']['color'][3]}"/>
@@ -182,7 +182,7 @@
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="${selector['right_container_jaw']['mesh']}"/>
+          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/right_container_jaw.STL"/>
         </geometry>
       </collision>
 
@@ -245,7 +245,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="${selector['gripper']['mesh']}"/>
+          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/gripper.STL"/>
         </geometry>
         <material name="gripper_color">
           <color rgba="${selector['gripper']['color'][0]} ${selector['gripper']['color'][1]} ${selector['gripper']['color'][2]} ${selector['gripper']['color'][3]}"/>
@@ -256,7 +256,7 @@
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="${selector['gripper']['mesh']}"/>
+          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/gripper.STL"/>
         </geometry>
       </collision>
 

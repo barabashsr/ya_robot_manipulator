@@ -1,0 +1,187 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!--
+    ROS2 Control Hardware Interface Configuration
+
+    Defines hardware interfaces for the manipulator joints:
+    - Command interfaces: position, velocity
+    - State interfaces: position, velocity
+
+    Uses gazebo_ros2_control for simulation
+  -->
+
+  <xacro:macro name="manipulator_ros2_control" params="name sim:=true">
+
+    <ros2_control name="${name}" type="system">
+
+      <!-- Hardware plugin selection based on sim parameter -->
+      <xacro:if value="${sim}">
+        <hardware>
+          <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+        </hardware>
+      </xacro:if>
+      <xacro:unless value="${sim}">
+        <hardware>
+          <plugin>mock_components/GenericSystem</plugin>
+          <param name="mock_sensor_commands">false</param>
+          <param name="state_following_offset">0.0</param>
+        </hardware>
+      </xacro:unless>
+
+      <!-- ============================================================ -->
+      <!-- BASE ASSEMBLY JOINT -->
+      <!-- ============================================================ -->
+
+      <!-- base_main_frame_joint (X-axis railway) -->
+      <joint name="base_main_frame_joint">
+        <command_interface name="position">
+          <param name="min">0.0</param>
+          <param name="max">4.0</param>
+        </command_interface>
+        <command_interface name="velocity">
+          <param name="min">-2.0</param>
+          <param name="max">2.0</param>
+        </command_interface>
+        <state_interface name="position">
+          <param name="initial_value">0.0</param>
+        </state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+
+      <!-- ============================================================ -->
+      <!-- SELECTOR ASSEMBLY JOINTS -->
+      <!-- ============================================================ -->
+
+      <!-- main_frame_selector_frame_joint (Z-axis vertical) -->
+      <joint name="main_frame_selector_frame_joint">
+        <command_interface name="position">
+          <param name="min">0.0</param>
+          <param name="max">1.5</param>
+        </command_interface>
+        <command_interface name="velocity">
+          <param name="min">-2.0</param>
+          <param name="max">2.0</param>
+        </command_interface>
+        <state_interface name="position">
+          <param name="initial_value">0.0</param>
+        </state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+
+      <!-- selector_left_container_jaw_joint (Y-axis gripper) -->
+      <joint name="selector_left_container_jaw_joint">
+        <command_interface name="position">
+          <param name="min">-0.2</param>
+          <param name="max">0.2</param>
+        </command_interface>
+        <command_interface name="velocity">
+          <param name="min">-1.0</param>
+          <param name="max">1.0</param>
+        </command_interface>
+        <state_interface name="position">
+          <param name="initial_value">0.0</param>
+        </state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+
+      <!-- Note: selector_right_container_jaw_joint is mimic, not controlled directly -->
+
+      <!-- selector_frame_gripper_joint (Y-axis magnet holder) -->
+      <joint name="selector_frame_gripper_joint">
+        <command_interface name="position">
+          <param name="min">-0.4</param>
+          <param name="max">0.4</param>
+        </command_interface>
+        <command_interface name="velocity">
+          <param name="min">-1.0</param>
+          <param name="max">1.0</param>
+        </command_interface>
+        <state_interface name="position">
+          <param name="initial_value">0.0</param>
+        </state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+
+      <!-- ============================================================ -->
+      <!-- PICKER ASSEMBLY JOINTS -->
+      <!-- ============================================================ -->
+
+      <!-- selector_frame_picker_frame_joint (Z-axis picker vertical) -->
+      <joint name="selector_frame_picker_frame_joint">
+        <command_interface name="position">
+          <param name="min">0.0</param>
+          <param name="max">0.3</param>
+        </command_interface>
+        <command_interface name="velocity">
+          <param name="min">-1.0</param>
+          <param name="max">1.0</param>
+        </command_interface>
+        <state_interface name="position">
+          <param name="initial_value">0.0</param>
+        </state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+
+      <!-- picker_frame_picker_rail_joint (Y-axis picker rail) -->
+      <joint name="picker_frame_picker_rail_joint">
+        <command_interface name="position">
+          <param name="min">-0.3</param>
+          <param name="max">0.3</param>
+        </command_interface>
+        <command_interface name="velocity">
+          <param name="min">-1.0</param>
+          <param name="max">1.0</param>
+        </command_interface>
+        <state_interface name="position">
+          <param name="initial_value">0.0</param>
+        </state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+
+      <!-- picker_rail_picker_base_joint (X-axis picker slider) -->
+      <joint name="picker_rail_picker_base_joint">
+        <command_interface name="position">
+          <param name="min">0.0</param>
+          <param name="max">0.12</param>
+        </command_interface>
+        <command_interface name="velocity">
+          <param name="min">-1.0</param>
+          <param name="max">1.0</param>
+        </command_interface>
+        <state_interface name="position">
+          <param name="initial_value">0.0</param>
+        </state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+
+      <!-- picker_base_picker_jaw_joint (X-axis picker extension) -->
+      <joint name="picker_base_picker_jaw_joint">
+        <command_interface name="position">
+          <param name="min">0.0</param>
+          <param name="max">0.2</param>
+        </command_interface>
+        <command_interface name="velocity">
+          <param name="min">-1.0</param>
+          <param name="max">1.0</param>
+        </command_interface>
+        <state_interface name="position">
+          <param name="initial_value">0.0</param>
+        </state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+
+    </ros2_control>
+
+    <!-- Gazebo ROS2 Control Plugin (only when sim=true) -->
+    <xacro:if value="${sim}">
+      <gazebo>
+        <plugin filename="libgz_ros2_control-system.so" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+          <parameters>$(find manipulator_description)/config/manipulator_controllers.yaml</parameters>
+        </plugin>
+      </gazebo>
+    </xacro:if>
+
+  </xacro:macro>
+
+</robot>

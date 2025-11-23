@@ -20,9 +20,10 @@
   <xacro:include filename="$(find manipulator_description)/urdf/manipulator/manipulator_base.urdf.xacro"/>
   <xacro:include filename="$(find manipulator_description)/urdf/manipulator/manipulator_selector.urdf.xacro"/>
   <xacro:include filename="$(find manipulator_description)/urdf/manipulator/manipulator_picker.urdf.xacro"/>
+  <xacro:include filename="$(find manipulator_description)/urdf/manipulator/ros2_control.xacro"/>
 
   <!-- Main manipulator macro -->
-  <xacro:macro name="manipulator" params="config_file">
+  <xacro:macro name="manipulator" params="config_file sim:=true">
 
     <!--
       Assembly hierarchy:
@@ -54,6 +55,11 @@
     <xacro:picker_assembly
       parent_link="selector_frame"
       config_file="${config_file}"/>
+
+    <!-- 4. ROS2 CONTROL: Hardware interfaces and controllers -->
+    <xacro:manipulator_ros2_control
+      name="manipulator_system"
+      sim="${sim}"/>
 
   </xacro:macro>
 
