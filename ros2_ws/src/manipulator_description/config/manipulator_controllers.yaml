@@ -25,8 +25,12 @@ controller_manager:
     main_frame_selector_frame_joint_controller:
       type: forward_command_controller/ForwardCommandController
 
-    # Left container jaw controller (right jaw mimics this)
+    # Left container jaw controller
     selector_left_container_jaw_joint_controller:
+      type: forward_command_controller/ForwardCommandController
+
+    # Right container jaw controller (was mimic, but dartsim doesn't support it)
+    selector_right_container_jaw_joint_controller:
       type: forward_command_controller/ForwardCommandController
 
     # Gripper Y-axis controller
@@ -89,6 +93,12 @@ selector_left_container_jaw_joint_controller:
   ros__parameters:
     joints:
       - selector_left_container_jaw_joint
+    interface_name: position
+
+selector_right_container_jaw_joint_controller:
+  ros__parameters:
+    joints:
+      - selector_right_container_jaw_joint
     interface_name: position
 
 selector_frame_gripper_joint_controller:

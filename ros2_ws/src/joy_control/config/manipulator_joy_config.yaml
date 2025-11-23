@@ -54,11 +54,19 @@ joy_controller_node:
     axis_mappings.selector_frame_gripper.limits: [-0.4, 0.4]
 
     # Container Jaws (-0.2 to 0.2 m) - L2/R2 Triggers
+    # Left jaw
     axis_mappings.selector_left_container_jaw.controller_topic: "/selector_left_container_jaw_joint_controller/commands"
     axis_mappings.selector_left_container_jaw.axis_index: 2
     axis_mappings.selector_left_container_jaw.axis_scale: 1.0
     axis_mappings.selector_left_container_jaw.velocity_scale: 0.2
     axis_mappings.selector_left_container_jaw.limits: [-0.2, 0.2]
+
+    # Right jaw (mirrors left - dartsim doesn't support mimic)
+    axis_mappings.selector_right_container_jaw.controller_topic: "/selector_right_container_jaw_joint_controller/commands"
+    axis_mappings.selector_right_container_jaw.axis_index: 2
+    axis_mappings.selector_right_container_jaw.axis_scale: -1.0
+    axis_mappings.selector_right_container_jaw.velocity_scale: 0.2
+    axis_mappings.selector_right_container_jaw.limits: [-0.2, 0.2]
 
     # Picker Vertical (Z-axis: 0.0 to 0.3 m) - D-Pad Y
     axis_mappings.selector_frame_picker_frame.controller_topic: "/selector_frame_picker_frame_joint_controller/commands"

@@ -31,8 +31,8 @@ base_assembly:
     type: "prismatic"
     origin: {xyz: [0, 0, 0], rpy: [0, 0, 0]}
     axis: [1, 0, 0]  # X-axis movement
-    limits: {lower: 0.0, upper: 4.0, effort: 20.0, velocity: 2.0}
-    dynamics: {damping: 0.1, friction: 0.1}
+    limits: {lower: 0.0, upper: 4.0, effort: 2000.0, velocity: 2.0}
+    dynamics: {damping: 0.0, friction: 0.0}
     safety_controller: {soft_lower: 0.1, soft_upper: 3.9, k_velocity: 0}
 
 # ============================================================================
@@ -54,8 +54,9 @@ selector_assembly:
     type: "prismatic"
     origin: {xyz: [0.538, 0, 0.301], rpy: [0, 0, 0]}
     axis: [0, 0, 1]  # Z-axis movement
-    limits: {lower: 0.0, upper: 1.5, effort: 20.0, velocity: 2.0}
-    dynamics: {damping: 0.1, friction: 0.1}
+    # Note: lower limit set to -0.01 to prevent gravity lock issue with dartsim
+    limits: {lower: -0.01, upper: 1.5, effort: 2000.0, velocity: 2.0}
+    dynamics: {damping: 0.0, friction: 0.0}
     safety_controller: {soft_lower: 0.05, soft_upper: 1.45, k_velocity: 0}
 
   # Left Container Jaw
@@ -73,8 +74,8 @@ selector_assembly:
     type: "prismatic"
     origin: {xyz: [0.142, 0.2, -0.001], rpy: [0, 0, 0]}
     axis: [0, -1, 0]  # -Y direction
-    limits: {lower: -0.2, upper: 0.2, effort: 20.0, velocity: 1.0}
-    dynamics: {damping: 0.1, friction: 0.1}
+    limits: {lower: -0.2, upper: 0.2, effort: 2000.0, velocity: 1.0}
+    dynamics: {damping: 0.0, friction: 0.0}
 
   # Right Container Jaw (mirrored)
   right_container_jaw:
@@ -92,7 +93,7 @@ selector_assembly:
     origin: {xyz: [0.142, -0.2, -0.001], rpy: [0, 0, 0]}
     axis: [0, 1, 0]  # +Y direction (opposite of left)
     limits: {lower: 0.0, upper: 0.0, effort: 0.0, velocity: 0.0}  # Controlled by mimic
-    dynamics: {damping: 0.1, friction: 0.1}
+    dynamics: {damping: 0.0, friction: 0.0}
     mimic:
       joint: "selector_left_container_jaw_joint"
       multiplier: 1.0
@@ -113,8 +114,8 @@ selector_assembly:
     type: "prismatic"
     origin: {xyz: [0, 0, 0], rpy: [0, 0, 0]}
     axis: [0, 1, 0]  # Y-axis
-    limits: {lower: -0.4, upper: 0.4, effort: 20.0, velocity: 1.0}
-    dynamics: {damping: 0.1, friction: 0.1}
+    limits: {lower: -0.4, upper: 0.4, effort: 2000.0, velocity: 1.0}
+    dynamics: {damping: 0.0, friction: 0.0}
 
   # Left Gripper Magnet (origin frame only - no geometry)
   # Joint: gripper -> left_gripper_magnet (fixed)
@@ -147,8 +148,9 @@ picker_assembly:
     type: "prismatic"
     origin: {xyz: [-0.138, 0, 0.144], rpy: [0, 0, 0]}
     axis: [0, 0, 1]  # Z-axis
-    limits: {lower: 0.0, upper: 0.3, effort: 20.0, velocity: 1.0}
-    dynamics: {damping: 0.1, friction: 0.1}
+    # Note: lower limit set to -0.01 to prevent gravity lock issue with dartsim
+    limits: {lower: -0.01, upper: 0.3, effort: 2000.0, velocity: 1.0}
+    dynamics: {damping: 0.0, friction: 0.0}
 
   # Picker Rail (Y-axis rail)
   picker_rail:
@@ -165,8 +167,8 @@ picker_assembly:
     type: "prismatic"
     origin: {xyz: [0.08, 0, -0.075], rpy: [0, 0, 0]}
     axis: [0, 1, 0]  # Y-axis
-    limits: {lower: -0.3, upper: 0.3, effort: 20.0, velocity: 1.0}
-    dynamics: {damping: 0.1, friction: 0.1}
+    limits: {lower: -0.3, upper: 0.3, effort: 2000.0, velocity: 1.0}
+    dynamics: {damping: 0.0, friction: 0.0}
 
   # Picker Base (X-axis slider)
   picker_base:
@@ -183,8 +185,8 @@ picker_assembly:
     type: "prismatic"
     origin: {xyz: [0, 0, 0], rpy: [0, 0, 0]}
     axis: [1, 0, 0]  # X-axis
-    limits: {lower: 0.0, upper: 0.12, effort: 20.0, velocity: 1.0}
-    dynamics: {damping: 0.1, friction: 0.1}
+    limits: {lower: 0.0, upper: 0.25, effort: 2000.0, velocity: 1.0}
+    dynamics: {damping: 0.0, friction: 0.0}
 
   # Picker Jaw (gripper)
   picker_jaw:
@@ -201,5 +203,5 @@ picker_assembly:
     type: "prismatic"
     origin: {xyz: [0, 0, 0], rpy: [0, 0, 0]}
     axis: [1, 0, 0]  # X-axis
-    limits: {lower: 0.0, upper: 0.2, effort: 20.0, velocity: 1.0}
-    dynamics: {damping: 0.1, friction: 0.1}
+    limits: {lower: 0.0, upper: 0.2, effort: 2000.0, velocity: 1.0}
+    dynamics: {damping: 0.0, friction: 0.0}

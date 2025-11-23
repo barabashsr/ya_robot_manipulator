@@ -24,6 +24,7 @@ install(
   PROGRAMS
     scripts/joy_controller_node.py
     scripts/test_joy_axes.py
+    scripts/debug_joy_control.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

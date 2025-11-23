@@ -89,6 +89,7 @@ class ConfigurableJoyController(Node):
                 'main_frame_selector_frame',
                 'selector_frame_gripper',
                 'selector_left_container_jaw',
+                'selector_right_container_jaw',
                 'selector_frame_picker_frame',
                 'picker_frame_picker_rail',
                 'picker_rail_picker_base',
@@ -174,8 +175,16 @@ class ConfigurableJoyController(Node):
                 10
             )
 
-    def apply_deadzone(self, value):
+    def apply_deadzone(self, value, axis_index=-1):
         """Apply deadzone to axis value"""
+        # D-Pad axes (6, 7) are discrete - don't apply scaling
+        if axis_index in [6, 7]:
+            # D-Pad: just filter small noise
+            if abs(value) < 0.5:
+                return 0.0
+            return value
+
+        # Normal analog sticks
         if abs(value) < self.deadzone:
             return 0.0
         # Scale the remaining range
@@ -213,8 +222,12 @@ class ConfigurableJoyController(Node):
 
             if axis_idx >= 0 and len(msg.axes) > axis_idx:
                 # Read axis value
-                axis_value = msg.axes[axis_idx]
-                axis_value = self.apply_deadzone(axis_value)
+                raw_value = msg.axes[axis_idx]
+                axis_value = self.apply_deadzone(raw_value, axis_idx)
+
+                # Debug D-Pad and problem axes
+                if axis_idx in [6, 7] and abs(raw_value) > 0.1:
+                    self.get_logger().info(f'{name}: axis[{axis_idx}] raw={raw_value:.2f} filtered={axis_value:.2f}')
 
                 # Apply axis scale
                 axis_value *= mapping['axis_scale']
@@ -236,6 +249,10 @@ class ConfigurableJoyController(Node):
             if button_idx >= 0 and len(msg.buttons) > button_idx:
                 button_pressed = msg.buttons[button_idx] == 1
                 action_type = action['action_type']
+
+                # Debug button presses
+                if button_pressed and button_idx in [0, 2]:
+                    self.get_logger().info(f'Button action {action_name}: pressed={button_pressed}, type={action_type}, joint={action.get("joint", "none")}')
 
                 # Handle different action types
                 if action_type == 'hold':
@@ -278,6 +295,10 @@ class ConfigurableJoyController(Node):
                 msg = Float64MultiArray()
                 msg.data = [position]
                 self.joint_publishers_dict[name].publish(msg)
+
+                # Debug picker vertical publishing
+                if name == 'selector_frame_picker_frame':
+                    self.get_logger().info(f'Publishing {name}: {position:.3f}')
 
         # Print status periodically
         now = self.get_clock().now()

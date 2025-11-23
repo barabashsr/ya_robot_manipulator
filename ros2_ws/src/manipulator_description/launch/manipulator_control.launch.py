@@ -170,6 +170,7 @@ def generate_launch_description():
         'base_main_frame_joint_controller',
         'main_frame_selector_frame_joint_controller',
         'selector_left_container_jaw_joint_controller',
+        'selector_right_container_jaw_joint_controller',
         'selector_frame_gripper_joint_controller',
         'selector_frame_picker_frame_joint_controller',
         'picker_frame_picker_rail_joint_controller',

@@ -230,11 +230,7 @@
       <dynamics
         damping="${selector['selector_right_container_jaw_joint']['dynamics']['damping']}"
         friction="${selector['selector_right_container_jaw_joint']['dynamics']['friction']}"/>
-      <!-- MIMIC: Right jaw mirrors left jaw movement -->
-      <mimic
-        joint="${selector['selector_right_container_jaw_joint']['mimic']['joint']}"
-        multiplier="${selector['selector_right_container_jaw_joint']['mimic']['multiplier']}"
-        offset="${selector['selector_right_container_jaw_joint']['mimic']['offset']}"/>
+      <!-- MIMIC REMOVED: dartsim doesn't support mimic joints, controlled independently via joy_control -->
     </joint>
 
     <!-- ================================================================ -->
