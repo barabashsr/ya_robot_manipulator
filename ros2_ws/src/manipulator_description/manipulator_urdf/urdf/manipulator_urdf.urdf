@@ -1,0 +1,714 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="manipulator_urdf">
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="2 1.1102E-16 -0.045"
+        rpy="0 0 0" />
+      <mass
+        value="32.4" />
+      <inertia
+        ixx="0.027337"
+        ixy="-6.8056E-16"
+        ixz="1.1565E-16"
+        iyy="43.222"
+        iyz="-4.2465E-19"
+        izz="43.205" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="main_frame">
+    <inertial>
+      <origin
+        xyz="0.2 -1.4456E-18 1"
+        rpy="0 0 0" />
+      <mass
+        value="480" />
+      <inertia
+        ixx="174.4"
+        ixy="3.0568E-15"
+        ixz="0"
+        iyy="166.4"
+        iyz="0"
+        izz="20.8" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/main_frame.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 0.67451 0.027451 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/main_frame.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="base_main_frame_joint"
+    type="prismatic">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="main_frame" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="0"
+      upper="4"
+      effort="20"
+      velocity="2" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
+    <safety_controller
+      soft_upper_limit="3.9"
+      soft_lower_limit="0.1"
+      k_velocity="0" />
+  </joint>
+  <link
+    name="selector_frame">
+    <inertial>
+      <origin
+        xyz="-0.038 -3.2042E-17 -0.161"
+        rpy="0 0 0" />
+      <mass
+        value="8.82" />
+      <inertia
+        ixx="0.39971"
+        ixy="5.6088E-17"
+        ixz="1.0745E-19"
+        iyy="0.032046"
+        iyz="2.4617E-34"
+        izz="0.42647" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/selector_frame.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/selector_frame.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="main_frame_selector_frame_joint"
+    type="prismatic">
+    <origin
+      xyz="0.538 0 0.301"
+      rpy="0 0 0" />
+    <parent
+      link="main_frame" />
+    <child
+      link="selector_frame" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="1.5"
+      effort="20"
+      velocity="2" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
+    <safety_controller
+      soft_upper_limit="1.45"
+      soft_lower_limit="0.05"
+      k_velocity="0" />
+  </joint>
+  <link
+    name="left_container_jaw">
+    <inertial>
+      <origin
+        xyz="0.11332 -0.005 -0.13866"
+        rpy="0 0 0" />
+      <mass
+        value="0.876" />
+      <inertia
+        ixx="0.0049249"
+        ixy="-1.3235E-20"
+        ixz="-0.0026133"
+        iyy="0.01802"
+        iyz="2.1507E-20"
+        izz="0.01311" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/left_container_jaw.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.50196 0.50196 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/left_container_jaw.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="selector_left_container_jaw_joint"
+    type="prismatic">
+    <origin
+      xyz="0.142 0.2 -0.001"
+      rpy="0 0 0" />
+    <parent
+      link="selector_frame" />
+    <child
+      link="left_container_jaw" />
+    <axis
+      xyz="0 -1 0" />
+    <limit
+      lower="-0.2"
+      upper="0.2"
+      effort="20"
+      velocity="1" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
+  </joint>
+  <link
+    name="right_container_jaw">
+    <inertial>
+      <origin
+        xyz="0.11332 0.005 -0.13866"
+        rpy="0 0 0" />
+      <mass
+        value="0.876" />
+      <inertia
+        ixx="0.0049249"
+        ixy="-1.3235E-20"
+        ixz="-0.0026133"
+        iyy="0.01802"
+        iyz="2.1507E-20"
+        izz="0.01311" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/right_container_jaw.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.50196 0.50196 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/right_container_jaw.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="selector_right_container_jaw_joint"
+    type="prismatic">
+    <origin
+      xyz="0.142 -0.2 -0.001"
+      rpy="0 0 0" />
+    <parent
+      link="selector_frame" />
+    <child
+      link="right_container_jaw" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
+    <mimic
+      joint="selector_left_container_jaw_joint"
+      multiplier="1"
+      offset="0" />
+  </joint>
+  <link
+    name="gripper">
+    <inertial>
+      <origin
+        xyz="-1.1102E-16 7.237E-18 0"
+        rpy="0 0 0" />
+      <mass
+        value="0.2432" />
+      <inertia
+        ixx="0.00015897"
+        ixy="6.5527E-21"
+        ixz="6.5559E-22"
+        iyy="0.00015897"
+        iyz="-1.8991E-21"
+        izz="0.00025941" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/gripper.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/gripper.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="selector_frame_gripper_joint"
+    type="prismatic">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="selector_frame" />
+    <child
+      link="gripper" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="-0.4"
+      upper="0.4"
+      effort="20"
+      velocity="1" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
+  </joint>
+  <link
+    name="left_gripper_magnet">
+    <inertial>
+      <origin
+        xyz="-1.1102E-16 -0.04 0"
+        rpy="0 0 0" />
+      <mass
+        value="0.2432" />
+      <inertia
+        ixx="0.00015897"
+        ixy="6.5527E-21"
+        ixz="6.5559E-22"
+        iyy="0.00015897"
+        iyz="-1.8991E-21"
+        izz="0.00025941" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/left_gripper_magnet.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/left_gripper_magnet.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="gripper_left_gripper_magnet_joint"
+    type="fixed">
+    <origin
+      xyz="0 0.04 0"
+      rpy="0 0 0" />
+    <parent
+      link="gripper" />
+    <child
+      link="left_gripper_magnet" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="right_gripper_magnet">
+    <inertial>
+      <origin
+        xyz="-1.1102E-16 0.04 0"
+        rpy="0 0 0" />
+      <mass
+        value="0.2432" />
+      <inertia
+        ixx="0.00015897"
+        ixy="6.5527E-21"
+        ixz="6.5559E-22"
+        iyy="0.00015897"
+        iyz="-1.8991E-21"
+        izz="0.00025941" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/right_gripper_magnet.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/right_gripper_magnet.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="gripper_right_gripper_magnet_joint"
+    type="fixed">
+    <origin
+      xyz="0 -0.04 0"
+      rpy="0 0 0" />
+    <parent
+      link="gripper" />
+    <child
+      link="right_gripper_magnet" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="picker_frame">
+    <inertial>
+      <origin
+        xyz="0.025 5.6E-17 0.08"
+        rpy="0 0 0" />
+      <mass
+        value="5.72" />
+      <inertia
+        ixx="0.25589"
+        ixy="-2.6522E-19"
+        ixz="2.0776E-19"
+        iyy="0.013394"
+        iyz="1.2088E-17"
+        izz="0.24488" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/picker_frame.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.50196 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/picker_frame.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="selector_frame_picker_frame_joint"
+    type="prismatic">
+    <origin
+      xyz="-0.138 0 0.144"
+      rpy="0 0 0" />
+    <parent
+      link="selector_frame" />
+    <child
+      link="picker_frame" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="0.3"
+      effort="20"
+      velocity="1" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
+  </joint>
+  <link
+    name="picker_rail">
+    <inertial>
+      <origin
+        xyz="0.145 -1.2822E-17 0.13"
+        rpy="0 0 0" />
+      <mass
+        value="0.42" />
+      <inertia
+        ixx="0.0005075"
+        ixy="6.6386E-20"
+        ixz="-2.0329E-20"
+        iyy="0.004291"
+        iyz="-7.6436E-22"
+        izz="0.0047915" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/picker_rail.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0 1 0 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/picker_rail.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="picker_frame_picker_rail_joint"
+    type="prismatic">
+    <origin
+      xyz="0.08 0 -0.075"
+      rpy="0 0 0" />
+    <parent
+      link="picker_frame" />
+    <child
+      link="picker_rail" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="-0.3"
+      upper="0.3"
+      effort="20"
+      velocity="1" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
+  </joint>
+  <link
+    name="picker_base">
+    <inertial>
+      <origin
+        xyz="0.14831 -1.0744E-17 0.11353"
+        rpy="0 0 0" />
+      <mass
+        value="0.8946" />
+      <inertia
+        ixx="0.0011775"
+        ixy="1.2692E-19"
+        ixz="-0.00020123"
+        iyy="0.01028"
+        iyz="-9.5697E-20"
+        izz="0.0112" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/picker_base.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 0 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/picker_base.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="picker_rail_picker_base_joint"
+    type="prismatic">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="picker_rail" />
+    <child
+      link="picker_base" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="0"
+      upper="0.12"
+      effort="20"
+      velocity="1" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
+  </joint>
+  <link
+    name="picker_jaw">
+    <inertial>
+      <origin
+        xyz="0.005 -5.2028E-18 0.052"
+        rpy="0 0 0" />
+      <mass
+        value="0.0212" />
+      <inertia
+        ixx="2.0557E-05"
+        ixy="4.4493E-24"
+        ixz="-1.1834E-22"
+        iyy="2.0027E-05"
+        iyz="2.6935E-21"
+        izz="8.8333E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/picker_jaw.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 0.50196 0.50196 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://manipulator_urdf/meshes/picker_jaw.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="picker_base_picker_jaw_joint"
+    type="prismatic">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="picker_base" />
+    <child
+      link="picker_jaw" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="0"
+      upper="0.2"
+      effort="20"
+      velocity="1" />
+    <dynamics
+      damping="0.1"
+      friction="0.1" />
+  </joint>
+</robot>

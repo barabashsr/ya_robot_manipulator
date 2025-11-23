@@ -5,8 +5,8 @@
     Top-level URDF for the complete robotic manipulator system
 
     This file assembles:
+    - Manipulator (base + selector + picker assemblies)
     - Storage system (cabinets + placement frames)
-    - Manipulator (TODO: to be added later)
 
     Usage:
       xacro robot.urdf.xacro > robot.urdf
@@ -16,30 +16,18 @@
   <!-- Load materials -->
   <xacro:include filename="$(find manipulator_description)/urdf/materials.xacro"/>
 
+  <!-- Load manipulator -->
+  <xacro:include filename="$(find manipulator_description)/urdf/manipulator/manipulator.urdf.xacro"/>
+
   <!-- Load storage system -->
   <xacro:include filename="$(find manipulator_description)/urdf/storage_system.urdf.xacro"/>
 
   <!-- World link (reference frame) -->
   <link name="world"/>
 
-  <!-- Base link (manipulator base, origin of our coordinate system) -->
-  <link name="base_link">
-    <visual>
-      <geometry>
-        <cylinder radius="0.1" length="0.05"/>
-      </geometry>
-      <material name="manipulator_dark_grey"/>
-    </visual>
-    <collision>
-      <geometry>
-        <cylinder radius="0.1" length="0.05"/>
-      </geometry>
-    </collision>
-    <inertial>
-      <mass value="10.0"/>
-      <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
-    </inertial>
-  </link>
+  <!-- Instantiate manipulator (creates base_link and entire manipulator tree) -->
+  <xacro:manipulator
+    config_file="$(find manipulator_description)/config/manipulator_params.yaml"/>
 
   <!-- Fixed joint: world -> base_link -->
   <joint name="world_to_base" type="fixed">
@@ -48,13 +36,9 @@
     <origin xyz="0 0 0" rpy="0 0 0"/>
   </joint>
 
-  <!-- Storage system -->
+  <!-- Storage system (attached to world) -->
   <xacro:storage_system
-    parent_link="base_link"
+    parent_link="world"
     config_file="$(find manipulator_description)/config/storage_params.yaml"/>
-
-  <!-- TODO: Manipulator will be added here later -->
-  <!-- <xacro:include filename="$(find manipulator_description)/urdf/manipulator.urdf.xacro"/> -->
-  <!-- <xacro:manipulator parent_link="base_link"/> -->
 
 </robot>

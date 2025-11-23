@@ -1,0 +1,300 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!--
+    Picker Assembly Xacro
+
+    Contains:
+      - picker_frame (vertical Z-axis frame for picker)
+      - picker_rail (Y-axis rail)
+      - picker_base (X-axis slider)
+      - picker_jaw (gripper extension)
+
+    Parameters loaded from: config/manipulator_params.yaml
+  -->
+
+  <xacro:macro name="picker_assembly" params="parent_link config_file">
+
+    <!-- Load parameters from YAML -->
+    <xacro:property name="params" value="${xacro.load_yaml(config_file)}"/>
+    <xacro:property name="picker" value="${params['picker_assembly']}"/>
+
+    <!-- ================================================================ -->
+    <!-- PICKER FRAME (Vertical Z-axis frame) -->
+    <!-- ================================================================ -->
+    <link name="picker_frame">
+      <!-- Visual -->
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="${picker['picker_frame']['mesh']}"/>
+        </geometry>
+        <material name="picker_frame_color">
+          <color rgba="${picker['picker_frame']['color'][0]} ${picker['picker_frame']['color'][1]} ${picker['picker_frame']['color'][2]} ${picker['picker_frame']['color'][3]}"/>
+        </material>
+      </visual>
+
+      <!-- Collision -->
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="${picker['picker_frame']['mesh']}"/>
+        </geometry>
+      </collision>
+
+      <!-- Inertial -->
+      <inertial>
+        <origin
+          xyz="${picker['picker_frame']['inertial']['origin']['xyz'][0]}
+               ${picker['picker_frame']['inertial']['origin']['xyz'][1]}
+               ${picker['picker_frame']['inertial']['origin']['xyz'][2]}"
+          rpy="${picker['picker_frame']['inertial']['origin']['rpy'][0]}
+               ${picker['picker_frame']['inertial']['origin']['rpy'][1]}
+               ${picker['picker_frame']['inertial']['origin']['rpy'][2]}"/>
+        <mass value="${picker['picker_frame']['inertial']['mass']}"/>
+        <inertia
+          ixx="${picker['picker_frame']['inertial']['inertia']['ixx']}"
+          ixy="${picker['picker_frame']['inertial']['inertia']['ixy']}"
+          ixz="${picker['picker_frame']['inertial']['inertia']['ixz']}"
+          iyy="${picker['picker_frame']['inertial']['inertia']['iyy']}"
+          iyz="${picker['picker_frame']['inertial']['inertia']['iyz']}"
+          izz="${picker['picker_frame']['inertial']['inertia']['izz']}"/>
+      </inertial>
+    </link>
+
+    <!-- ================================================================ -->
+    <!-- JOINT: selector_frame -> picker_frame (Z-axis vertical) -->
+    <!-- ================================================================ -->
+    <joint name="selector_frame_picker_frame_joint" type="${picker['selector_frame_picker_frame_joint']['type']}">
+      <origin
+        xyz="${picker['selector_frame_picker_frame_joint']['origin']['xyz'][0]}
+             ${picker['selector_frame_picker_frame_joint']['origin']['xyz'][1]}
+             ${picker['selector_frame_picker_frame_joint']['origin']['xyz'][2]}"
+        rpy="${picker['selector_frame_picker_frame_joint']['origin']['rpy'][0]}
+             ${picker['selector_frame_picker_frame_joint']['origin']['rpy'][1]}
+             ${picker['selector_frame_picker_frame_joint']['origin']['rpy'][2]}"/>
+      <parent link="${parent_link}"/>
+      <child link="picker_frame"/>
+      <axis xyz="${picker['selector_frame_picker_frame_joint']['axis'][0]}
+                 ${picker['selector_frame_picker_frame_joint']['axis'][1]}
+                 ${picker['selector_frame_picker_frame_joint']['axis'][2]}"/>
+      <limit
+        lower="${picker['selector_frame_picker_frame_joint']['limits']['lower']}"
+        upper="${picker['selector_frame_picker_frame_joint']['limits']['upper']}"
+        effort="${picker['selector_frame_picker_frame_joint']['limits']['effort']}"
+        velocity="${picker['selector_frame_picker_frame_joint']['limits']['velocity']}"/>
+      <dynamics
+        damping="${picker['selector_frame_picker_frame_joint']['dynamics']['damping']}"
+        friction="${picker['selector_frame_picker_frame_joint']['dynamics']['friction']}"/>
+    </joint>
+
+    <!-- ================================================================ -->
+    <!-- PICKER RAIL (Y-axis rail) -->
+    <!-- ================================================================ -->
+    <link name="picker_rail">
+      <!-- Visual -->
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="${picker['picker_rail']['mesh']}"/>
+        </geometry>
+        <material name="picker_rail_color">
+          <color rgba="${picker['picker_rail']['color'][0]} ${picker['picker_rail']['color'][1]} ${picker['picker_rail']['color'][2]} ${picker['picker_rail']['color'][3]}"/>
+        </material>
+      </visual>
+
+      <!-- Collision -->
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="${picker['picker_rail']['mesh']}"/>
+        </geometry>
+      </collision>
+
+      <!-- Inertial -->
+      <inertial>
+        <origin
+          xyz="${picker['picker_rail']['inertial']['origin']['xyz'][0]}
+               ${picker['picker_rail']['inertial']['origin']['xyz'][1]}
+               ${picker['picker_rail']['inertial']['origin']['xyz'][2]}"
+          rpy="${picker['picker_rail']['inertial']['origin']['rpy'][0]}
+               ${picker['picker_rail']['inertial']['origin']['rpy'][1]}
+               ${picker['picker_rail']['inertial']['origin']['rpy'][2]}"/>
+        <mass value="${picker['picker_rail']['inertial']['mass']}"/>
+        <inertia
+          ixx="${picker['picker_rail']['inertial']['inertia']['ixx']}"
+          ixy="${picker['picker_rail']['inertial']['inertia']['ixy']}"
+          ixz="${picker['picker_rail']['inertial']['inertia']['ixz']}"
+          iyy="${picker['picker_rail']['inertial']['inertia']['iyy']}"
+          iyz="${picker['picker_rail']['inertial']['inertia']['iyz']}"
+          izz="${picker['picker_rail']['inertial']['inertia']['izz']}"/>
+      </inertial>
+    </link>
+
+    <!-- ================================================================ -->
+    <!-- JOINT: picker_frame -> picker_rail (Y-axis) -->
+    <!-- ================================================================ -->
+    <joint name="picker_frame_picker_rail_joint" type="${picker['picker_frame_picker_rail_joint']['type']}">
+      <origin
+        xyz="${picker['picker_frame_picker_rail_joint']['origin']['xyz'][0]}
+             ${picker['picker_frame_picker_rail_joint']['origin']['xyz'][1]}
+             ${picker['picker_frame_picker_rail_joint']['origin']['xyz'][2]}"
+        rpy="${picker['picker_frame_picker_rail_joint']['origin']['rpy'][0]}
+             ${picker['picker_frame_picker_rail_joint']['origin']['rpy'][1]}
+             ${picker['picker_frame_picker_rail_joint']['origin']['rpy'][2]}"/>
+      <parent link="picker_frame"/>
+      <child link="picker_rail"/>
+      <axis xyz="${picker['picker_frame_picker_rail_joint']['axis'][0]}
+                 ${picker['picker_frame_picker_rail_joint']['axis'][1]}
+                 ${picker['picker_frame_picker_rail_joint']['axis'][2]}"/>
+      <limit
+        lower="${picker['picker_frame_picker_rail_joint']['limits']['lower']}"
+        upper="${picker['picker_frame_picker_rail_joint']['limits']['upper']}"
+        effort="${picker['picker_frame_picker_rail_joint']['limits']['effort']}"
+        velocity="${picker['picker_frame_picker_rail_joint']['limits']['velocity']}"/>
+      <dynamics
+        damping="${picker['picker_frame_picker_rail_joint']['dynamics']['damping']}"
+        friction="${picker['picker_frame_picker_rail_joint']['dynamics']['friction']}"/>
+    </joint>
+
+    <!-- ================================================================ -->
+    <!-- PICKER BASE (X-axis slider) -->
+    <!-- ================================================================ -->
+    <link name="picker_base">
+      <!-- Visual -->
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="${picker['picker_base']['mesh']}"/>
+        </geometry>
+        <material name="picker_base_color">
+          <color rgba="${picker['picker_base']['color'][0]} ${picker['picker_base']['color'][1]} ${picker['picker_base']['color'][2]} ${picker['picker_base']['color'][3]}"/>
+        </material>
+      </visual>
+
+      <!-- Collision -->
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="${picker['picker_base']['mesh']}"/>
+        </geometry>
+      </collision>
+
+      <!-- Inertial -->
+      <inertial>
+        <origin
+          xyz="${picker['picker_base']['inertial']['origin']['xyz'][0]}
+               ${picker['picker_base']['inertial']['origin']['xyz'][1]}
+               ${picker['picker_base']['inertial']['origin']['xyz'][2]}"
+          rpy="${picker['picker_base']['inertial']['origin']['rpy'][0]}
+               ${picker['picker_base']['inertial']['origin']['rpy'][1]}
+               ${picker['picker_base']['inertial']['origin']['rpy'][2]}"/>
+        <mass value="${picker['picker_base']['inertial']['mass']}"/>
+        <inertia
+          ixx="${picker['picker_base']['inertial']['inertia']['ixx']}"
+          ixy="${picker['picker_base']['inertial']['inertia']['ixy']}"
+          ixz="${picker['picker_base']['inertial']['inertia']['ixz']}"
+          iyy="${picker['picker_base']['inertial']['inertia']['iyy']}"
+          iyz="${picker['picker_base']['inertial']['inertia']['iyz']}"
+          izz="${picker['picker_base']['inertial']['inertia']['izz']}"/>
+      </inertial>
+    </link>
+
+    <!-- ================================================================ -->
+    <!-- JOINT: picker_rail -> picker_base (X-axis) -->
+    <!-- ================================================================ -->
+    <joint name="picker_rail_picker_base_joint" type="${picker['picker_rail_picker_base_joint']['type']}">
+      <origin
+        xyz="${picker['picker_rail_picker_base_joint']['origin']['xyz'][0]}
+             ${picker['picker_rail_picker_base_joint']['origin']['xyz'][1]}
+             ${picker['picker_rail_picker_base_joint']['origin']['xyz'][2]}"
+        rpy="${picker['picker_rail_picker_base_joint']['origin']['rpy'][0]}
+             ${picker['picker_rail_picker_base_joint']['origin']['rpy'][1]}
+             ${picker['picker_rail_picker_base_joint']['origin']['rpy'][2]}"/>
+      <parent link="picker_rail"/>
+      <child link="picker_base"/>
+      <axis xyz="${picker['picker_rail_picker_base_joint']['axis'][0]}
+                 ${picker['picker_rail_picker_base_joint']['axis'][1]}
+                 ${picker['picker_rail_picker_base_joint']['axis'][2]}"/>
+      <limit
+        lower="${picker['picker_rail_picker_base_joint']['limits']['lower']}"
+        upper="${picker['picker_rail_picker_base_joint']['limits']['upper']}"
+        effort="${picker['picker_rail_picker_base_joint']['limits']['effort']}"
+        velocity="${picker['picker_rail_picker_base_joint']['limits']['velocity']}"/>
+      <dynamics
+        damping="${picker['picker_rail_picker_base_joint']['dynamics']['damping']}"
+        friction="${picker['picker_rail_picker_base_joint']['dynamics']['friction']}"/>
+    </joint>
+
+    <!-- ================================================================ -->
+    <!-- PICKER JAW (Gripper extension) -->
+    <!-- ================================================================ -->
+    <link name="picker_jaw">
+      <!-- Visual -->
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="${picker['picker_jaw']['mesh']}"/>
+        </geometry>
+        <material name="picker_jaw_color">
+          <color rgba="${picker['picker_jaw']['color'][0]} ${picker['picker_jaw']['color'][1]} ${picker['picker_jaw']['color'][2]} ${picker['picker_jaw']['color'][3]}"/>
+        </material>
+      </visual>
+
+      <!-- Collision -->
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="${picker['picker_jaw']['mesh']}"/>
+        </geometry>
+      </collision>
+
+      <!-- Inertial -->
+      <inertial>
+        <origin
+          xyz="${picker['picker_jaw']['inertial']['origin']['xyz'][0]}
+               ${picker['picker_jaw']['inertial']['origin']['xyz'][1]}
+               ${picker['picker_jaw']['inertial']['origin']['xyz'][2]}"
+          rpy="${picker['picker_jaw']['inertial']['origin']['rpy'][0]}
+               ${picker['picker_jaw']['inertial']['origin']['rpy'][1]}
+               ${picker['picker_jaw']['inertial']['origin']['rpy'][2]}"/>
+        <mass value="${picker['picker_jaw']['inertial']['mass']}"/>
+        <inertia
+          ixx="${picker['picker_jaw']['inertial']['inertia']['ixx']}"
+          ixy="${picker['picker_jaw']['inertial']['inertia']['ixy']}"
+          ixz="${picker['picker_jaw']['inertial']['inertia']['ixz']}"
+          iyy="${picker['picker_jaw']['inertial']['inertia']['iyy']}"
+          iyz="${picker['picker_jaw']['inertial']['inertia']['iyz']}"
+          izz="${picker['picker_jaw']['inertial']['inertia']['izz']}"/>
+      </inertial>
+    </link>
+
+    <!-- ================================================================ -->
+    <!-- JOINT: picker_base -> picker_jaw (X-axis extension) -->
+    <!-- ================================================================ -->
+    <joint name="picker_base_picker_jaw_joint" type="${picker['picker_base_picker_jaw_joint']['type']}">
+      <origin
+        xyz="${picker['picker_base_picker_jaw_joint']['origin']['xyz'][0]}
+             ${picker['picker_base_picker_jaw_joint']['origin']['xyz'][1]}
+             ${picker['picker_base_picker_jaw_joint']['origin']['xyz'][2]}"
+        rpy="${picker['picker_base_picker_jaw_joint']['origin']['rpy'][0]}
+             ${picker['picker_base_picker_jaw_joint']['origin']['rpy'][1]}
+             ${picker['picker_base_picker_jaw_joint']['origin']['rpy'][2]}"/>
+      <parent link="picker_base"/>
+      <child link="picker_jaw"/>
+      <axis xyz="${picker['picker_base_picker_jaw_joint']['axis'][0]}
+                 ${picker['picker_base_picker_jaw_joint']['axis'][1]}
+                 ${picker['picker_base_picker_jaw_joint']['axis'][2]}"/>
+      <limit
+        lower="${picker['picker_base_picker_jaw_joint']['limits']['lower']}"
+        upper="${picker['picker_base_picker_jaw_joint']['limits']['upper']}"
+        effort="${picker['picker_base_picker_jaw_joint']['limits']['effort']}"
+        velocity="${picker['picker_base_picker_jaw_joint']['limits']['velocity']}"/>
+      <dynamics
+        damping="${picker['picker_base_picker_jaw_joint']['dynamics']['damping']}"
+        friction="${picker['picker_base_picker_jaw_joint']['dynamics']['friction']}"/>
+    </joint>
+
+  </xacro:macro>
+
+</robot>
