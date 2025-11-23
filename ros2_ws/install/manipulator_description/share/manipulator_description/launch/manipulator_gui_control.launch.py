@@ -1,0 +1,1 @@
+/home/robo/robo/ya_robot_manipulator/ros2_ws/src/manipulator_description/launch/manipulator_gui_control.launch.py

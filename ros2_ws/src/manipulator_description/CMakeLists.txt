@@ -12,8 +12,14 @@ find_package(xacro REQUIRED)
 
 # Install directories
 install(
-  DIRECTORY urdf config launch meshes rviz
+  DIRECTORY urdf config launch meshes rviz docs
   DESTINATION share/${PROJECT_NAME}
+)
+
+# Install scripts
+install(
+  PROGRAMS scripts/joy_control.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 if(BUILD_TESTING)

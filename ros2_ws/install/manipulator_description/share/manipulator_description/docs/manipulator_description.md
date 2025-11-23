@@ -1,0 +1,1 @@
+/home/robo/robo/ya_robot_manipulator/ros2_ws/src/manipulator_description/docs/manipulator_description.md
