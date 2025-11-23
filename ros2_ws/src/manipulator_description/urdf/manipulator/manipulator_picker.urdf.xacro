@@ -27,7 +27,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/picker_frame.STL"/>
+          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/${picker['picker_frame']['mesh']}"/>
         </geometry>
         <material name="picker_frame_color">
           <color rgba="${picker['picker_frame']['color'][0]} ${picker['picker_frame']['color'][1]} ${picker['picker_frame']['color'][2]} ${picker['picker_frame']['color'][3]}"/>
@@ -38,7 +38,7 @@
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/picker_frame.STL"/>
+          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/${picker['picker_frame']['mesh']}"/>
         </geometry>
       </collision>
 
@@ -96,7 +96,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/picker_rail.STL"/>
+          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/${picker['picker_rail']['mesh']}"/>
         </geometry>
         <material name="picker_rail_color">
           <color rgba="${picker['picker_rail']['color'][0]} ${picker['picker_rail']['color'][1]} ${picker['picker_rail']['color'][2]} ${picker['picker_rail']['color'][3]}"/>
@@ -107,7 +107,7 @@
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/picker_rail.STL"/>
+          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/${picker['picker_rail']['mesh']}"/>
         </geometry>
       </collision>
 
@@ -165,7 +165,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/picker_base.STL"/>
+          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/${picker['picker_base']['mesh']}"/>
         </geometry>
         <material name="picker_base_color">
           <color rgba="${picker['picker_base']['color'][0]} ${picker['picker_base']['color'][1]} ${picker['picker_base']['color'][2]} ${picker['picker_base']['color'][3]}"/>
@@ -176,7 +176,7 @@
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/picker_base.STL"/>
+          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/${picker['picker_base']['mesh']}"/>
         </geometry>
       </collision>
 
@@ -234,7 +234,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/picker_jaw.STL"/>
+          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/${picker['picker_jaw']['mesh']}"/>
         </geometry>
         <material name="picker_jaw_color">
           <color rgba="${picker['picker_jaw']['color'][0]} ${picker['picker_jaw']['color'][1]} ${picker['picker_jaw']['color'][2]} ${picker['picker_jaw']['color'][3]}"/>
@@ -245,7 +245,7 @@
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/picker_jaw.STL"/>
+          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/${picker['picker_jaw']['mesh']}"/>
         </geometry>
       </collision>
 

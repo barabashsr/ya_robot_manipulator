@@ -26,7 +26,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/base_link.STL"/>
+          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/${base['base_link']['mesh']}"/>
         </geometry>
         <material name="base_link_color">
           <color rgba="${base['base_link']['color'][0]} ${base['base_link']['color'][1]} ${base['base_link']['color'][2]} ${base['base_link']['color'][3]}"/>
@@ -37,7 +37,7 @@
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/base_link.STL"/>
+          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/${base['base_link']['mesh']}"/>
         </geometry>
       </collision>
 
@@ -69,7 +69,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/main_frame.STL"/>
+          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/${base['main_frame']['mesh']}"/>
         </geometry>
         <material name="main_frame_color">
           <color rgba="${base['main_frame']['color'][0]} ${base['main_frame']['color'][1]} ${base['main_frame']['color'][2]} ${base['main_frame']['color'][3]}"/>
@@ -80,7 +80,7 @@
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/main_frame.STL"/>
+          <mesh filename="file://$(find manipulator_description)/meshes/manipulator/${base['main_frame']['mesh']}"/>
         </geometry>
       </collision>
 

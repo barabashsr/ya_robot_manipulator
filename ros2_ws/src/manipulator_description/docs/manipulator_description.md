@@ -135,9 +135,25 @@ The launch file includes a clock bridge (`ros_gz_bridge`) to synchronize Gazebo 
 
 ### Mesh Visualization
 
-- **RViz**: Uses `package://` URIs (works natively)
-- **Gazebo**: Uses `<gazebo>` tags with `package://` URIs for visualization
+- **Mesh Configuration**: All mesh filenames are configurable via `config/manipulator_params.yaml`
+- **Path Construction**: Xacro files construct the full path as `file://$(find manipulator_description)/meshes/manipulator/${mesh_filename}`
+- **YAML Format**: Store only the filename (e.g., `mesh: "base_link.STL"`)
+- **Full Path**: Automatically resolved to `file://$(find manipulator_description)/meshes/manipulator/base_link.STL`
 - Meshes located in: `meshes/manipulator/*.STL`
+
+**Example YAML configuration**:
+```yaml
+base_assembly:
+  base_link:
+    mesh: "base_link.STL"  # Just the filename
+    color: [0.79216, 0.81961, 0.93333, 1.0]
+    # ... other parameters
+```
+
+**How it works**:
+- The xacro macro reads the mesh filename from YAML
+- Constructs the full URI: `file://$(find manipulator_description)/meshes/manipulator/${mesh_filename}`
+- This format works for both RViz and Gazebo
 
 ### Mimic Joint Limitation
 
