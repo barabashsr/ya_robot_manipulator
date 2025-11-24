@@ -11,7 +11,7 @@ License: MIT
 
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Joy, JointState
+from sensor_msgs.msg import Joy
 from std_msgs.msg import Float64MultiArray
 from rcl_interfaces.msg import ParameterDescriptor
 import yaml
@@ -43,16 +43,12 @@ class ConfigurableJoyController(Node):
         self.enabled = False
         self.turbo_enabled = False
         self.last_joy = None
-        self.ever_enabled = False  # Track if control was ever enabled
-        self.joint_states_received = False  # Track if we got initial joint states
 
         # Joint positions (current targets)
         self.positions = {}
-        self.positions_initialized = {}  # Track which joints have been moved by user
         self.axis_mappings = {}
         self.button_actions = {}
         self.joint_publishers_dict = {}
-        self.joint_name_to_mapping = {}  # Map joint names to our mapping names
 
         # Load configuration
         self._load_axis_mappings()
@@ -60,14 +56,6 @@ class ConfigurableJoyController(Node):
 
         # Create publishers for each mapped controller
         self._create_publishers()
-
-        # Subscribe to joint states to get initial positions
-        self.joint_state_sub = self.create_subscription(
-            JointState,
-            '/joint_states',
-            self.joint_state_callback,
-            10
-        )
 
         # Subscribe to joystick
         self.joy_sub = self.create_subscription(
@@ -131,21 +119,9 @@ class ConfigurableJoyController(Node):
                             'control_mode': self.get_parameter(f'axis_mappings.{name}.control_mode').value,
                         }
 
-                        # Map joint name to our mapping name (extract joint name from topic)
-                        # Topic format: /{joint_name}_joint_controller/commands
-                        joint_name = topic.replace('/', '').replace('_joint_controller/commands', '')
-                        self.joint_name_to_mapping[joint_name] = name
-
-                        # Initialize position at safe default (will be overwritten by joint_states)
+                        # Initialize position at midpoint or min
                         limits = self.axis_mappings[name]['limits']
-                        # For vertical joints, start at a safe position above 0
-                        if name in ['main_frame_selector_frame', 'selector_frame_picker_frame']:
-                            self.positions[name] = 0.05  # Safe starting height
-                        else:
-                            self.positions[name] = limits[0] if limits[0] >= 0 else (limits[0] + limits[1]) / 2.0
-
-                        # Mark as not initialized - won't publish until user moves this axis
-                        self.positions_initialized[name] = False
+                        self.positions[name] = limits[0] if limits[0] >= 0 else (limits[0] + limits[1]) / 2.0
 
                         self.get_logger().info(f'Loaded axis mapping: {name} -> {topic} (axis {axis_idx})')
 
@@ -238,34 +214,7 @@ class ConfigurableJoyController(Node):
                         'velocity_scale': 0.2,
                         'limits': limits,
                     }
-                    # Mark as not initialized
-                    self.positions_initialized[joint] = False
                 self.get_logger().info(f'Created publisher for button-controlled joint: {joint}')
-
-    def joint_state_callback(self, msg):
-        """Update positions from actual joint states"""
-        if not self.joint_states_received:
-            # First time receiving joint states - initialize positions from actual robot state
-            for i, joint_name in enumerate(msg.name):
-                # joint_name comes as "main_frame_selector_frame_joint"
-                # our mapping names are "main_frame_selector_frame" (without _joint suffix)
-                mapping_name = joint_name.replace('_joint', '')
-
-                # Check if this is in our axis mappings
-                if mapping_name in self.axis_mappings:
-                    self.positions[mapping_name] = msg.position[i]
-                    self.get_logger().info(f'Initialized {mapping_name} from joint_states: {msg.position[i]:.3f}')
-
-                # Also check button-controlled joints (they use different naming)
-                # Button joints are stored like "selector_left_container_jaw" without "_joint"
-                for joint_key in self.positions.keys():
-                    if joint_name == f'{joint_key}_joint':
-                        self.positions[joint_key] = msg.position[i]
-                        self.get_logger().info(f'Initialized {joint_key} from joint_states: {msg.position[i]:.3f}')
-                        break
-
-            self.joint_states_received = True
-            self.get_logger().info('Initial joint positions loaded from joint_states')
 
     def apply_deadzone(self, value, axis_index=-1):
         """Apply deadzone to axis value"""
@@ -294,9 +243,6 @@ class ConfigurableJoyController(Node):
         # Check enable button
         if len(msg.buttons) > self.enable_button:
             self.enabled = msg.buttons[self.enable_button] == 1
-            if self.enabled and not self.ever_enabled:
-                self.ever_enabled = True
-                self.get_logger().info('Control enabled for the first time - starting to publish commands')
 
         # Check turbo button
         if len(msg.buttons) > self.enable_turbo_button:
@@ -320,45 +266,38 @@ class ConfigurableJoyController(Node):
                 raw_value = msg.axes[axis_idx]
                 axis_value = self.apply_deadzone(raw_value, axis_idx)
 
-                # Only process if user is actually moving this axis
-                if abs(axis_value) > 0.01:
-                    # Mark as initialized on first movement
-                    if not self.positions_initialized.get(name, False):
-                        self.positions_initialized[name] = True
-                        self.get_logger().info(f'Joint {name} activated by user input')
+                # Debug D-Pad and problem axes
+                if axis_idx in [6, 7] and abs(raw_value) > 0.1:
+                    self.get_logger().info(f'{name}: axis[{axis_idx}] raw={raw_value:.2f} filtered={axis_value:.2f}')
 
-                    # Debug D-Pad and problem axes
-                    if axis_idx in [6, 7] and abs(raw_value) > 0.1:
-                        self.get_logger().info(f'{name}: axis[{axis_idx}] raw={raw_value:.2f} filtered={axis_value:.2f}')
+                # Check control mode
+                control_mode = mapping.get('control_mode', 'velocity')
+                limits = mapping['limits']
 
-                    # Check control mode
-                    control_mode = mapping.get('control_mode', 'velocity')
-                    limits = mapping['limits']
-
-                    if control_mode == 'position':
-                        # Position mode: axis value maps directly to position
-                        # For triggers (axis 2, 5): remap from [+1.0 rest, -1.0 pressed] to joint limits
-                        if axis_idx in [2, 5]:  # L2, R2 triggers
-                            # Trigger: +1.0 (released/closed) to -1.0 (pressed/open)
-                            # Apply scale first to handle direction
-                            scaled_value = axis_value * mapping['axis_scale']
-                            # Map [-scale, +scale] to [limits[0], limits[1]]
-                            # When axis*scale = +scale: position = limits[1]
-                            # When axis*scale = -scale: position = limits[0]
-                            normalized = (scaled_value + abs(mapping['axis_scale'])) / (2.0 * abs(mapping['axis_scale']))
-                            position_range = limits[1] - limits[0]
-                            self.positions[name] = limits[0] + normalized * position_range
-                        else:
-                            # Normal axis: map [-1, 1] to limits and apply scale
-                            self.positions[name] = axis_value * mapping['axis_scale']
-                        self.positions[name] = self.clamp(self.positions[name], limits[0], limits[1])
+                if control_mode == 'position':
+                    # Position mode: axis value maps directly to position
+                    # For triggers (axis 2, 5): remap from [+1.0 rest, -1.0 pressed] to joint limits
+                    if axis_idx in [2, 5]:  # L2, R2 triggers
+                        # Trigger: +1.0 (released/closed) to -1.0 (pressed/open)
+                        # Apply scale first to handle direction
+                        scaled_value = axis_value * mapping['axis_scale']
+                        # Map [-scale, +scale] to [limits[0], limits[1]]
+                        # When axis*scale = +scale: position = limits[1]
+                        # When axis*scale = -scale: position = limits[0]
+                        normalized = (scaled_value + abs(mapping['axis_scale'])) / (2.0 * abs(mapping['axis_scale']))
+                        position_range = limits[1] - limits[0]
+                        self.positions[name] = limits[0] + normalized * position_range
                     else:
-                        # Velocity mode: axis value controls velocity
-                        axis_value *= mapping['axis_scale']
-                        # Velocity mode: axis value controls velocity
-                        velocity = axis_value * mapping['velocity_scale'] * self.scale_linear * turbo_mult
-                        self.positions[name] += velocity * dt
-                        self.positions[name] = self.clamp(self.positions[name], limits[0], limits[1])
+                        # Normal axis: map [-1, 1] to limits and apply scale
+                        self.positions[name] = axis_value * mapping['axis_scale']
+                    self.positions[name] = self.clamp(self.positions[name], limits[0], limits[1])
+                else:
+                    # Velocity mode: axis value controls velocity
+                    axis_value *= mapping['axis_scale']
+                    # Velocity mode: axis value controls velocity
+                    velocity = axis_value * mapping['velocity_scale'] * self.scale_linear * turbo_mult
+                    self.positions[name] += velocity * dt
+                    self.positions[name] = self.clamp(self.positions[name], limits[0], limits[1])
 
         # Process button actions
         for action_name, action in self.button_actions.items():
@@ -378,11 +317,6 @@ class ConfigurableJoyController(Node):
                     if button_pressed and action['joint']:
                         joint_name = action['joint']
                         target = action['target_position']
-
-                        # Mark as initialized on first button press
-                        if not self.positions_initialized.get(joint_name, False):
-                            self.positions_initialized[joint_name] = True
-                            self.get_logger().info(f'Joint {joint_name} activated by button')
 
                         # Move towards target
                         if joint_name in self.positions:
@@ -410,20 +344,11 @@ class ConfigurableJoyController(Node):
 
     def publish_commands(self):
         """Publish current target positions to all controllers"""
-        # Don't publish anything until we have initial joint states
-        if not self.joint_states_received:
-            return  # Wait for joint states first
-
-        # Don't publish anything until control has been enabled at least once
-        if not self.ever_enabled:
-            return  # Wait for first enable
-
         if self.last_joy is None or not self.enabled:
             return  # Wait for joystick and enable
 
-        # Only publish commands for joints that have been explicitly moved by the user
         for name, position in self.positions.items():
-            if name in self.joint_publishers_dict and self.positions_initialized.get(name, False):
+            if name in self.joint_publishers_dict:
                 msg = Float64MultiArray()
                 msg.data = [position]
                 self.joint_publishers_dict[name].publish(msg)
