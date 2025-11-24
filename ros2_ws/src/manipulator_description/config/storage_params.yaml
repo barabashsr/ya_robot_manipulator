@@ -19,7 +19,7 @@ cabinet_rows:
     offset:
       x: 0.0    # Start position along rail
       y: 0.4    # Distance from manipulator base_link
-      z: 0.0    # Base height
+      z: 0.6    # Base height
     cabinets:
       - size: "4x10x10"
       - size: "4x10x10"
@@ -30,7 +30,7 @@ cabinet_rows:
     offset:
       x: 0.0
       y: -0.4   # Opposite side from base_link
-      z: 0.0
+      z: 0.6
     cabinets:
       - size: "5x12x14"
       - size: "5x8x14"
