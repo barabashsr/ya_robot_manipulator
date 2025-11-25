@@ -1,6 +1,6 @@
 # Story 1.1: Create ROS2 Package Structure
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -20,39 +20,39 @@ so that **I can define interfaces and implement control logic in subsequent stor
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create package directory structure (AC: 1, 2)
-  - [ ] 1.1 Create `ros2_ws/src/manipulator_control/` directory
-  - [ ] 1.2 Create subdirectories: `action/`, `srv/`, `msg/`, `src/`, `launch/`, `config/`, `test/`
-  - [ ] 1.3 Create placeholder `.gitkeep` files in empty directories
+- [x] Task 1: Create package directory structure (AC: 1, 2)
+  - [x] 1.1 Create `ros2_ws/src/manipulator_control/` directory
+  - [x] 1.2 Create subdirectories: `action/`, `srv/`, `msg/`, `src/`, `launch/`, `config/`, `test/`
+  - [x] 1.3 Create placeholder `.gitkeep` files in empty directories
 
-- [ ] Task 2: Create CMakeLists.txt (AC: 3, 7)
-  - [ ] 2.1 Configure cmake_minimum_required and project
-  - [ ] 2.2 Add find_package for all dependencies
-  - [ ] 2.3 Configure rosidl_generate_interfaces (empty for now, will add interfaces in Story 1.2/1.3)
-  - [ ] 2.4 Add ament_export_dependencies
-  - [ ] 2.5 Add ament_package() call
+- [x] Task 2: Create CMakeLists.txt (AC: 3, 7)
+  - [x] 2.1 Configure cmake_minimum_required and project
+  - [x] 2.2 Add find_package for all dependencies
+  - [x] 2.3 Configure rosidl_generate_interfaces (empty for now, will add interfaces in Story 1.2/1.3)
+  - [x] 2.4 Add ament_export_dependencies
+  - [x] 2.5 Add ament_package() call
 
-- [ ] Task 3: Create package.xml (AC: 4, 7)
-  - [ ] 3.1 Define package metadata (name, version, description, maintainer, license)
-  - [ ] 3.2 Add buildtool_depend: ament_cmake, ament_cmake_python
-  - [ ] 3.3 Add depend: rclcpp, rclpy, std_msgs, geometry_msgs, sensor_msgs, std_srvs, action_msgs
-  - [ ] 3.4 Add depend: tf2, tf2_ros, tf2_geometry_msgs
-  - [ ] 3.5 Add depend: controller_manager, controller_interface, ros2_control, ros2_controllers
-  - [ ] 3.6 Add depend: ros_gz_bridge, ros_gz_interfaces, ros_gz_sim
-  - [ ] 3.7 Add rosidl_default_generators (buildtool), rosidl_default_runtime (exec)
-  - [ ] 3.8 Add member_of_group rosidl_interface_packages
-  - [ ] 3.9 Add test_depend: ament_lint_auto, ament_lint_common
+- [x] Task 3: Create package.xml (AC: 4, 7)
+  - [x] 3.1 Define package metadata (name, version, description, maintainer, license)
+  - [x] 3.2 Add buildtool_depend: ament_cmake, ament_cmake_python
+  - [x] 3.3 Add depend: rclcpp, rclpy, std_msgs, geometry_msgs, sensor_msgs, std_srvs, action_msgs
+  - [x] 3.4 Add depend: tf2, tf2_ros, tf2_geometry_msgs
+  - [x] 3.5 Add depend: controller_manager, controller_interface, ros2_controllers (ros2_control removed - not available as package)
+  - [x] 3.6 Add depend: ros_gz_bridge, ros_gz_interfaces, ros_gz_sim
+  - [x] 3.7 Add rosidl_default_generators (buildtool), rosidl_default_runtime (exec)
+  - [x] 3.8 Add member_of_group rosidl_interface_packages
+  - [x] 3.9 Add test_depend: ament_lint_auto, ament_lint_common
 
-- [ ] Task 4: Create README.md (AC: 5)
-  - [ ] 4.1 Write package description and purpose
-  - [ ] 4.2 Document directory structure
-  - [ ] 4.3 Add build instructions
-  - [ ] 4.4 Add interface usage examples (placeholder for future)
+- [x] Task 4: Create README.md (AC: 5)
+  - [x] 4.1 Write package description and purpose
+  - [x] 4.2 Document directory structure
+  - [x] 4.3 Add build instructions
+  - [x] 4.4 Add interface usage examples (placeholder for future)
 
-- [ ] Task 5: Validate build (AC: 6)
-  - [ ] 5.1 Run `colcon build --packages-select manipulator_control`
-  - [ ] 5.2 Verify exit code 0
-  - [ ] 5.3 Verify no errors or warnings in output
+- [x] Task 5: Validate build (AC: 6)
+  - [x] 5.1 Run `colcon build --packages-select manipulator_control`
+  - [x] 5.2 Verify exit code 0
+  - [x] 5.3 Verify no errors or warnings in output
 
 ## Dev Notes
 
@@ -108,12 +108,48 @@ Claude Opus 4 (claude-opus-4-5-20251101)
 
 ### Debug Log References
 
+**Implementation Plan:**
+1. Created package directory at ros2_ws/src/manipulator_control/
+2. Created subdirs: action/, srv/, msg/, src/, launch/, config/, test/
+3. Added .gitkeep files to empty dirs
+4. Wrote CMakeLists.txt with ament_cmake + rosidl config (commented interface generation for Story 1.2/1.3)
+5. Wrote package.xml with all dependencies from tech-spec-epic-1.md:522-578
+6. Removed ros2_control dependency (not available as package - controller_manager, controller_interface, ros2_controllers used instead)
+7. Wrote README.md with package description, structure, build instructions, interface usage examples
+8. Ran colcon build --packages-select manipulator_control
+9. Verified exit code 0, no errors, no warnings
+
+**Build Issue Resolved:**
+- Initial build failed: ros2_control package not found
+- Resolution: Removed ros2_control from CMakeLists.txt and package.xml (Line 40 note added)
+- Available packages: controller_manager, controller_interface, ros2_controllers
+- Build succeeded after correction
+
 ### Completion Notes List
 
+**Story 1.1 Complete:**
+- All 5 tasks completed with all subtasks
+- Package structure created at ros2_ws/src/manipulator_control/
+- CMakeLists.txt and package.xml configured for interface generation (ready for Story 1.2/1.3)
+- Build verification: colcon build exits with code 0, no errors, no warnings
+- All ACs satisfied (AC-1 through AC-7)
+
 ### File List
+
+- ros2_ws/src/manipulator_control/CMakeLists.txt
+- ros2_ws/src/manipulator_control/package.xml
+- ros2_ws/src/manipulator_control/README.md
+- ros2_ws/src/manipulator_control/action/.gitkeep
+- ros2_ws/src/manipulator_control/srv/.gitkeep
+- ros2_ws/src/manipulator_control/msg/.gitkeep
+- ros2_ws/src/manipulator_control/src/.gitkeep
+- ros2_ws/src/manipulator_control/launch/.gitkeep
+- ros2_ws/src/manipulator_control/config/.gitkeep
+- ros2_ws/src/manipulator_control/test/.gitkeep
 
 ## Change Log
 
 | Date | Change | Author |
 |------|--------|--------|
 | 2025-11-25 | Story drafted from tech-spec-epic-1.md | SM Agent (Bob) |
+| 2025-11-25 | Package structure created, CMakeLists.txt and package.xml configured, README.md written, build verified (exit code 0) | Dev Agent (Amelia) |
