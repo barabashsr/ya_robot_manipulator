@@ -305,9 +305,11 @@ limit_switches:
     trigger_tolerance: 0.01
 ```
 
-**References:**
-- [Gazebo Contact Sensors](https://classic.gazebosim.org/tutorials?tut=ros_gzplugins)
-- [gz_ros2_control for modern Gazebo](https://control.ros.org/humble/doc/gz_ros2_control/doc/index.html)
+**References for ROS2 Jazzy & Gazebo Harmonic:**
+- [gz_ros2_control Jazzy Documentation](https://control.ros.org/jazzy/doc/gz_ros2_control/doc/index.html) - Official ros2_control integration for Gazebo Harmonic
+- [Gazebo Contact Sensors (Classic)](https://classic.gazebosim.org/tutorials?tut=ros_gzplugins) - Legacy reference
+- [Gazebo Sim Plugins and Sensors for ROS2 - Medium Tutorial](https://medium.com/@alitekes1/gazebo-sim-plugin-and-sensors-for-acquire-data-from-simulation-environment-681d8e2ad853) - Contact sensor examples for Gazebo Harmonic
+- [MOGI-ROS Gazebo Basics](https://github.com/MOGI-ROS/Week-3-4-Gazebo-basics) - Introduction to URDF and Gazebo Harmonic with ROS2 Jazzy
 
 #### B. Electromagnet Simulation
 
@@ -432,9 +434,11 @@ class ElectromagnetHardwareInterface:
         GPIO.output(self.pin, GPIO.LOW)
 ```
 
-**References:**
-- [Gazebo magnet simulation discussion](https://answers.ros.org/question/11606/gazebo-magnet-simulation/)
-- [manipulation_worlds grasp_hack plugin](https://github.com/topics/gripper)
+**References for ROS2 Jazzy & Gazebo Harmonic:**
+- [Gazebo Detachable Joint System Documentation](https://gazebosim.org/docs/harmonic/ros2_integration/) - Modern approach for attach/detach in Gazebo Harmonic
+- [Clearpath Manipulation in Gazebo Harmonic](https://docs.clearpathrobotics.com/docs/ros/tutorials/manipulation/gazebo/) - Practical manipulation examples
+- [Gazebo magnet simulation discussion (legacy)](https://answers.ros.org/question/11606/gazebo-magnet-simulation/)
+- [manipulation_worlds grasp_hack plugin (legacy)](https://github.com/topics/gripper)
 
 ### 5. ✅ Container Jaw Mimic (Software Mimic for Simulation Only)
 
@@ -2340,9 +2344,574 @@ Phase 6 (Level 2 Bridge - Future)
 
 ---
 
-## References
+## ROS2 Jazzy & Gazebo Harmonic Specific Implementation Guide
 
-### Warehouse System URDF
+**Target Versions:**
+- **ROS2 Distribution:** Jazzy Jalisco (May 2025)
+- **Gazebo Version:** Harmonic (Official pairing for Jazzy)
+- **Verification Date:** November 2025
+
+### Key Architecture Components with Jazzy/Harmonic Specifics
+
+#### 1. ros2_control Integration with gz_ros2_control
+
+**Official Documentation:** [gz_ros2_control for Jazzy](https://control.ros.org/jazzy/doc/gz_ros2_control/doc/index.html)
+
+**URDF/Xacro Plugin Setup:**
+
+```xml
+<gazebo>
+  <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+    <parameters>$(find manipulator_description)/config/manipulator_controllers.yaml</parameters>
+  </plugin>
+</gazebo>
+```
+
+**Controller Configuration for Individual Position Controllers:**
+
+```yaml
+controller_manager:
+  ros__parameters:
+    update_rate: 100  # Hz
+
+    # Individual ForwardCommandController for each joint
+    base_main_frame_joint_controller:
+      type: position_controllers/JointGroupPositionController
+
+    # ... repeat for all 9 joints
+
+base_main_frame_joint_controller:
+  ros__parameters:
+    joints:
+      - base_main_frame_joint
+```
+
+**Reference:** [Position Controllers Documentation - Jazzy](https://control.ros.org/jazzy/doc/ros2_controllers/position_controllers/doc/userdoc.html)
+
+**Publishing Position Commands (Python - ROS2 Jazzy):**
+
+```python
+from std_msgs.msg import Float64MultiArray
+
+class ControllerInterface:
+    def __init__(self, node):
+        self.publishers = {}
+        # Create publisher for each controller
+        self.publishers['base_main_frame_joint_controller'] = node.create_publisher(
+            Float64MultiArray,
+            '/base_main_frame_joint_controller/commands',
+            10
+        )
+
+    def send_position_command(self, joint_name, position):
+        """Send position command to individual joint controller"""
+        msg = Float64MultiArray()
+        msg.data = [position]
+        self.publishers[joint_name].publish(msg)
+```
+
+**Reference:** [Example 1: RRBot - Jazzy](https://control.ros.org/jazzy/doc/ros2_control_demos/example_1/doc/userdoc.html)
+
+---
+
+#### 2. TF2 Frame Lookups (ROS2 Jazzy)
+
+**Official Tutorial:** [Writing a TF2 Listener (Python) - Jazzy](https://docs.ros.org/en/jazzy/Tutorials/Intermediate/Tf2/Writing-A-Tf2-Listener-Py.html)
+
+**Address Resolution via TF2 in ROS2 Jazzy:**
+
+```python
+import rclpy
+from rclpy.node import Node
+from tf2_ros import TransformException
+from tf2_ros.buffer import Buffer
+from tf2_ros.transform_listener import TransformListener
+import rclpy.time
+
+class AddressResolver(Node):
+    def __init__(self):
+        super().__init__('address_resolver')
+
+        # TF2 buffer and listener (Jazzy style)
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+
+    def get_address_coordinates(self, side, cabinet, row, column):
+        """
+        Resolve address coordinates via TF2 lookup
+
+        Returns: (x, y, z) tuple or None if lookup fails
+        """
+        side_abbrev = 'l' if side == 'left' else 'r'
+        frame_name = f"addr_{side_abbrev}_{cabinet}_{row}_{column}"
+
+        try:
+            # Lookup transform with latest available time
+            transform = self.tf_buffer.lookup_transform(
+                'world',  # Target frame
+                frame_name,  # Source frame
+                rclpy.time.Time(),  # Latest available
+                timeout=rclpy.duration.Duration(seconds=1.0)
+            )
+
+            return (
+                transform.transform.translation.x,
+                transform.transform.translation.y,
+                transform.transform.translation.z
+            )
+        except TransformException as ex:
+            self.get_logger().error(f'Could not transform world to {frame_name}: {ex}')
+            return None
+```
+
+**Additional References:**
+- [TF2 Introduction - Jazzy](https://docs.ros.org/en/jazzy/Tutorials/Intermediate/Tf2/Introduction-To-Tf2.html)
+- [TF2 Main Index - Jazzy](https://docs.ros.org/en/jazzy/Tutorials/Intermediate/Tf2/Tf2-Main.html)
+
+---
+
+#### 3. Action Servers (ROS2 Jazzy - rclpy)
+
+**Official Tutorial:** [Writing Action Server and Client (Python) - Jazzy](https://docs.ros.org/en/jazzy/Tutorials/Intermediate/Writing-an-Action-Server-Client/Py.html)
+
+**Example Action Server Implementation:**
+
+```python
+import rclpy
+from rclpy.action import ActionServer
+from rclpy.node import Node
+from manipulator_control.action import ExtractBox
+
+class ExtractBoxActionServer(Node):
+    def __init__(self):
+        super().__init__('extract_box_action_server')
+
+        self._action_server = ActionServer(
+            self,
+            ExtractBox,
+            'extract_box',
+            self.execute_callback
+        )
+
+    def execute_callback(self, goal_handle):
+        """Execute extraction with feedback publishing"""
+        self.get_logger().info('Executing extract box...')
+
+        # Publish feedback
+        feedback_msg = ExtractBox.Feedback()
+        feedback_msg.current_phase = 'navigating'
+        feedback_msg.progress_percent = 25
+        goal_handle.publish_feedback(feedback_msg)
+
+        # ... perform extraction logic ...
+
+        # Return result
+        goal_handle.succeed()
+
+        result = ExtractBox.Result()
+        result.success = True
+        result.box_extracted = True
+        result.box_id = f"box_{goal.side}_{goal.cabinet_num}_{goal.row}_{goal.column}"
+
+        return result
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = ExtractBoxActionServer()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+```
+
+**Reference:** [action_tutorials_py demos - Jazzy](https://github.com/ros2/demos/tree/jazzy/action_tutorials)
+
+---
+
+#### 4. Dynamic Model Spawning (Gazebo Harmonic with ROS2 Jazzy)
+
+**Official Documentation:** [Spawn Gazebo Model from ROS2 - Harmonic](https://gazebosim.org/docs/harmonic/ros2_spawn_model/)
+
+**Using ros_gz_sim create Node:**
+
+```bash
+# Spawn model using create node (replaces old spawn_entity.py)
+ros2 run ros_gz_sim create \
+  -name box_l_1_2_3 \
+  -file /path/to/box_model.sdf \
+  -x 1.5 -y 2.0 -z 0.8
+```
+
+**Programmatic Spawning via Service Call:**
+
+```python
+from ros_gz_interfaces.srv import SpawnEntity
+import rclpy
+from rclpy.node import Node
+
+class BoxSpawnManager(Node):
+    def __init__(self):
+        super().__init__('box_spawn_manager')
+
+        # Service client for Gazebo entity spawning
+        self.spawn_client = self.create_client(
+            SpawnEntity,
+            '/world/warehouse/create'
+        )
+
+    def spawn_box(self, box_id, x, y, z, sdf_content):
+        """Spawn box model in Gazebo Harmonic"""
+        req = SpawnEntity.Request()
+        req.name = box_id
+        req.xml = sdf_content  # SDF or URDF string
+        req.initial_pose.position.x = x
+        req.initial_pose.position.y = y
+        req.initial_pose.position.z = z
+
+        future = self.spawn_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future)
+
+        return future.result().success
+```
+
+**Alternative: Using Launch File:**
+
+```python
+from launch import LaunchDescription
+from launch.actions import ExecuteProcess
+from launch_ros.actions import Node
+
+def generate_launch_description():
+    spawn_box = ExecuteProcess(
+        cmd=['ros2', 'run', 'ros_gz_sim', 'create',
+             '-name', 'test_box',
+             '-file', 'path/to/box.sdf',
+             '-x', '1.0', '-y', '2.0', '-z', '0.5'],
+        output='screen'
+    )
+
+    return LaunchDescription([spawn_box])
+```
+
+**Key Changes from Gazebo Classic:**
+- `spawn_entity.py` → `ros_gz_sim create` node
+- `-entity` argument → `-name` argument
+- Service name: `/world/{world_name}/create` instead of `/spawn_entity`
+
+**References:**
+- [ROS2 Spawn Model Tutorial - Harmonic](https://gazebosim.org/docs/harmonic/ros2_spawn_model/)
+- [Spawn URDF - Harmonic](https://gazebosim.org/docs/harmonic/spawn_urdf/)
+- [Migrating from Gazebo Classic - Harmonic](https://gazebosim.org/docs/harmonic/migrating_gazebo_classic_ros2_packages/)
+
+---
+
+#### 5. Contact Sensors for Limit Switches (Gazebo Harmonic)
+
+**Modern Contact Sensor Configuration (SDF format):**
+
+```xml
+<sensor name="picker_jaw_contact" type="contact">
+  <contact>
+    <collision>picker_jaw_collision</collision>
+    <topic>/manipulator/contacts/picker_jaw</topic>
+  </contact>
+  <always_on>true</always_on>
+  <update_rate>100</update_rate>
+  <visualize>false</visualize>
+</sensor>
+```
+
+**ROS2 Bridge for Contact Sensor (Jazzy):**
+
+```python
+from gz.msgs import Contacts
+from ros_gz_bridge import create_bridge
+from std_msgs.msg import Bool
+
+class ContactToSwitchConverter(Node):
+    """Convert Gazebo contact sensor to ROS2 bool topic"""
+
+    def __init__(self):
+        super().__init__('contact_to_switch')
+
+        # Subscribe to Gazebo contact topic (via ros_gz_bridge)
+        self.create_subscription(
+            Contacts,
+            '/manipulator/contacts/picker_jaw',
+            self.contact_callback,
+            10
+        )
+
+        # Publish ROS2 boolean switch state
+        self.switch_pub = self.create_publisher(
+            Bool,
+            '/manipulator/end_switches/picker_jaw_closed',
+            10
+        )
+
+    def contact_callback(self, msg):
+        """Convert contact to boolean switch state"""
+        has_contact = len(msg.contact) > 0
+
+        switch_msg = Bool()
+        switch_msg.data = has_contact
+        self.switch_pub.publish(switch_msg)
+```
+
+**Reference:** [Gazebo Sim Plugins and Sensors - Medium Tutorial](https://medium.com/@alitekes1/gazebo-sim-plugin-and-sensors-for-acquire-data-from-simulation-environment-681d8e2ad853)
+
+---
+
+#### 6. Electromagnet Simulation with Detachable Joints (Gazebo Harmonic)
+
+**Detachable Joint System Plugin (Gazebo Harmonic Approach):**
+
+The modern approach uses the detachable joint system, which allows attach/detach operations via Gazebo Transport topics.
+
+**SDF Configuration:**
+
+```xml
+<gazebo>
+  <plugin filename="gz-sim-detachable-joint-system" name="gz::sim::systems::DetachableJoint">
+    <parent_link>gripper_magnet_link</parent_link>
+    <child_model>box_l_1_2_3</child_model>
+    <child_link>box_link</child_link>
+    <topic>/manipulator/electromagnet/attach_detach</topic>
+  </plugin>
+</gazebo>
+```
+
+**ROS2 Service for Electromagnet Control:**
+
+```python
+from std_srvs.srv import SetBool
+import rclpy
+
+class ElectromagnetSimulator(Node):
+    def __init__(self):
+        super().__init__('electromagnet_simulator')
+
+        # Service for ROS2 control
+        self.create_service(
+            SetBool,
+            '/manipulator/electromagnet/toggle',
+            self.toggle_callback
+        )
+
+        # Publisher to Gazebo detachable joint topic
+        self.attach_pub = self.create_publisher(
+            # Gazebo Transport message type
+            gz_msgs.StringMsg,
+            '/manipulator/electromagnet/attach_detach',
+            10
+        )
+
+    def toggle_callback(self, request, response):
+        """Toggle electromagnet (attach/detach)"""
+        msg = gz_msgs.StringMsg()
+        msg.data = 'attach' if request.data else 'detach'
+
+        self.attach_pub.publish(msg)
+
+        response.success = True
+        response.message = f"Electromagnet {'engaged' if request.data else 'released'}"
+        return response
+```
+
+**Alternative: Using Gazebo Services Directly:**
+
+```python
+from ros_gz_interfaces.srv import SetEntityPose
+
+# Use Gazebo's built-in attach/detach via fixed joint creation
+# This is more reliable than physics-based friction
+```
+
+**References:**
+- [Gazebo Detachable Joint System](https://gazebosim.org/docs/harmonic/ros2_integration/)
+- [Clearpath Manipulation Tutorial](https://docs.clearpathrobotics.com/docs/ros/tutorials/manipulation/gazebo/)
+
+---
+
+#### 7. ros_gz_bridge for ROS2-Gazebo Communication (Jazzy/Harmonic)
+
+**Official Integration:** [ROS2 Gazebo Integration](https://gazebosim.org/docs/latest/ros2_integration/)
+
+**Installing ros_gz for Jazzy:**
+
+```bash
+sudo apt install ros-jazzy-ros-gz
+```
+
+**Bridge Configuration:**
+
+```yaml
+# config/ros_gz_bridge.yaml
+- topic_name: "/joint_states"
+  ros_type: "sensor_msgs/msg/JointState"
+  gz_type: "gz.msgs.Model"
+  direction: GZ_TO_ROS
+
+- topic_name: "/clock"
+  ros_type: "rosgraph_msgs/msg/Clock"
+  gz_type: "gz.msgs.Clock"
+  direction: GZ_TO_ROS
+```
+
+**Launching Bridge:**
+
+```python
+from launch import LaunchDescription
+from launch_ros.actions import Node
+
+def generate_launch_description():
+    bridge = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        parameters=[{
+            'config_file': 'path/to/ros_gz_bridge.yaml'
+        }],
+        output='screen'
+    )
+
+    return LaunchDescription([bridge])
+```
+
+---
+
+#### 8. Complete Launch File Example (ROS2 Jazzy + Gazebo Harmonic)
+
+```python
+from launch import LaunchDescription
+from launch.actions import IncludeLaunchDescription, ExecuteProcess
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch_ros.actions import Node
+from ament_index_python.packages import get_package_share_directory
+import os
+
+def generate_launch_description():
+    pkg_description = get_package_share_directory('manipulator_description')
+    pkg_control = get_package_share_directory('manipulator_control')
+
+    # Launch Gazebo Harmonic
+    gazebo = ExecuteProcess(
+        cmd=['gz', 'sim', '-r', 'warehouse.sdf'],
+        output='screen'
+    )
+
+    # Spawn robot with ros_gz_sim
+    spawn_robot = Node(
+        package='ros_gz_sim',
+        executable='create',
+        arguments=[
+            '-name', 'manipulator',
+            '-file', os.path.join(pkg_description, 'urdf', 'manipulator.urdf'),
+            '-x', '2.0',
+            '-y', '0.0',
+            '-z', '0.0'
+        ],
+        output='screen'
+    )
+
+    # Load ros2_control controllers
+    load_controllers = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=[
+            'base_main_frame_joint_controller',
+            'main_frame_selector_frame_joint_controller',
+            # ... all 9 controllers
+        ],
+        output='screen'
+    )
+
+    # Launch ros_gz_bridge
+    bridge = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        parameters=[{
+            'config_file': os.path.join(pkg_control, 'config', 'ros_gz_bridge.yaml')
+        }],
+        output='screen'
+    )
+
+    # Action servers
+    extract_box_server = Node(
+        package='manipulator_control',
+        executable='extract_box_action_server',
+        output='screen'
+    )
+
+    return LaunchDescription([
+        gazebo,
+        spawn_robot,
+        load_controllers,
+        bridge,
+        extract_box_server
+    ])
+```
+
+---
+
+### Version Verification and Compatibility
+
+**ROS2 Jazzy + Gazebo Harmonic Compatibility Matrix:**
+
+| Component | Version | Verification Date | Status |
+|-----------|---------|-------------------|--------|
+| ROS2 Distribution | Jazzy Jalisco | Nov 2025 | ✅ LTS |
+| Gazebo | Harmonic | Nov 2025 | ✅ Official pairing |
+| gz_ros2_control | 2.x (Jazzy) | Nov 2025 | ✅ Stable |
+| ros_gz | Jazzy branch | Nov 2025 | ✅ Active |
+| ros2_control | 4.x (Jazzy) | Nov 2025 | ✅ Stable |
+
+**Installation Commands (Ubuntu 24.04):**
+
+```bash
+# Install ROS2 Jazzy
+sudo apt install ros-jazzy-desktop
+
+# Install Gazebo Harmonic
+sudo apt install gz-harmonic
+
+# Install ros_gz for Jazzy/Harmonic integration
+sudo apt install ros-jazzy-ros-gz
+
+# Install ros2_control packages
+sudo apt install ros-jazzy-ros2-control ros-jazzy-ros2-controllers
+
+# Install gz_ros2_control
+sudo apt install ros-jazzy-gz-ros2-control
+```
+
+**References:**
+- [ROS2 Jazzy Release Notes](https://docs.ros.org/en/rolling/Releases/Release-Jazzy-Jalisco.html)
+- [Installing Gazebo with ROS](https://gazebosim.org/docs/latest/ros_installation/)
+- [gz_ros2_control Installation](https://control.ros.org/jazzy/doc/gz_ros2_control/doc/index.html)
+
+---
+
+### Summary of Jazzy/Harmonic Specific Changes
+
+**Key Updates from Older Versions:**
+
+1. **Gazebo Command:** `gazebo` → `gz sim`
+2. **Spawning:** `spawn_entity.py` → `ros_gz_sim create`
+3. **Plugin Names:** `libgazebo_ros_*` → `gz-sim-*`
+4. **Bridge Package:** `ros_ign_bridge` → `ros_gz_bridge`
+5. **World Service:** `/spawn_entity` → `/world/{world_name}/create`
+6. **Controller Spawner:** Uses `controller_manager/spawner` (same)
+7. **TF2 API:** Consistent with Jazzy (no major changes from Humble/Iron)
+8. **Action API:** rclpy.action module (consistent across ROS2)
+
+**Breaking Changes to Watch:**
+- Gazebo Classic (gazebo11) is EOL - must use Gazebo Sim (gz-sim)
+- Contact sensor plugin names changed
+- SDF format preferred over URDF for Gazebo-specific features
+- ros_gz_bridge has limited message type support (check compatibility)
+
+---
+
+## References
 - `/ros2_ws/src/manipulator_description/urdf/storage_system.urdf.xacro` - Cabinet rows
 - `/ros2_ws/src/manipulator_description/urdf/cabinet_row.urdf.xacro` - Cabinet array
 - `/ros2_ws/src/manipulator_description/urdf/cabinet.urdf.xacro` - Single cabinet
