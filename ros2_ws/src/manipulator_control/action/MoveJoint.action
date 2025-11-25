@@ -1,0 +1,16 @@
+# Goal: Command a single joint to move to target position
+string joint_name           # Name of joint to move (e.g., "x_rail_joint", "z_rail_joint", "picker_jaw_joint")
+float64 target_position     # Target position in radians or meters (depends on joint type)
+float64 max_velocity        # Maximum velocity limit (rad/s or m/s). 0.0 = use default from controller
+
+---
+# Result: Final state after action completes
+bool success                # True if joint reached target within tolerance
+float64 final_position      # Actual final position achieved
+float64 execution_time      # Total time taken (seconds)
+string message              # Human-readable result message (success/error details)
+
+---
+# Feedback: Published periodically during execution
+float64 current_position    # Current joint position
+float64 progress_percent    # Completion percentage (0.0 to 100.0)

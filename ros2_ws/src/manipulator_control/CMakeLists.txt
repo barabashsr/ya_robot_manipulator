@@ -27,30 +27,31 @@ find_package(ros_gz_sim REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 # Interface generation
-# Placeholder for future interface files (Story 1.2 and 1.3)
-# rosidl_generate_interfaces(${PROJECT_NAME}
-#   "action/MoveJoint.action"
-#   "action/MoveJointGroup.action"
-#   "action/NavigateToAddress.action"
-#   "action/ExtractBox.action"
-#   "action/ReturnBox.action"
-#   "action/PutBox.action"
-#   "action/MoveBoxToLoad.action"
-#   "action/ManipulateContainer.action"
-#   "action/GetContainer.action"
-#   "action/PlaceContainer.action"
-#   "action/PickItem.action"
-#   "action/PickItemFromStorage.action"
-#   "srv/GetAddressCoordinates.srv"
-#   "srv/ToggleElectromagnet.srv"
-#   "srv/SpawnBox.srv"
-#   "srv/DespawnBox.srv"
-#   "srv/ValidateAddress.srv"
-#   "msg/Address.msg"
-#   "msg/JointCommand.msg"
-#   "msg/LimitSwitchState.msg"
-#   DEPENDENCIES std_msgs geometry_msgs sensor_msgs action_msgs
-# )
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "action/MoveJoint.action"
+  "action/MoveJointGroup.action"
+  "action/NavigateToAddress.action"
+  "action/ExtractBox.action"
+  "action/ReturnBox.action"
+  "action/PutBox.action"
+  "action/MoveBoxToLoad.action"
+  "action/ManipulateContainer.action"
+  "action/GetContainer.action"
+  "action/PlaceContainer.action"
+  "action/PickItem.action"
+  "action/PickItemFromStorage.action"
+  # Services (Story 1.3)
+  "srv/GetAddressCoordinates.srv"
+  "srv/ToggleElectromagnet.srv"
+  "srv/SpawnBox.srv"
+  "srv/DespawnBox.srv"
+  "srv/ValidateAddress.srv"
+  # Messages (Story 1.3)
+  "msg/Address.msg"
+  "msg/JointCommand.msg"
+  "msg/LimitSwitchState.msg"
+  DEPENDENCIES geometry_msgs
+)
 
 # Install directories (for future use)
 install(

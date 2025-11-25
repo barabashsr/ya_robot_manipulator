@@ -1,0 +1,19 @@
+# Goal: Place currently held box at target storage address
+string target_side          # Target cabinet side: "left" or "right"
+uint8 target_cabinet_num    # Target cabinet number (1-4)
+uint8 target_row            # Target row within cabinet (1-N)
+uint8 target_column         # Target column within cabinet (1-N)
+
+---
+# Result: Final state after placement completes
+bool success                # True if box placed successfully
+bool box_placed             # True if box released and secured in target address
+string box_id               # ID of box that was placed
+string placed_at_address    # Address where box was placed (format: "{side}_{cabinet}_{row}_{col}")
+float64 execution_time      # Total time taken (seconds)
+string message              # Human-readable result message (success/error details)
+
+---
+# Feedback: Published periodically during execution
+string current_operation    # Current operation: "navigating", "extending", "releasing", "retracting"
+float64 progress_percent    # Completion percentage (0.0 to 100.0)

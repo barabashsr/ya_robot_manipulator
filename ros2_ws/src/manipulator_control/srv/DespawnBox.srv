@@ -1,0 +1,7 @@
+# Request: Remove box from Gazebo simulation
+string box_id           # Box identifier to remove (format: "box_{side}_{cabinet}_{row}_{col}")
+
+---
+# Response: Despawn confirmation
+bool success            # True if box removed successfully from Gazebo
+string message          # Human-readable status message (success confirmation or error details)

@@ -1,0 +1,14 @@
+# Goal: Retrieve container from storage location
+string container_id         # Container identifier from container_storage.yaml (e.g., "container_1", "container_2")
+
+---
+# Result: Final state after retrieval completes
+bool success                # True if container retrieved and gripped successfully
+string container_id         # ID of container that was retrieved
+float64 execution_time      # Total time taken (seconds)
+string message              # Human-readable result message (success/error details)
+
+---
+# Feedback: Published periodically during execution
+string current_operation    # Current operation: "opening_jaws", "navigating", "lowering", "gripping", "lifting"
+float64 progress_percent    # Completion percentage (0.0 to 100.0)

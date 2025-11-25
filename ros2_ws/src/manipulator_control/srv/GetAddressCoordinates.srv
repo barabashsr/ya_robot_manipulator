@@ -1,0 +1,11 @@
+# Request: Warehouse storage address to resolve into 3D pose
+string side             # Cabinet side: "left" or "right"
+uint8 cabinet_num       # Cabinet number (1-4)
+uint8 row               # Row within cabinet (1-N, configured per cabinet)
+uint8 column            # Column within cabinet (1-N, configured per cabinet)
+
+---
+# Response: Resolved pose and status
+bool success            # True if address is valid and pose calculated
+geometry_msgs/Pose pose # Resolved 3D pose in base_link frame (position + orientation)
+string error_message    # Human-readable error message if success=false, empty otherwise

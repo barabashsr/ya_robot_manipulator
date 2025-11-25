@@ -1,0 +1,19 @@
+# Goal: Open or close container jaw to specified width
+string command              # Command: "open" or "close"
+float64 target_width        # Target jaw opening width in meters (0.0 for "close")
+
+---
+# Result: Final state after manipulation completes
+bool success                # True if jaws reached target width
+float64 final_left_position # Final position of left jaw joint
+float64 final_right_position # Final position of right jaw joint
+float64 actual_width        # Actual jaw opening width achieved (meters)
+float64 execution_time      # Total time taken (seconds)
+string message              # Human-readable result message (success/error details)
+
+---
+# Feedback: Published periodically during execution
+float64 left_jaw_position   # Current left jaw joint position
+float64 right_jaw_position  # Current right jaw joint position
+float64 current_width       # Current jaw opening width (meters)
+float64 progress_percent    # Completion percentage (0.0 to 100.0)

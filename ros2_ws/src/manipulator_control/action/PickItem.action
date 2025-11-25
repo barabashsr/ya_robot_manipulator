@@ -1,0 +1,19 @@
+# Goal: Pick item from department within extracted box using limit switch state machine
+uint8 department_num        # Department number within box (1-N, depends on box configuration)
+
+---
+# Result: Final state after pick completes
+bool success                # True if item picked successfully (all limit switches triggered in sequence)
+bool item_picked            # True if item is gripped by picker jaw
+uint8 department_num        # Department number that was picked from
+float64 execution_time      # Total time taken (seconds)
+string message              # Human-readable result message (success/error details)
+
+---
+# Feedback: Published periodically during execution
+string current_state        # State machine state: "IDLE", "APPROACH", "OPEN_JAW", "EXTEND", "CLOSE", "RETRACT", "LIFT", "SUCCESS"
+bool picker_jaw_opened      # True if picker jaw is opened
+bool picker_jaw_extended    # True if picker jaw is extended
+bool picker_jaw_closed      # True if picker jaw has closed (limit switch triggered)
+bool picker_jaw_retracted   # True if picker jaw is retracted
+float64 elapsed_time        # Time elapsed since start (seconds)

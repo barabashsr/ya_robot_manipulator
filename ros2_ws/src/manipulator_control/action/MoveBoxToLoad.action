@@ -1,0 +1,26 @@
+# Goal: Extract box, move to load position, optionally relocate to new address
+string source_side          # Source cabinet side: "left" or "right"
+uint8 source_cabinet_num    # Source cabinet number (1-4)
+uint8 source_row            # Source row within cabinet (1-N)
+uint8 source_column         # Source column within cabinet (1-N)
+string load_position_name   # Load position identifier from load_positions.yaml (e.g., "load_1", "load_2")
+bool return_to_source       # If true, return box to source after load. If false, use new_* fields for relocation
+string new_side             # New cabinet side (used if return_to_source=false)
+uint8 new_cabinet_num       # New cabinet number (used if return_to_source=false)
+uint8 new_row               # New row (used if return_to_source=false)
+uint8 new_column            # New column (used if return_to_source=false)
+
+---
+# Result: Final state after operation completes
+bool success                # True if all phases completed successfully
+string box_id               # ID of box that was moved
+bool box_at_load            # True if box was successfully placed at load position
+bool box_relocated          # True if box was placed at new address (return_to_source=false)
+string message              # Human-readable result message (success/error details)
+
+---
+# Feedback: Published periodically during execution
+string current_phase        # Current phase: "extracting", "moving_to_load", "at_load_position", "returning", "relocating", "completed"
+string current_operation    # Detailed current operation within phase
+float64 progress_percent    # Completion percentage (0.0 to 100.0)
+float64 elapsed_time        # Time elapsed since start (seconds)

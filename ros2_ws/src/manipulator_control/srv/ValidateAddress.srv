@@ -1,0 +1,15 @@
+# Request: Validate warehouse address and check occupancy/compatibility constraints
+string side             # Cabinet side: "left" or "right"
+uint8 cabinet_num       # Cabinet number (1-4)
+uint8 row               # Row within cabinet (1-N)
+uint8 column            # Column within cabinet (1-N)
+bool check_empty        # If true, verify address is currently unoccupied
+bool check_width_match  # If true, verify box width matches cabinet column count
+uint8 box_width         # Box width in columns (required if check_width_match=true)
+
+---
+# Response: Validation results
+bool valid              # True if address exists in cabinet configuration
+bool is_empty           # True if address is unoccupied (only valid if check_empty=true)
+bool width_compatible   # True if box width matches cabinet (only valid if check_width_match=true)
+string error_message    # Human-readable error message if validation failed, empty otherwise

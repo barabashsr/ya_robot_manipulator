@@ -1,0 +1,17 @@
+# Goal: Command multiple joints to move simultaneously to target positions
+string[] joint_names        # Names of joints to move (must match target_positions length)
+float64[] target_positions  # Target positions for each joint (radians or meters)
+float64 max_velocity        # Maximum velocity limit for all joints (rad/s or m/s). 0.0 = use default
+
+---
+# Result: Final state after action completes
+bool success                # True if all joints reached targets within tolerance
+float64[] final_positions   # Actual final positions for each joint
+float64 position_error      # Maximum position error across all joints
+float64 execution_time      # Total time taken (seconds)
+string message              # Human-readable result message (success/error details)
+
+---
+# Feedback: Published periodically during execution
+float64[] current_positions # Current positions of all joints
+float64 progress_percent    # Completion percentage (0.0 to 100.0)

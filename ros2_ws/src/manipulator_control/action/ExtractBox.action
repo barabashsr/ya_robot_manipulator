@@ -1,0 +1,18 @@
+# Goal: Extract box from warehouse storage address
+string side                 # Cabinet side: "left" or "right"
+uint8 cabinet_num           # Cabinet number (1-4)
+uint8 row                   # Row within cabinet (1-N)
+uint8 column                # Column within cabinet (1-N)
+
+---
+# Result: Final state after extraction completes
+bool success                # True if box extracted successfully
+bool box_extracted          # True if box is now attached to electromagnet
+string box_id               # ID of extracted box (format: "box_{side}_{cabinet}_{row}_{col}")
+float64 execution_time      # Total time taken (seconds)
+string message              # Human-readable result message (success/error details)
+
+---
+# Feedback: Published periodically during execution
+string current_operation    # Current operation: "navigating", "generating_trajectory", "extending", "engaging_magnet", "retracting"
+float64 progress_percent    # Completion percentage (0.0 to 100.0)

@@ -1,0 +1,17 @@
+# Goal: Navigate manipulator to warehouse storage address coordinates
+string side                 # Cabinet side: "left" or "right"
+uint8 cabinet_num           # Cabinet number (1-4)
+uint8 row                   # Row within cabinet (1-N, configured per cabinet)
+uint8 column                # Column within cabinet (1-N, configured per cabinet)
+
+---
+# Result: Final state after navigation completes
+bool success                # True if manipulator reached address coordinates
+geometry_msgs/Pose final_pose  # Actual final pose achieved (base_link frame)
+float64 execution_time      # Total time taken (seconds)
+string message              # Human-readable result message (success/error details)
+
+---
+# Feedback: Published periodically during execution
+string current_phase        # Current phase: "navigating_x", "navigating_z", "positioning"
+float64 progress_percent    # Completion percentage (0.0 to 100.0)

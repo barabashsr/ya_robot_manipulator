@@ -1,0 +1,13 @@
+# Request: Spawn box in Gazebo simulation at specified warehouse address
+string box_id           # Box identifier (format: "box_{side}_{cabinet}_{row}_{col}")
+string side             # Cabinet side: "left" or "right"
+uint8 cabinet_num       # Cabinet number (1-4)
+uint8 row               # Row within cabinet (1-N)
+uint8 column            # Column within cabinet (1-N)
+
+---
+# Response: Spawn confirmation and box metadata
+bool success            # True if box spawned successfully in Gazebo
+string box_id           # Confirmed box identifier that was spawned
+uint8 department_count  # Number of departments within spawned box (from box configuration)
+string message          # Human-readable status message (success details or error)

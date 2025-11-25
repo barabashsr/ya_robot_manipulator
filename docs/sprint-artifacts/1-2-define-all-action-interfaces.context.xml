@@ -1,0 +1,215 @@
+<story-context id="1-2-define-all-action-interfaces" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>2</storyId>
+    <title>Define All Action Interfaces</title>
+    <status>ready-for-dev</status>
+    <generatedAt>2025-11-25</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/1-2-define-all-action-interfaces.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>all action interface definitions (.action files) created in the manipulator_control package</iWant>
+    <soThat>I can implement action servers in subsequent epics with consistent, well-defined contracts</soThat>
+    <tasks>
+      <task id="1" ac="1,2,7">Create Low-Level Action Definitions
+        <subtask id="1.1">Create MoveJoint.action - single joint position control</subtask>
+        <subtask id="1.2">Create MoveJointGroup.action - multiple joints synchronized</subtask>
+      </task>
+      <task id="2" ac="1,2,7">Create Mid-Level Navigation Actions
+        <subtask id="2.1">Create NavigateToAddress.action - move to warehouse address</subtask>
+        <subtask id="2.2">Create ExtractBox.action - extract box from storage</subtask>
+        <subtask id="2.3">Create ReturnBox.action - return held box to original address</subtask>
+        <subtask id="2.4">Create PutBox.action - place box at target address</subtask>
+        <subtask id="2.5">Create MoveBoxToLoad.action - extract, move to load, optionally relocate</subtask>
+      </task>
+      <task id="3" ac="1,2,7">Create Container/Picker Actions
+        <subtask id="3.1">Create ManipulateContainer.action - open/close container jaws</subtask>
+        <subtask id="3.2">Create GetContainer.action - retrieve container from storage</subtask>
+        <subtask id="3.3">Create PlaceContainer.action - place container back</subtask>
+        <subtask id="3.4">Create PickItem.action - pick item from department using limit switches</subtask>
+      </task>
+      <task id="4" ac="1,2,7">Create High-Level Composite Action
+        <subtask id="4.1">Create PickItemFromStorage.action - complete workflow</subtask>
+      </task>
+      <task id="5" ac="3">Update CMakeLists.txt for Interface Generation
+        <subtask id="5.1">Uncomment/add rosidl_generate_interfaces block</subtask>
+        <subtask id="5.2">List all 12 action files</subtask>
+        <subtask id="5.3">Add DEPENDENCIES for geometry_msgs</subtask>
+      </task>
+      <task id="6" ac="4,5,6">Validate Build and Interface Generation
+        <subtask id="6.1">Run colcon build --packages-select manipulator_control</subtask>
+        <subtask id="6.2">Verify exit code 0, no errors, no warnings</subtask>
+        <subtask id="6.3">Test Python import</subtask>
+        <subtask id="6.4">Verify C++ headers exist</subtask>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <ac id="1">12 action files exist in ros2_ws/src/manipulator_control/action/ directory</ac>
+    <ac id="2">Each action file has properly defined Goal, Result, and Feedback sections</ac>
+    <ac id="3">CMakeLists.txt updated with rosidl_generate_interfaces for all action files</ac>
+    <ac id="4">colcon build --packages-select manipulator_control exits with code 0, no errors, no warnings</ac>
+    <ac id="5">Python interfaces importable: from manipulator_control.action import MoveJoint, MoveJointGroup, ...</ac>
+    <ac id="6">C++ headers generated in install/manipulator_control/include/</ac>
+    <ac id="7">Each action file includes comments explaining goal/result/feedback fields</ac>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-1.md</path>
+        <title>Epic 1 Technical Specification</title>
+        <section>APIs and Interfaces (Lines 127-353)</section>
+        <snippet>Complete action definitions for all 12 actions: MoveJoint, MoveJointGroup, NavigateToAddress, ExtractBox, ReturnBox, PutBox, MoveBoxToLoad, ManipulateContainer, GetContainer, PlaceContainer, PickItem, PickItemFromStorage.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture-ros2-control-v2-CORRECTIONS.md</path>
+        <title>ROS2 Control Architecture v2.0</title>
+        <section>Action Hierarchy</section>
+        <snippet>Low-level (direct joint control), Mid-level (box/navigation), High-level (composite workflows). Individual ForwardCommandControllers per joint.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/1-1-create-ros2-package-structure.md</path>
+        <title>Story 1.1 - Previous Story</title>
+        <section>Dev Agent Record</section>
+        <snippet>Package structure created, CMakeLists.txt configured for interface generation. ros2_control dependency removed - use controller_manager, controller_interface, ros2_controllers instead.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <file>
+        <path>ros2_ws/src/manipulator_control/CMakeLists.txt</path>
+        <kind>build-config</kind>
+        <symbol>CMakeLists.txt</symbol>
+        <reason>Must update rosidl_generate_interfaces to include all action files with geometry_msgs dependency</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/action/.gitkeep</path>
+        <kind>placeholder</kind>
+        <symbol>.gitkeep</symbol>
+        <reason>Action directory exists, remove .gitkeep after adding action files</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/package.xml</path>
+        <kind>package-manifest</kind>
+        <symbol>package.xml</symbol>
+        <reason>Already has rosidl_default_generators and geometry_msgs dependencies from Story 1.1</reason>
+      </file>
+    </code>
+    <dependencies>
+      <ros2>
+        <pkg>geometry_msgs</pkg>
+        <pkg>rosidl_default_generators</pkg>
+        <pkg>rosidl_default_runtime</pkg>
+        <pkg>action_msgs</pkg>
+      </ros2>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="format">Each .action file must have Goal, Result, Feedback sections separated by ---</constraint>
+    <constraint type="dependency">NavigateToAddress.action uses geometry_msgs/Pose - must declare in DEPENDENCIES</constraint>
+    <constraint type="standard">Follow exact interface definitions from tech-spec-epic-1.md lines 127-353</constraint>
+    <constraint type="documentation">Include field comments for each action explaining purpose</constraint>
+    <constraint type="compatibility">ROS2 Jazzy + Gazebo Harmonic</constraint>
+  </constraints>
+
+  <interfaces>
+    <action name="MoveJoint.action">
+      <goal>string joint_name, float64 target_position, float64 max_velocity</goal>
+      <result>bool success, float64 final_position, float64 execution_time, string message</result>
+      <feedback>float64 current_position, float64 progress_percent</feedback>
+    </action>
+    <action name="MoveJointGroup.action">
+      <goal>string[] joint_names, float64[] target_positions, float64 max_velocity</goal>
+      <result>bool success, float64[] final_positions, float64 position_error, float64 execution_time, string message</result>
+      <feedback>float64[] current_positions, float64 progress_percent</feedback>
+    </action>
+    <action name="NavigateToAddress.action">
+      <goal>string side, uint8 cabinet_num, uint8 row, uint8 column</goal>
+      <result>bool success, geometry_msgs/Pose final_pose, float64 execution_time, string message</result>
+      <feedback>string current_phase, float64 progress_percent</feedback>
+    </action>
+    <action name="ExtractBox.action">
+      <goal>string side, uint8 cabinet_num, uint8 row, uint8 column</goal>
+      <result>bool success, bool box_extracted, string box_id, float64 execution_time, string message</result>
+      <feedback>string current_operation, float64 progress_percent</feedback>
+    </action>
+    <action name="ReturnBox.action">
+      <goal>(no parameters)</goal>
+      <result>bool success, bool box_returned, string box_id, string returned_to_address, float64 execution_time, string message</result>
+      <feedback>string current_operation, float64 progress_percent</feedback>
+    </action>
+    <action name="PutBox.action">
+      <goal>string target_side, uint8 target_cabinet_num, uint8 target_row, uint8 target_column</goal>
+      <result>bool success, bool box_placed, string box_id, string placed_at_address, float64 execution_time, string message</result>
+      <feedback>string current_operation, float64 progress_percent</feedback>
+    </action>
+    <action name="MoveBoxToLoad.action">
+      <goal>string source_side, uint8 source_cabinet_num, uint8 source_row, uint8 source_column, string load_position_name, bool return_to_source, string new_side, uint8 new_cabinet_num, uint8 new_row, uint8 new_column</goal>
+      <result>bool success, string box_id, bool box_at_load, bool box_relocated, string message</result>
+      <feedback>string current_phase, string current_operation, float64 progress_percent, float64 elapsed_time</feedback>
+    </action>
+    <action name="ManipulateContainer.action">
+      <goal>string command, float64 target_width</goal>
+      <result>bool success, float64 final_left_position, float64 final_right_position, float64 actual_width, float64 execution_time, string message</result>
+      <feedback>float64 left_jaw_position, float64 right_jaw_position, float64 current_width, float64 progress_percent</feedback>
+    </action>
+    <action name="GetContainer.action">
+      <goal>string container_id</goal>
+      <result>bool success, string container_id, float64 execution_time, string message</result>
+      <feedback>string current_operation, float64 progress_percent</feedback>
+    </action>
+    <action name="PlaceContainer.action">
+      <goal>string container_id</goal>
+      <result>bool success, string container_id, float64 execution_time, string message</result>
+      <feedback>string current_operation, float64 progress_percent</feedback>
+    </action>
+    <action name="PickItem.action">
+      <goal>uint8 department_num</goal>
+      <result>bool success, bool item_picked, uint8 department_num, float64 execution_time, string message</result>
+      <feedback>string current_state, bool picker_jaw_opened, bool picker_jaw_extended, bool picker_jaw_closed, bool picker_jaw_retracted, float64 elapsed_time</feedback>
+    </action>
+    <action name="PickItemFromStorage.action">
+      <goal>string side, uint8 cabinet_num, uint8 row, uint8 column, uint8 department_num, string container_id</goal>
+      <result>bool success, bool item_retrieved, string box_id, uint8 department_num, float64 total_time, string message</result>
+      <feedback>string current_phase, string operation_step, float64 progress_percent, float64 elapsed_time</feedback>
+    </action>
+  </interfaces>
+
+  <tests>
+    <standards>Build verification + interface import tests. Run colcon build, verify Python imports, check C++ header generation.</standards>
+    <locations>
+      <location>ros2_ws/src/manipulator_control/action/</location>
+      <location>install/manipulator_control/include/</location>
+    </locations>
+    <ideas>
+      <idea ac="4">colcon build --packages-select manipulator_control exits 0, no errors/warnings</idea>
+      <idea ac="5">python3 -c "from manipulator_control.action import MoveJoint" succeeds</idea>
+      <idea ac="5">python3 -c "from manipulator_control.action import PickItemFromStorage" succeeds</idea>
+      <idea ac="6">ls install/manipulator_control/include/manipulator_control/action/ shows .hpp files</idea>
+      <idea ac="1">ls ros2_ws/src/manipulator_control/action/*.action | wc -l equals 12</idea>
+    </ideas>
+  </tests>
+
+  <previousStoryLearnings>
+    <story key="1-1-create-ros2-package-structure" status="review">
+      <newFiles>
+        <file>ros2_ws/src/manipulator_control/CMakeLists.txt</file>
+        <file>ros2_ws/src/manipulator_control/package.xml</file>
+        <file>ros2_ws/src/manipulator_control/README.md</file>
+        <file>ros2_ws/src/manipulator_control/action/.gitkeep</file>
+      </newFiles>
+      <architecturalDecisions>
+        <decision>ros2_control package removed - not available. Use controller_manager, controller_interface, ros2_controllers instead</decision>
+      </architecturalDecisions>
+      <technicalDebt>None</technicalDebt>
+      <warningsForNext>
+        <warning>CMakeLists.txt has commented rosidl_generate_interfaces - must uncomment and populate for Story 1.2</warning>
+      </warningsForNext>
+    </story>
+  </previousStoryLearnings>
+</story-context>

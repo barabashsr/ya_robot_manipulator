@@ -1,0 +1,24 @@
+# Goal: Complete workflow to pick item from storage (high-level composite action)
+# Orchestrates: GetContainer (optional) -> NavigateToAddress -> ExtractBox -> PickItem -> ReturnBox
+string side                 # Cabinet side: "left" or "right"
+uint8 cabinet_num           # Cabinet number (1-4)
+uint8 row                   # Row within cabinet (1-N)
+uint8 column                # Column within cabinet (1-N)
+uint8 department_num        # Department number within box (1-N)
+string container_id         # Container identifier (optional, empty string if not needed)
+
+---
+# Result: Final state after complete workflow
+bool success                # True if item retrieved and box returned successfully
+bool item_retrieved         # True if item is gripped by picker jaw
+string box_id               # ID of box that was used for retrieval
+uint8 department_num        # Department number that was picked from
+float64 total_time          # Total time for complete workflow (seconds)
+string message              # Human-readable result message (success/error details)
+
+---
+# Feedback: Published periodically during execution
+string current_phase        # Current phase: "get_container", "navigate", "extract", "pick", "return"
+string operation_step       # Detailed operation step within current phase
+float64 progress_percent    # Completion percentage (0.0 to 100.0)
+float64 elapsed_time        # Time elapsed since start (seconds)

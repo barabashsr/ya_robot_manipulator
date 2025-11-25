@@ -1,0 +1,8 @@
+# Request: Activate or deactivate electromagnet for box attachment
+bool activate           # true = engage magnet, false = release magnet
+
+---
+# Response: Magnet state confirmation
+bool success            # True if magnet state changed successfully
+bool magnet_engaged     # Current magnet state after operation (true = engaged, false = released)
+string message          # Human-readable status message

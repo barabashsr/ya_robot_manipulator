@@ -39,8 +39,8 @@ development_status:
   # Epic 1: Package Setup & Interface Definitions (3 stories)
   epic-1: contexted
   1-1-create-ros2-package-structure: review
-  1-2-define-all-action-interfaces: drafted
-  1-3-define-service-and-message-interfaces: backlog
+  1-2-define-all-action-interfaces: review
+  1-3-define-service-and-message-interfaces: review
   epic-1-retrospective: optional
 
   # Epic 2: Simulation Foundation & Joint Control (6 stories)
