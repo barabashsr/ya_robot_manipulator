@@ -135,99 +135,120 @@ move_joint_server_node = TimerAction(
 
 ### Configuration Files
 
-**config/limit_switches.yaml:**
+### CRITICAL: Configuration Reuse Policy
+
+**DO NOT duplicate hardware configuration.** All Epic 2 nodes MUST load existing configurations:
+
+| Configuration | Source File (Single Source of Truth) | Used By |
+|--------------|--------------------------------------|---------|
+| Joint limits | `manipulator_description/urdf/manipulator/ros2_control.xacro` | ControllerInterface validation |
+| Controller names | `manipulator_description/config/manipulator_controllers.yaml` | ControllerInterface topic discovery |
+| Switch positions | `manipulator_control/config/limit_switches.yaml` | VirtualLimitSwitchNode |
+| Joint groups | `manipulator_control/config/kinematic_chains.yaml` (NEW) | MoveJointGroup action server |
+| Action timeouts | `manipulator_control/config/action_servers.yaml` (NEW) | MoveJoint, MoveJointGroup |
+
+**Node-specific config only:** Each new node creates config ONLY for parameters unique to that node (e.g., publish rates, timeouts), NOT for hardware definitions.
+
+---
+
+**config/limit_switches.yaml (VALIDATED - actual implementation):**
+
+**CRITICAL:** Switch names use semantic naming that reflects physical function:
+- Gripper: `gripper_left` / `gripper_right` (NOT extended/retracted - reflects cabinet direction)
+- Picker extension: `picker_extended` / `picker_retracted` (NOT picker_base_min/max)
+
 ```yaml
 # Virtual limit switch configuration
-# Each joint has min and max switches
-limit_switches:
-  # Base assembly
+# Source: ros2_ws/src/manipulator_control/config/limit_switches.yaml
+switches:
+  # Base assembly (X-axis rail)
   base_main_frame_min:
     joint: "base_main_frame_joint"
-    trigger_position: 0.01
+    trigger_position: 0.0  # Near joint min (0.0)
     trigger_tolerance: 0.01
   base_main_frame_max:
     joint: "base_main_frame_joint"
-    trigger_position: 2.99  # Near max limit (3.0)
+    trigger_position: 3.9  # Near joint max (4.0 from ros2_control.xacro)
     trigger_tolerance: 0.01
 
-  # Selector frame (Z-axis)
+  # Selector frame (Z-axis vertical: -0.01 to 1.5m per ros2_control.xacro)
   selector_frame_min:
     joint: "main_frame_selector_frame_joint"
-    trigger_position: 0.01
+    trigger_position: 0.005
     trigger_tolerance: 0.01
   selector_frame_max:
     joint: "main_frame_selector_frame_joint"
-    trigger_position: 1.09  # Near max limit (1.1)
+    trigger_position: 1.45  # Joint max is 1.5, switch at 1.45 within range
     trigger_tolerance: 0.01
 
-  # Gripper Y-axis
-  gripper_extended:
+  # Gripper Y-axis - LEFT/RIGHT semantics (NOT extend/retract!)
+  gripper_left:
     joint: "selector_frame_gripper_joint"
-    trigger_position: 0.59  # Near max (0.6)
+    trigger_position: 0.39  # +Y toward LEFT cabinets
     trigger_tolerance: 0.01
-  gripper_retracted:
+  gripper_right:
     joint: "selector_frame_gripper_joint"
-    trigger_position: 0.01
+    trigger_position: -0.39  # -Y toward RIGHT cabinets
     trigger_tolerance: 0.01
 
-  # Picker frame (Z-axis)
+  # Picker frame (Z-axis vertical)
   picker_frame_min:
     joint: "selector_frame_picker_frame_joint"
-    trigger_position: 0.01
+    trigger_position: 0.005
     trigger_tolerance: 0.01
   picker_frame_max:
     joint: "selector_frame_picker_frame_joint"
-    trigger_position: 0.29  # Near max (0.3)
+    trigger_position: 0.295
     trigger_tolerance: 0.01
 
-  # Picker rail (Y-axis)
+  # Picker rail (Y-axis along departments)
   picker_rail_min:
     joint: "picker_frame_picker_rail_joint"
-    trigger_position: 0.01
+    trigger_position: -0.29
     trigger_tolerance: 0.01
   picker_rail_max:
     joint: "picker_frame_picker_rail_joint"
-    trigger_position: 0.19  # Near max (0.2)
+    trigger_position: 0.29
     trigger_tolerance: 0.01
 
-  # Picker base (X-axis extension)
-  picker_base_min:
+  # Picker extension (X-axis) - retracted/extended semantics
+  picker_retracted:
     joint: "picker_rail_picker_base_joint"
-    trigger_position: 0.01
+    trigger_position: 0.01  # Home position
     trigger_tolerance: 0.01
-  picker_base_max:
+  picker_extended:
     joint: "picker_rail_picker_base_joint"
-    trigger_position: 0.11  # Near max (0.12)
+    trigger_position: 0.24  # Extended over container
     trigger_tolerance: 0.01
 
-  # Picker jaw
-  picker_jaw_opened:
-    joint: "picker_base_picker_jaw_joint"
-    trigger_position: 0.01  # Near min (open)
-    trigger_tolerance: 0.01
+  # Picker jaw (X-axis grasp)
   picker_jaw_closed:
     joint: "picker_base_picker_jaw_joint"
-    trigger_position: 0.19  # Near max (closed)
-    trigger_tolerance: 0.01
+    trigger_position: 0.01  # Closed/gripping
+    trigger_tolerance: 0.005
+  picker_jaw_opened:
+    joint: "picker_base_picker_jaw_joint"
+    trigger_position: 0.19  # Open
+    trigger_tolerance: 0.005
 
   # Container jaws (left)
   container_left_min:
     joint: "selector_left_container_jaw_joint"
-    trigger_position: -0.09  # Near min (-0.1)
+    trigger_position: -0.095
     trigger_tolerance: 0.01
   container_left_max:
     joint: "selector_left_container_jaw_joint"
-    trigger_position: 0.09  # Near max (0.1)
+    trigger_position: 0.095
     trigger_tolerance: 0.01
 
   # Container jaws (right)
   container_right_min:
     joint: "selector_right_container_jaw_joint"
-    trigger_position: -0.09
+    trigger_position: -0.095
     trigger_tolerance: 0.01
   container_right_max:
     joint: "selector_right_container_jaw_joint"
-    trigger_position: 0.09
+    trigger_position: 0.095
     trigger_tolerance: 0.01
 
 publish_rate: 10.0  # Hz
@@ -330,22 +351,25 @@ class ControllerInterface:
 | picker_rail_picker_base_joint | /picker_rail_picker_base_joint_controller/command |
 | picker_base_picker_jaw_joint | /picker_base_picker_jaw_joint_controller/command |
 
-**Limit Switch Topics:**
+**Limit Switch Topics (CORRECTED):**
+
+**CRITICAL:** Use semantic switch names that reflect physical function:
+
 ```
-/manipulator/end_switches/base_main_frame_min        (std_msgs/Bool)
-/manipulator/end_switches/base_main_frame_max        (std_msgs/Bool)
-/manipulator/end_switches/selector_frame_min         (std_msgs/Bool)
-/manipulator/end_switches/selector_frame_max         (std_msgs/Bool)
-/manipulator/end_switches/gripper_extended           (std_msgs/Bool)
-/manipulator/end_switches/gripper_retracted          (std_msgs/Bool)
-/manipulator/end_switches/picker_frame_min           (std_msgs/Bool)
-/manipulator/end_switches/picker_frame_max           (std_msgs/Bool)
-/manipulator/end_switches/picker_rail_min            (std_msgs/Bool)
-/manipulator/end_switches/picker_rail_max            (std_msgs/Bool)
-/manipulator/end_switches/picker_base_min            (std_msgs/Bool)
-/manipulator/end_switches/picker_base_max            (std_msgs/Bool)
-/manipulator/end_switches/picker_jaw_opened          (std_msgs/Bool)
-/manipulator/end_switches/picker_jaw_closed          (std_msgs/Bool)
+/manipulator/end_switches/base_main_frame_min        (std_msgs/Bool) X=0.01
+/manipulator/end_switches/base_main_frame_max        (std_msgs/Bool) X=3.9
+/manipulator/end_switches/selector_frame_min         (std_msgs/Bool) Z=0.005
+/manipulator/end_switches/selector_frame_max         (std_msgs/Bool) Z=1.90
+/manipulator/end_switches/gripper_left               (std_msgs/Bool) Y=+0.39 toward LEFT cabinets
+/manipulator/end_switches/gripper_right              (std_msgs/Bool) Y=-0.39 toward RIGHT cabinets
+/manipulator/end_switches/picker_frame_min           (std_msgs/Bool) Z=0.005
+/manipulator/end_switches/picker_frame_max           (std_msgs/Bool) Z=0.295
+/manipulator/end_switches/picker_rail_min            (std_msgs/Bool) Y=-0.29
+/manipulator/end_switches/picker_rail_max            (std_msgs/Bool) Y=+0.29
+/manipulator/end_switches/picker_retracted           (std_msgs/Bool) X=0.01 home position
+/manipulator/end_switches/picker_extended            (std_msgs/Bool) X=0.24 over container
+/manipulator/end_switches/picker_jaw_opened          (std_msgs/Bool) X=0.19
+/manipulator/end_switches/picker_jaw_closed          (std_msgs/Bool) X=0.01
 /manipulator/end_switches/container_left_min         (std_msgs/Bool)
 /manipulator/end_switches/container_left_max         (std_msgs/Bool)
 /manipulator/end_switches/container_right_min        (std_msgs/Bool)
@@ -512,6 +536,26 @@ ros2 topic echo /manipulator/end_switches/picker_jaw_closed  # Should show bool
 ros2 action send_goal /move_joint manipulator_control/action/MoveJoint "{joint_name: 'base_main_frame_joint', target_position: 1.0, max_velocity: 0.5}"
 ```
 
+## Authoritative Joint Limits Reference
+
+**Source of Truth:** `manipulator_description/urdf/manipulator/ros2_control.xacro`
+
+| Joint | Min | Max | Unit | Notes |
+|-------|-----|-----|------|-------|
+| base_main_frame_joint | 0.0 | 4.0 | m | X-axis rail |
+| main_frame_selector_frame_joint | -0.01 | 1.5 | m | Z-axis vertical |
+| selector_frame_gripper_joint | -0.4 | 0.4 | m | Y-axis gripper |
+| selector_frame_picker_frame_joint | -0.01 | 0.3 | m | Z-axis picker vertical |
+| picker_frame_picker_rail_joint | -0.3 | 0.3 | m | Y-axis picker rail |
+| picker_rail_picker_base_joint | 0.0 | 0.25 | m | X-axis picker extension |
+| picker_base_picker_jaw_joint | 0.0 | 0.2 | m | X-axis picker jaw |
+| selector_left_container_jaw_joint | -0.2 | 0.2 | m | Y-axis left jaw |
+| selector_right_container_jaw_joint | -0.2 | 0.2 | m | Y-axis right jaw |
+
+**IMPORTANT:** ControllerInterface MUST load these limits from ros2_control.xacro, NOT hardcode them.
+
+---
+
 ## Risks, Assumptions, Open Questions
 
 **Risks:**
@@ -519,12 +563,16 @@ ros2 action send_goal /move_joint manipulator_control/action/MoveJoint "{joint_n
 **R1: Joint limit accuracy**
 - **Likelihood:** Medium
 - **Impact:** Low
-- **Mitigation:** Load limits from ros2_control.xacro at runtime
+- **Mitigation:** Load limits from ros2_control.xacro at runtime - DO NOT hardcode
 
 **R2: Gazebo timing issues**
 - **Likelihood:** Medium
 - **Impact:** Medium
 - **Mitigation:** Use simulation time, add timeout handling
+
+**R3: selector_frame_max switch unreachable** ✅ RESOLVED
+- **Issue:** limit_switches.yaml had selector_frame_max at 1.90, but ros2_control.xacro joint max is 1.5
+- **Resolution:** Updated limit_switches.yaml to set selector_frame_max trigger_position to 1.45 (within joint range)
 
 **Assumptions:**
 

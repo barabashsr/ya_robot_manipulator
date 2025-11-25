@@ -1,9 +1,9 @@
 # ROS2 Control Architecture v2.0 - CORRECTED
 ## ya_robot_manipulator Level 3 Control System
 
-**Document Version:** 2.0
-**Date:** 2025-11-24
-**Corrections Applied:** Based on URDF analysis and detailed user feedback
+**Document Version:** 2.1
+**Date:** 2025-11-25
+**Corrections Applied:** Based on URDF analysis, detailed user feedback, and unified limits architecture
 
 ---
 
@@ -142,71 +142,306 @@ string error_message
 - Steppers with **NO encoders**
 - Position is approximated
 - **ALL axes have TWO limit switches** (min and max position)
-- End switches detect: jaw closed, jaw opened, extension limit, retraction limit
+- End switches detect: jaw closed, jaw opened, picker extended, picker retracted
 
-**Picker Operation as State Machine:**
+**Picker Operation as State Machine (CORRECTED):**
+
+The picker does NOT extend into the box - it LOWERS into it! The extension mechanism is used for positioning the item above the container for release.
 
 ```
-States for PickItem Action:
+States for PickItem Action (CORRECTED):
 
-1. APPROACH_ITEM
-   - Move picker base/rail to approximate position (open loop)
-   - Transition: When position reached (time-based or approximate)
+1. POSITION_Y
+   - Move picker rail to target department position (Y-axis)
+   - Joint: picker_frame_picker_rail_joint
+   - Monitor: picker_rail_min/max for safety
+   - Transition: When Y position reached
 
 2. OPEN_JAW (if not already open)
    - Command picker jaw to open
-   - Monitor end switch: jaw_opened_limit
-   - Transition: When jaw_opened_limit == TRUE
+   - Joint: picker_base_picker_jaw_joint
+   - Monitor end switch: picker_jaw_opened
+   - Transition: When picker_jaw_opened == TRUE
 
-3. EXTEND_JAW
-   - Command picker jaw to extend
-   - Monitor end switch: jaw_extended_limit
-   - Transition: When jaw_extended_limit == TRUE
+3. LOWER_PICKER
+   - Lower picker into box (Z-axis negative)
+   - Joint: selector_frame_picker_frame_joint
+   - Monitor end switch: picker_frame_min
+   - Transition: When picker_frame_min == TRUE or position reached
 
 4. CLOSE_JAW
-   - Command picker jaw to close
-   - Monitor end switch: jaw_closed (pressure/contact switch)
-   - Transition: When jaw_closed == TRUE (item grasped)
+   - Command picker jaw to close on item
+   - Joint: picker_base_picker_jaw_joint
+   - Monitor end switch: picker_jaw_closed
+   - Transition: When picker_jaw_closed == TRUE (item grasped)
 
-5. RETRACT_JAW
-   - Command picker jaw to retract
-   - Monitor end switch: jaw_retracted_limit
-   - Transition: When jaw_retracted_limit == TRUE
-
-6. LIFT_ITEM
-   - Move picker vertically up
+5. LIFT_PICKER
+   - Lift picker out of box (Z-axis positive)
+   - Joint: selector_frame_picker_frame_joint
+   - Monitor end switch: picker_frame_max or position
    - Transition: When clear of box
 
-States: IDLE → APPROACH_ITEM → OPEN_JAW → EXTEND_JAW → CLOSE_JAW → RETRACT_JAW → LIFT_ITEM → SUCCESS
+6. EXTEND_PICKER
+   - Extend picker over container (X-axis positive)
+   - Joint: picker_rail_picker_base_joint
+   - Monitor end switch: picker_extended
+   - Transition: When picker_extended == TRUE
+
+7. RELEASE_ITEM
+   - Open jaw to drop item into container
+   - Joint: picker_base_picker_jaw_joint
+   - Monitor end switch: picker_jaw_opened
+   - Transition: When picker_jaw_opened == TRUE
+
+8. RETRACT_PICKER
+   - Retract picker to home position (X-axis negative)
+   - Joint: picker_rail_picker_base_joint
+   - Monitor end switch: picker_retracted
+   - Transition: When picker_retracted == TRUE
+
+States: IDLE → POSITION_Y → OPEN_JAW → LOWER_PICKER → CLOSE_JAW → LIFT_PICKER → EXTEND_PICKER → RELEASE_ITEM → RETRACT_PICKER → SUCCESS
 ```
 
-**End Switch Topics (to be implemented):**
+**End Switch Topics (CORRECTED with real switch names from limit_switches.yaml):**
 
 ```
-# Picker jaw switches
-/manipulator/end_switches/picker_jaw_opened          (bool)
-/manipulator/end_switches/picker_jaw_closed          (bool)
+# Picker jaw switches (grasp control)
+/manipulator/end_switches/picker_jaw_opened          (bool) - X=0.19
+/manipulator/end_switches/picker_jaw_closed          (bool) - X=0.01
 
-# Picker extension switches
-/manipulator/end_switches/picker_jaw_extended        (bool)
-/manipulator/end_switches/picker_jaw_retracted       (bool)
+# Picker extension switches (X-axis: picker_rail_picker_base_joint)
+/manipulator/end_switches/picker_retracted           (bool) - X=0.01
+/manipulator/end_switches/picker_extended            (bool) - X=0.24
 
-# All other axes (two switches each)
-/manipulator/end_switches/base_main_frame_min        (bool)
-/manipulator/end_switches/base_main_frame_max        (bool)
-/manipulator/end_switches/selector_frame_min         (bool)
-/manipulator/end_switches/selector_frame_max         (bool)
-/manipulator/end_switches/gripper_extended           (bool)
-/manipulator/end_switches/gripper_retracted          (bool)
-/manipulator/end_switches/picker_frame_min           (bool)
-/manipulator/end_switches/picker_frame_max           (bool)
-/manipulator/end_switches/picker_rail_min            (bool)
-/manipulator/end_switches/picker_rail_max            (bool)
-/manipulator/end_switches/picker_base_min            (bool)
-/manipulator/end_switches/picker_base_max            (bool)
+# Picker frame switches (Z-axis: selector_frame_picker_frame_joint)
+/manipulator/end_switches/picker_frame_min           (bool) - Z=0.005
+/manipulator/end_switches/picker_frame_max           (bool) - Z=0.295
+
+# Picker rail switches (Y-axis: picker_frame_picker_rail_joint)
+/manipulator/end_switches/picker_rail_min            (bool) - Y=-0.29
+/manipulator/end_switches/picker_rail_max            (bool) - Y=+0.29
+
+# Gripper switches (Y-axis: selector_frame_gripper_joint) - LEFT/RIGHT not extend/retract!
+/manipulator/end_switches/gripper_left               (bool) - Y=+0.39 (toward left cabinets)
+/manipulator/end_switches/gripper_right              (bool) - Y=-0.39 (toward right cabinets)
+
+# Selector frame switches (Z-axis: main_frame_selector_frame_joint)
+/manipulator/end_switches/selector_frame_min         (bool) - Z=0.005
+/manipulator/end_switches/selector_frame_max         (bool) - Z=1.90
+
+# Base main frame switches (X-axis: base_main_frame_joint)
+/manipulator/end_switches/base_main_frame_min        (bool) - X=0.01
+/manipulator/end_switches/base_main_frame_max        (bool) - X=3.9
+
+# Container jaw switches (Y-axis)
+/manipulator/end_switches/container_left_min         (bool)
+/manipulator/end_switches/container_left_max         (bool)
+/manipulator/end_switches/container_right_min        (bool)
+/manipulator/end_switches/container_right_max        (bool)
 ```
 
 **Implementation Note:** State transitions driven by switch events, not position thresholds
+
+---
+
+## Core Physical Workflows Reference
+
+This section provides the definitive reference for all manipulator workflows, describing the exact joints and axes involved in each operation. All action implementations MUST follow these workflows.
+
+### Physical Layout Summary
+
+**Coordinate System (World Frame):**
+- **X-axis:** Along warehouse rail (base_main_frame_joint) - cabinet columns
+- **Y-axis:** Into/out of cabinets (gripper, picker rail) - cabinet depth
+- **Z-axis:** Vertical (selector_frame, picker_frame) - cabinet rows
+
+**Joint-to-Axis Mapping:**
+
+| Joint | Axis | Range | Purpose |
+|-------|------|-------|---------|
+| `base_main_frame_joint` | **X** | 0.0→4.0m | Railway carriage along warehouse |
+| `main_frame_selector_frame_joint` | **Z** | -0.01→1.5m | Selector vertical lift |
+| `selector_frame_gripper_joint` | **Y** | -0.4→0.4m | Gripper into LEFT(+Y) or RIGHT(-Y) cabinets |
+| `selector_left_container_jaw_joint` | **-Y** | -0.2→0.2m | Left container jaw |
+| `selector_right_container_jaw_joint` | **+Y** | -0.2→0.2m | Right container jaw (mirrored) |
+| `selector_frame_picker_frame_joint` | **Z** | -0.01→0.3m | Picker vertical position |
+| `picker_frame_picker_rail_joint` | **Y** | -0.3→0.3m | Picker Y-rail (along box departments) |
+| `picker_rail_picker_base_joint` | **X** | 0.0→0.25m | Picker X-extension (over container) |
+| `picker_base_picker_jaw_joint` | **X** | 0.0→0.2m | Picker jaw grasp |
+
+---
+
+### Workflow 1: Navigation to Address (NavigateToAddress)
+
+**Purpose:** Position the manipulator in front of a cabinet address.
+
+**Joints Used:**
+- `base_main_frame_joint` (X-axis) - Move along rail to cabinet position
+- `main_frame_selector_frame_joint` (Z-axis) - Move vertically to row height
+
+**Sequence:**
+
+| Step | Joint | Axis | Movement | Switch Feedback |
+|------|-------|------|----------|-----------------|
+| 1. Move to cabinet X position | `base_main_frame_joint` | X | Target X from TF frame | `base_main_frame_min/max` (safety) |
+| 2. Move to row Z height | `main_frame_selector_frame_joint` | Z | Target Z from TF frame | `selector_frame_min/max` (safety) |
+
+**Notes:**
+- X and Z can move simultaneously for efficiency
+- No Y movement during navigation - gripper stays centered
+- Position accuracy: ±0.02m
+
+---
+
+### Workflow 2: Box Extraction from RIGHT Cabinets (ExtractBox - Right Side)
+
+**Purpose:** Extract a box from the RIGHT cabinet row using the electromagnet.
+
+**Joints Used:**
+- `selector_frame_gripper_joint` (Y-axis) - Gripper moves RIGHT then LEFT
+- `main_frame_selector_frame_joint` (Z-axis) - Optional: trajectory sync for clearance
+
+**Gripper has TWO magnets:** Left magnet for left cabinets, Right magnet for right cabinets.
+
+**Sequence:**
+
+| Step | Joint(s) | Axis | Movement | Switch Feedback |
+|------|----------|------|----------|-----------------|
+| 1. Move gripper RIGHT toward cabinet | `selector_frame_gripper_joint` | Y- | Negative Y toward right cabinet | `gripper_right` triggers at Y=-0.39 |
+| 2. Engage RIGHT electromagnet | - | - | Activate right magnet | - |
+| 3. Wait for magnetic attachment | - | - | ~0.5s delay | - |
+| 4. Extract LEFT (pull box out) | `selector_frame_gripper_joint` | Y+ | Positive Y, pull box toward center | Crosses center, approaches `gripper_left` |
+| (Optional: Z trajectory sync) | `+ main_frame_selector_frame_joint` | Z | Small Z adjustment to clear cabinet frame | - |
+| 5. Stop at extraction position | `selector_frame_gripper_joint` | Y+ | Stop near center or toward left | - |
+
+**Final State:** Box attached to gripper, positioned near center (Y≈0) or toward left side.
+
+---
+
+### Workflow 3: Box Extraction from LEFT Cabinets (ExtractBox - Left Side)
+
+**Purpose:** Extract a box from the LEFT cabinet row.
+
+**Sequence (Mirror of Right Side):**
+
+| Step | Joint(s) | Axis | Movement | Switch Feedback |
+|------|----------|------|----------|-----------------|
+| 1. Move gripper LEFT toward cabinet | `selector_frame_gripper_joint` | Y+ | Positive Y toward left cabinet | `gripper_left` triggers at Y=+0.39 |
+| 2. Engage LEFT electromagnet | - | - | Activate left magnet | - |
+| 3. Wait for magnetic attachment | - | - | ~0.5s delay | - |
+| 4. Extract RIGHT (pull box out) | `selector_frame_gripper_joint` | Y- | Negative Y, pull box toward center | Crosses center, approaches `gripper_right` |
+| 5. Stop at extraction position | `selector_frame_gripper_joint` | Y- | Stop near center or toward right | - |
+
+---
+
+### Workflow 4: Box Return (ReturnBox)
+
+**Purpose:** Return an extracted box to its original cabinet address.
+
+**Sequence (for RIGHT cabinet - mirror for LEFT):**
+
+| Step | Joint(s) | Axis | Movement | Switch Feedback |
+|------|----------|------|----------|-----------------|
+| 1. Navigate to original address | `base_main_frame_joint`, `main_frame_selector_frame_joint` | X, Z | Position in front of cabinet | - |
+| 2. Move gripper toward cabinet | `selector_frame_gripper_joint` | Y- | Insert box back into right cabinet | `gripper_right` approaches |
+| (Optional: Z trajectory sync) | `+ main_frame_selector_frame_joint` | Z | Adjust for cabinet frame clearance | - |
+| 3. Deactivate electromagnet | - | - | Release box | - |
+| 4. Retract gripper | `selector_frame_gripper_joint` | Y+ | Pull gripper back to center | - |
+
+---
+
+### Workflow 5: Item Picking (PickItem) - CORRECTED
+
+**Purpose:** Pick an item from a specific department within an extracted box.
+
+**Physical Understanding:**
+- Box is extracted and held by gripper
+- Departments are aligned along the Y-axis (perpendicular to XZ plane)
+- Picker LOWERS into the box (Z-axis), does NOT extend into it
+- Picker extension (X-axis) is used to position item OVER the container for release
+
+**Joints Used:**
+- `picker_frame_picker_rail_joint` (Y-axis) - Position picker over target department
+- `picker_base_picker_jaw_joint` (X-axis) - Open/close jaw
+- `selector_frame_picker_frame_joint` (Z-axis) - Lower/lift picker
+- `picker_rail_picker_base_joint` (X-axis) - Extend picker over container
+
+**Sequence:**
+
+| Step | State | Joint | Axis | Movement | Switch Feedback |
+|------|-------|-------|------|----------|-----------------|
+| 1 | POSITION_Y | `picker_frame_picker_rail_joint` | Y | Move picker rail to department Y position | `picker_rail_min/max` (safety) |
+| 2 | OPEN_JAW | `picker_base_picker_jaw_joint` | X | Open jaw fully | `picker_jaw_opened` |
+| 3 | LOWER_PICKER | `selector_frame_picker_frame_joint` | Z- | Lower picker into box | `picker_frame_min` |
+| 4 | CLOSE_JAW | `picker_base_picker_jaw_joint` | X | Close jaw on item | `picker_jaw_closed` |
+| 5 | LIFT_PICKER | `selector_frame_picker_frame_joint` | Z+ | Lift item out of box | `picker_frame_max` or position |
+| 6 | EXTEND_PICKER | `picker_rail_picker_base_joint` | X+ | Extend picker over container | `picker_extended` |
+| 7 | RELEASE_ITEM | `picker_base_picker_jaw_joint` | X | Open jaw to drop item | `picker_jaw_opened` |
+| 8 | RETRACT_PICKER | `picker_rail_picker_base_joint` | X- | Retract to home position | `picker_retracted` |
+
+**Key Insight:** The picker starts in a RETRACTED state (X≈0) where its X position already aligns with items in the box. The extension is only used AFTER lifting to position over the container.
+
+---
+
+### Workflow 6: Container Jaw Operation (ManipulateContainer)
+
+**Purpose:** Open/close container jaws to grip or release a collection container.
+
+**Joints Used (synchronized - software mimic in simulation):**
+- `selector_left_container_jaw_joint` (-Y axis)
+- `selector_right_container_jaw_joint` (+Y axis, mirrored)
+
+**Sequence:**
+
+| Action | Left Jaw Movement | Right Jaw Movement | Result |
+|--------|-------------------|--------------------| -------|
+| OPEN | Move Y- (away from center) | Move Y+ (away from center) | Jaws spread apart |
+| CLOSE | Move Y+ (toward center) | Move Y- (toward center) | Jaws grip container |
+
+**Switch Feedback:** `container_left_min/max`, `container_right_min/max`
+
+---
+
+### Workflow 7: Container Retrieval (GetContainer)
+
+**Purpose:** Retrieve a collection container from a storage location.
+
+**Sequence:**
+
+| Step | Action | Joint(s) |
+|------|--------|----------|
+| 1 | Open jaws wider than container | Container jaw joints |
+| 2 | Navigate to container position | X, Z joints |
+| 3 | Lower selector to container height | Z joint |
+| 4 | Close jaws to grip container | Container jaw joints |
+| 5 | Lift selector to raise container | Z joint |
+
+---
+
+### Switch Name Reference Table
+
+| Real Switch Name | Joint | Position | Semantic Meaning |
+|------------------|-------|----------|------------------|
+| `base_main_frame_min` | base_main_frame_joint | X=0.01 | Start of rail |
+| `base_main_frame_max` | base_main_frame_joint | X=3.9 | End of rail |
+| `selector_frame_min` | main_frame_selector_frame_joint | Z=0.005 | Selector at bottom |
+| `selector_frame_max` | main_frame_selector_frame_joint | Z=1.90 | Selector at top |
+| `gripper_left` | selector_frame_gripper_joint | Y=+0.39 | Gripper extended toward LEFT cabinets |
+| `gripper_right` | selector_frame_gripper_joint | Y=-0.39 | Gripper extended toward RIGHT cabinets |
+| `picker_frame_min` | selector_frame_picker_frame_joint | Z=0.005 | Picker lowered (in box) |
+| `picker_frame_max` | selector_frame_picker_frame_joint | Z=0.295 | Picker raised (out of box) |
+| `picker_rail_min` | picker_frame_picker_rail_joint | Y=-0.29 | Picker rail at one end |
+| `picker_rail_max` | picker_frame_picker_rail_joint | Y=+0.29 | Picker rail at other end |
+| `picker_retracted` | picker_rail_picker_base_joint | X=0.01 | Picker retracted (home) |
+| `picker_extended` | picker_rail_picker_base_joint | X=0.24 | Picker extended (over container) |
+| `picker_jaw_opened` | picker_base_picker_jaw_joint | X=0.19 | Jaw open |
+| `picker_jaw_closed` | picker_base_picker_jaw_joint | X=0.01 | Jaw closed (gripping) |
+| `container_left_min` | selector_left_container_jaw_joint | Y=-0.095 | Left jaw at min |
+| `container_left_max` | selector_left_container_jaw_joint | Y=+0.095 | Left jaw at max |
+| `container_right_min` | selector_right_container_jaw_joint | Y=-0.095 | Right jaw at min |
+| `container_right_max` | selector_right_container_jaw_joint | Y=+0.095 | Right jaw at max |
+
+---
 
 ### 4. ✅ Simulation Requirements (Limit Switches & Electromagnets)
 
@@ -284,24 +519,42 @@ class VirtualLimitSwitchNode(Node):
         # ... similar for other switches
 ```
 
-**Configuration:**
+**Configuration (CORRECTED switch names - matches limit_switches.yaml):**
 
 ```yaml
 # config/limit_switches.yaml
 limit_switches:
+  # Picker jaw (grasp)
   picker_jaw_closed:
     joint: "picker_base_picker_jaw_joint"
-    trigger_position: 0.19  # Near max limit (0.2)
+    trigger_position: 0.01  # Closed position
     trigger_tolerance: 0.01
 
-  picker_jaw_extended:
-    joint: "picker_rail_picker_base_joint"
-    trigger_position: 0.11  # Near max (0.12)
+  picker_jaw_opened:
+    joint: "picker_base_picker_jaw_joint"
+    trigger_position: 0.19  # Open position
     trigger_tolerance: 0.01
 
-  picker_jaw_retracted:
+  # Picker extension (X-axis) - NOT "jaw_extended/retracted"
+  picker_extended:
     joint: "picker_rail_picker_base_joint"
-    trigger_position: 0.01  # Near min (0.0)
+    trigger_position: 0.24  # Extended over container
+    trigger_tolerance: 0.01
+
+  picker_retracted:
+    joint: "picker_rail_picker_base_joint"
+    trigger_position: 0.01  # Home position
+    trigger_tolerance: 0.01
+
+  # Gripper (Y-axis) - LEFT/RIGHT semantics, NOT extend/retract
+  gripper_left:
+    joint: "selector_frame_gripper_joint"
+    trigger_position: 0.39  # Toward left cabinets (+Y)
+    trigger_tolerance: 0.01
+
+  gripper_right:
+    joint: "selector_frame_gripper_joint"
+    trigger_position: -0.39  # Toward right cabinets (-Y)
     trigger_tolerance: 0.01
 ```
 
@@ -1014,18 +1267,47 @@ class StateMarkerPublisherNode(Node):
 
 **REQUIREMENT:** Use existing YAML files, no duplication
 
+**CRITICAL: Unified Limits Architecture (Updated 2025-11-25)**
+
+All joint limits follow a single source of truth architecture:
+
+```
+manipulator_params.yaml (PRIMARY SOURCE)
+        │
+        ├──► URDF <limit> tags (hard limits)
+        ├──► URDF <safety_controller> tags (soft limits)
+        ├──► ros2_control.xacro <command_interface> limits (= soft limits)
+        └──► ControllerInterface validation (= soft limits)
+```
+
+**Three Types of Limits:**
+| Type | Source | Purpose |
+|------|--------|---------|
+| Hard Limits | `manipulator_params.yaml` → URDF `<limit>` | Physical joint range |
+| Soft Limits | `manipulator_params.yaml` → URDF `<safety_controller>` | Operational safety margin |
+| Controller Limits | `manipulator_params.yaml` → ros2_control `<command_interface>` | **= Soft Limits** |
+
 **Configuration Hierarchy:**
 
 ```
 Primary Config Files (manipulator_description package):
-1. ros2_control.xacro              → Joint limits, initial values
-2. manipulator_controllers.yaml    → Controller names, types
-3. storage_params.yaml             → Storage system dimensions
+1. manipulator_params.yaml         → Joint limits (hard + soft), physical params (SINGLE SOURCE OF TRUTH)
+2. manipulator_controllers.yaml    → Controller names, types, joint mappings
+3. storage_params.yaml             → Storage system dimensions, cabinet layouts, departments
 
 Secondary Config Files (manipulator_control package):
-4. action_servers.yaml             → Action server timeouts, speeds
-5. limit_switches.yaml             → Switch trigger positions
-6. container_storage.yaml          → Container storage locations
+4. limit_switches.yaml             → 18 switch trigger positions (references joints from params)
+5. action_servers.yaml             → Action server timeouts, speeds, tolerances
+6. kinematic_chains.yaml           → Joint group definitions for coordinated motion
+7. visualization.yaml              → All visualization markers
+8. trajectory.yaml                 → YZ trajectory speeds, safety margins
+9. electromagnet.yaml              → Magnet simulation parameters
+10. box_spawner.yaml               → Box spawning, TF broadcast rates
+11. load_positions.yaml            → External load station coordinates
+12. container_storage.yaml         → Container storage locations and slots
+13. pick_item_states.yaml          → Picker state machine configuration
+14. error_handling.yaml            → Error codes and recovery strategies
+15. testing.yaml                   → Test suite and profiling configuration
 ```
 
 **Load Order:**
@@ -1035,9 +1317,9 @@ class ActionServerBase(Node):
     def __init__(self, node_name):
         super().__init__(node_name)
 
-        # 1. Load manipulator joint limits from ros2_control parameters
-        # (These are already loaded by controller_manager)
-        self.joint_limits = self.get_joint_limits_from_controller()
+        # 1. Load joint limits from manipulator_params.yaml (SINGLE SOURCE)
+        # Soft limits are used for validation (same as controller command_interface limits)
+        self.joint_limits = self.load_joint_limits_from_params()
 
         # 2. Load storage system config
         self.storage_config = self.load_yaml(
@@ -1051,11 +1333,22 @@ class ActionServerBase(Node):
             'config/action_servers.yaml'
         )
 
-    def get_joint_limits_from_controller(self):
-        """Query joint limits from running controller"""
-        # Use ros2_control parameter services
-        # OR parse URDF/xacro programmatically
-        pass
+    def load_joint_limits_from_params(self):
+        """Load soft limits from manipulator_params.yaml (single source of truth)"""
+        params = self.load_yaml('manipulator_description', 'config/manipulator_params.yaml')
+        limits = {}
+        for assembly_name, assembly in params.items():
+            if not isinstance(assembly, dict):
+                continue
+            for key, value in assembly.items():
+                if isinstance(value, dict) and 'safety_controller' in value:
+                    sc = value['safety_controller']
+                    limits[key] = {
+                        'min': sc['soft_lower'],
+                        'max': sc['soft_upper'],
+                        'velocity': value['limits'].get('velocity', 1.0),
+                    }
+        return limits
 
     def load_yaml(self, package_name, relative_path):
         """Load YAML from package"""
@@ -2391,23 +2684,66 @@ base_main_frame_joint_controller:
 **Publishing Position Commands (Python - ROS2 Jazzy):**
 
 ```python
-from std_msgs.msg import Float64MultiArray
+from std_msgs.msg import Float64
+import yaml
+from ament_index_python.packages import get_package_share_directory
+import os
 
 class ControllerInterface:
-    def __init__(self, node):
-        self.publishers = {}
-        # Create publisher for each controller
-        self.publishers['base_main_frame_joint_controller'] = node.create_publisher(
-            Float64MultiArray,
-            '/base_main_frame_joint_controller/commands',
-            10
-        )
+    """
+    Utility for commanding individual ForwardCommandControllers.
+    NOT a ROS2 node - requires parent node reference.
 
-    def send_position_command(self, joint_name, position):
-        """Send position command to individual joint controller"""
-        msg = Float64MultiArray()
-        msg.data = [position]
+    Loads soft limits from manipulator_params.yaml (single source of truth)
+    and validates commands before publishing.
+    """
+
+    def __init__(self, node):
+        self.node = node
+        self.logger = node.get_logger()
+
+        # Load soft limits from manipulator_params.yaml (single source of truth)
+        self.joint_limits = self._load_joint_limits_from_params()
+
+        # Create publisher for each controller (topic pattern: /{joint_name}_controller/command)
+        self.publishers = {}
+        for joint_name in self.joint_limits.keys():
+            topic = f'/{joint_name}_controller/command'
+            self.publishers[joint_name] = node.create_publisher(Float64, topic, 10)
+
+    def _load_joint_limits_from_params(self):
+        """Load soft limits from manipulator_params.yaml"""
+        pkg_path = get_package_share_directory('manipulator_description')
+        params_file = os.path.join(pkg_path, 'config', 'manipulator_params.yaml')
+
+        with open(params_file, 'r') as f:
+            params = yaml.safe_load(f)
+
+        limits = {}
+        for assembly_name, assembly in params.items():
+            if not isinstance(assembly, dict):
+                continue
+            for key, value in assembly.items():
+                if isinstance(value, dict) and 'safety_controller' in value:
+                    sc = value['safety_controller']
+                    limits[key] = {'min': sc['soft_lower'], 'max': sc['soft_upper']}
+        return limits
+
+    def command_joint(self, joint_name: str, position: float) -> bool:
+        """Command single joint to position. Returns False if validation fails."""
+        if joint_name not in self.joint_limits:
+            self.logger.warning(f"Unknown joint: {joint_name}")
+            return False
+
+        limits = self.joint_limits[joint_name]
+        if not (limits['min'] <= position <= limits['max']):
+            self.logger.warning(f"Position {position} outside limits [{limits['min']}, {limits['max']}]")
+            return False
+
+        msg = Float64()
+        msg.data = position
         self.publishers[joint_name].publish(msg)
+        return True
 ```
 
 **Reference:** [Example 1: RRBot - Jazzy](https://control.ros.org/jazzy/doc/ros2_control_demos/example_1/doc/userdoc.html)
@@ -2918,9 +3254,10 @@ sudo apt install ros-jazzy-gz-ros2-control
 - `/ros2_ws/src/manipulator_description/urdf/box_placement_frames.urdf.xacro` - Address frames
 - `/ros2_ws/src/manipulator_description/config/storage_params.yaml` - Dimensions and config
 
-### Controllers
+### Controllers and Joint Limits
+- `/ros2_ws/src/manipulator_description/config/manipulator_params.yaml` - **SINGLE SOURCE** for joint limits (hard + soft)
 - `/ros2_ws/src/manipulator_description/config/manipulator_controllers.yaml` - Individual position controllers
-- `/ros2_ws/src/manipulator_description/urdf/manipulator/ros2_control.xacro` - Hardware interface
+- `/ros2_ws/src/manipulator_description/urdf/manipulator/ros2_control.xacro` - Hardware interface (loads limits from manipulator_params.yaml)
 
 ### Gazebo Simulation
 - [Gazebo Classic End of Life (Jan 2025)](https://classic.gazebosim.org/tutorials?tut=ros_gzplugins)
@@ -2992,16 +3329,30 @@ sudo apt install ros-jazzy-gz-ros2-control
 ### Configuration Files
 
 ```
-manipulator_description/config/:
-  - storage_params.yaml (dimensions, cabinet layouts)
-  - manipulator_controllers.yaml (controller definitions)
+manipulator_description/config/ (PRIMARY - DO NOT DUPLICATE):
+  - manipulator_params.yaml    → SINGLE SOURCE for joint limits (hard + soft), physical params
+  - manipulator_controllers.yaml → Controller names, types, joint mappings
+  - storage_params.yaml        → Cabinet dimensions, box configs, department layouts
 
-manipulator_control/config/:
-  - action_servers.yaml (timeouts, speeds)
-  - limit_switches.yaml (trigger positions)
-  - container_storage.yaml (predefined positions)
-  - load_positions.yaml (external access points)  ← NEW
+manipulator_control/config/ (SECONDARY - grouped by function):
+  - limit_switches.yaml        → 18 switch trigger positions (Story 2.1)
+  - action_servers.yaml        → Action timeouts, tolerances, speeds (Stories 2.3+)
+  - kinematic_chains.yaml      → Joint group definitions (Story 2.5)
+  - visualization.yaml         → All visualization markers (Story 2.4+)
+  - trajectory.yaml            → YZ trajectory speeds, margins (Story 4A.1)
+  - electromagnet.yaml         → Magnet simulation parameters (Story 4A.2)
+  - box_spawner.yaml           → Box spawning, TF rates (Story 4A.3)
+  - load_positions.yaml        → External load stations (Story 4B.4)
+  - container_storage.yaml     → Container locations/slots (Story 5.4)
+  - pick_item_states.yaml      → Picker state machine (Story 5.5)
+  - error_handling.yaml        → Error codes, recovery (Story 6.2)
+  - testing.yaml               → Test suite, profiling (Story 6.4+)
 ```
+
+**Configuration Reuse Policy:**
+- Load existing configs, create ONLY node-specific parameters
+- Reference other configs by key names, not duplicate values
+- Stories ADD sections to existing files, not new files where possible
 
 ### Development Phases
 

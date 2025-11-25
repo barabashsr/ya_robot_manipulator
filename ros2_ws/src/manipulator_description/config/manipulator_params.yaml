@@ -76,6 +76,7 @@ selector_assembly:
     axis: [0, -1, 0]  # -Y direction
     limits: {lower: -0.2, upper: 0.2, effort: 2000.0, velocity: 1.0}
     dynamics: {damping: 0.0, friction: 0.0}
+    safety_controller: {soft_lower: -0.19, soft_upper: 0.19, k_velocity: 0}
 
   # Right Container Jaw (mirrored)
   right_container_jaw:
@@ -94,6 +95,7 @@ selector_assembly:
     axis: [0, 1, 0]  # +Y direction (opposite of left)
     limits: {lower: -0.2, upper: 0.2, effort: 2000.0, velocity: 1.0}
     dynamics: {damping: 0.0, friction: 0.0}
+    safety_controller: {soft_lower: -0.19, soft_upper: 0.19, k_velocity: 0}
 
   # Gripper (magnet holder)
   gripper:
@@ -112,6 +114,7 @@ selector_assembly:
     axis: [0, 1, 0]  # Y-axis
     limits: {lower: -0.4, upper: 0.4, effort: 2000.0, velocity: 1.0}
     dynamics: {damping: 0.0, friction: 0.0}
+    safety_controller: {soft_lower: -0.39, soft_upper: 0.39, k_velocity: 0}
 
   # Left Gripper Magnet (origin frame only - no geometry)
   # Joint: gripper -> left_gripper_magnet (fixed)
@@ -145,8 +148,9 @@ picker_assembly:
     origin: {xyz: [-0.138, 0, 0.144], rpy: [0, 0, 0]}
     axis: [0, 0, 1]  # Z-axis
     # Note: lower limit set to -0.01 to prevent gravity lock issue with dartsim
-    limits: {lower: -0.01, upper: 0.3, effort: 2000.0, velocity: 1.0} 
+    limits: {lower: -0.01, upper: 0.3, effort: 2000.0, velocity: 1.0}
     dynamics: {damping: 0.0, friction: 0.0}
+    safety_controller: {soft_lower: 0.005, soft_upper: 0.29, k_velocity: 0}
 
   # Picker Rail (Y-axis rail)
   picker_rail:
@@ -165,6 +169,7 @@ picker_assembly:
     axis: [0, 1, 0]  # Y-axis
     limits: {lower: -0.3, upper: 0.3, effort: 2000.0, velocity: 1.0}
     dynamics: {damping: 0.0, friction: 0.0}
+    safety_controller: {soft_lower: -0.29, soft_upper: 0.29, k_velocity: 0}
 
   # Picker Base (X-axis slider)
   picker_base:
@@ -183,6 +188,7 @@ picker_assembly:
     axis: [1, 0, 0]  # X-axis
     limits: {lower: 0.0, upper: 0.25, effort: 2000.0, velocity: 1.0}
     dynamics: {damping: 0.0, friction: 0.0}
+    safety_controller: {soft_lower: 0.005, soft_upper: 0.24, k_velocity: 0}
 
   # Picker Jaw (gripper)
   picker_jaw:
@@ -201,3 +207,4 @@ picker_assembly:
     axis: [1, 0, 0]  # X-axis
     limits: {lower: 0.0, upper: 0.2, effort: 2000.0, velocity: 1.0}
     dynamics: {damping: 0.0, friction: 0.0}
+    safety_controller: {soft_lower: 0.005, soft_upper: 0.19, k_velocity: 0}

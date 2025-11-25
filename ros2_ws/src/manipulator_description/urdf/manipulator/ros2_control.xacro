@@ -5,13 +5,21 @@
     ROS2 Control Hardware Interface Configuration
 
     Defines hardware interfaces for the manipulator joints:
-    - Command interfaces: position, velocity
+    - Command interfaces: position, velocity (using SOFT LIMITS from safety_controller)
     - State interfaces: position, velocity
 
     Uses gazebo_ros2_control for simulation
+
+    IMPORTANT: Command interface limits use safety_controller soft limits from manipulator_params.yaml
+    This ensures controllers respect operational safety margins, not just physical limits.
   -->
 
-  <xacro:macro name="manipulator_ros2_control" params="name sim:=true">
+  <xacro:macro name="manipulator_ros2_control" params="name config_file sim:=true">
+    <!-- Load parameters from YAML (same source as URDF joints) -->
+    <xacro:property name="params" value="${xacro.load_yaml(config_file)}"/>
+    <xacro:property name="base" value="${params['base_assembly']}"/>
+    <xacro:property name="selector" value="${params['selector_assembly']}"/>
+    <xacro:property name="picker" value="${params['picker_assembly']}"/>
 
     <ros2_control name="${name}" type="system">
 
@@ -36,18 +44,18 @@
       <!-- BASE ASSEMBLY JOINT -->
       <!-- ============================================================ -->
 
-      <!-- base_main_frame_joint (X-axis railway) -->
+      <!-- base_main_frame_joint (X-axis railway) - uses soft limits -->
       <joint name="base_main_frame_joint">
         <command_interface name="position">
-          <param name="min">0.0</param>
-          <param name="max">4.0</param>
+          <param name="min">${base['base_main_frame_joint']['safety_controller']['soft_lower']}</param>
+          <param name="max">${base['base_main_frame_joint']['safety_controller']['soft_upper']}</param>
         </command_interface>
         <command_interface name="velocity">
-          <param name="min">-2.0</param>
-          <param name="max">2.0</param>
+          <param name="min">-${base['base_main_frame_joint']['limits']['velocity']}</param>
+          <param name="max">${base['base_main_frame_joint']['limits']['velocity']}</param>
         </command_interface>
         <state_interface name="position">
-          <param name="initial_value">0.0</param>
+          <param name="initial_value">${base['base_main_frame_joint']['safety_controller']['soft_lower']}</param>
         </state_interface>
         <state_interface name="velocity"/>
       </joint>
@@ -56,31 +64,31 @@
       <!-- SELECTOR ASSEMBLY JOINTS -->
       <!-- ============================================================ -->
 
-      <!-- main_frame_selector_frame_joint (Z-axis vertical) -->
+      <!-- main_frame_selector_frame_joint (Z-axis vertical) - uses soft limits -->
       <joint name="main_frame_selector_frame_joint">
         <command_interface name="position">
-          <param name="min">-0.01</param>
-          <param name="max">1.5</param>
+          <param name="min">${selector['main_frame_selector_frame_joint']['safety_controller']['soft_lower']}</param>
+          <param name="max">${selector['main_frame_selector_frame_joint']['safety_controller']['soft_upper']}</param>
         </command_interface>
         <command_interface name="velocity">
-          <param name="min">-2.0</param>
-          <param name="max">2.0</param>
+          <param name="min">-${selector['main_frame_selector_frame_joint']['limits']['velocity']}</param>
+          <param name="max">${selector['main_frame_selector_frame_joint']['limits']['velocity']}</param>
         </command_interface>
         <state_interface name="position">
-          <param name="initial_value">0.05</param>
+          <param name="initial_value">${selector['main_frame_selector_frame_joint']['safety_controller']['soft_lower']}</param>
         </state_interface>
         <state_interface name="velocity"/>
       </joint>
 
-      <!-- selector_left_container_jaw_joint (left container jaw) -->
+      <!-- selector_left_container_jaw_joint (left container jaw) - uses soft limits -->
       <joint name="selector_left_container_jaw_joint">
         <command_interface name="position">
-          <param name="min">-0.2</param>
-          <param name="max">0.2</param>
+          <param name="min">${selector['selector_left_container_jaw_joint']['safety_controller']['soft_lower']}</param>
+          <param name="max">${selector['selector_left_container_jaw_joint']['safety_controller']['soft_upper']}</param>
         </command_interface>
         <command_interface name="velocity">
-          <param name="min">-1.0</param>
-          <param name="max">1.0</param>
+          <param name="min">-${selector['selector_left_container_jaw_joint']['limits']['velocity']}</param>
+          <param name="max">${selector['selector_left_container_jaw_joint']['limits']['velocity']}</param>
         </command_interface>
         <state_interface name="position">
           <param name="initial_value">0.0</param>
@@ -88,16 +96,16 @@
         <state_interface name="velocity"/>
       </joint>
 
-      <!-- selector_right_container_jaw_joint (right container jaw) -->
+      <!-- selector_right_container_jaw_joint (right container jaw) - uses soft limits -->
       <!-- Note: Was mimic joint, but dartsim doesn't support mimic, so controlled independently -->
       <joint name="selector_right_container_jaw_joint">
         <command_interface name="position">
-          <param name="min">-0.2</param>
-          <param name="max">0.2</param>
+          <param name="min">${selector['selector_right_container_jaw_joint']['safety_controller']['soft_lower']}</param>
+          <param name="max">${selector['selector_right_container_jaw_joint']['safety_controller']['soft_upper']}</param>
         </command_interface>
         <command_interface name="velocity">
-          <param name="min">-1.0</param>
-          <param name="max">1.0</param>
+          <param name="min">-${selector['selector_right_container_jaw_joint']['limits']['velocity']}</param>
+          <param name="max">${selector['selector_right_container_jaw_joint']['limits']['velocity']}</param>
         </command_interface>
         <state_interface name="position">
           <param name="initial_value">0.0</param>
@@ -105,15 +113,15 @@
         <state_interface name="velocity"/>
       </joint>
 
-      <!-- selector_frame_gripper_joint (Y-axis magnet holder) -->
+      <!-- selector_frame_gripper_joint (Y-axis magnet holder) - uses soft limits -->
       <joint name="selector_frame_gripper_joint">
         <command_interface name="position">
-          <param name="min">-0.4</param>
-          <param name="max">0.4</param>
+          <param name="min">${selector['selector_frame_gripper_joint']['safety_controller']['soft_lower']}</param>
+          <param name="max">${selector['selector_frame_gripper_joint']['safety_controller']['soft_upper']}</param>
         </command_interface>
         <command_interface name="velocity">
-          <param name="min">-1.0</param>
-          <param name="max">1.0</param>
+          <param name="min">-${selector['selector_frame_gripper_joint']['limits']['velocity']}</param>
+          <param name="max">${selector['selector_frame_gripper_joint']['limits']['velocity']}</param>
         </command_interface>
         <state_interface name="position">
           <param name="initial_value">0.0</param>
@@ -125,31 +133,31 @@
       <!-- PICKER ASSEMBLY JOINTS -->
       <!-- ============================================================ -->
 
-      <!-- selector_frame_picker_frame_joint (Z-axis picker vertical) -->
+      <!-- selector_frame_picker_frame_joint (Z-axis picker vertical) - uses soft limits -->
       <joint name="selector_frame_picker_frame_joint">
         <command_interface name="position">
-          <param name="min">-0.01</param>
-          <param name="max">0.3</param>
+          <param name="min">${picker['selector_frame_picker_frame_joint']['safety_controller']['soft_lower']}</param>
+          <param name="max">${picker['selector_frame_picker_frame_joint']['safety_controller']['soft_upper']}</param>
         </command_interface>
         <command_interface name="velocity">
-          <param name="min">-1.0</param>
-          <param name="max">1.0</param>
+          <param name="min">-${picker['selector_frame_picker_frame_joint']['limits']['velocity']}</param>
+          <param name="max">${picker['selector_frame_picker_frame_joint']['limits']['velocity']}</param>
         </command_interface>
         <state_interface name="position">
-          <param name="initial_value">0.05</param>
+          <param name="initial_value">${picker['selector_frame_picker_frame_joint']['safety_controller']['soft_lower']}</param>
         </state_interface>
         <state_interface name="velocity"/>
       </joint>
 
-      <!-- picker_frame_picker_rail_joint (Y-axis picker rail) -->
+      <!-- picker_frame_picker_rail_joint (Y-axis picker rail) - uses soft limits -->
       <joint name="picker_frame_picker_rail_joint">
         <command_interface name="position">
-          <param name="min">-0.3</param>
-          <param name="max">0.3</param>
+          <param name="min">${picker['picker_frame_picker_rail_joint']['safety_controller']['soft_lower']}</param>
+          <param name="max">${picker['picker_frame_picker_rail_joint']['safety_controller']['soft_upper']}</param>
         </command_interface>
         <command_interface name="velocity">
-          <param name="min">-1.0</param>
-          <param name="max">1.0</param>
+          <param name="min">-${picker['picker_frame_picker_rail_joint']['limits']['velocity']}</param>
+          <param name="max">${picker['picker_frame_picker_rail_joint']['limits']['velocity']}</param>
         </command_interface>
         <state_interface name="position">
           <param name="initial_value">0.0</param>
@@ -157,34 +165,34 @@
         <state_interface name="velocity"/>
       </joint>
 
-      <!-- picker_rail_picker_base_joint (X-axis picker slider) -->
+      <!-- picker_rail_picker_base_joint (X-axis picker slider) - uses soft limits -->
       <joint name="picker_rail_picker_base_joint">
         <command_interface name="position">
-          <param name="min">0.0</param>
-          <param name="max">0.25</param>
+          <param name="min">${picker['picker_rail_picker_base_joint']['safety_controller']['soft_lower']}</param>
+          <param name="max">${picker['picker_rail_picker_base_joint']['safety_controller']['soft_upper']}</param>
         </command_interface>
         <command_interface name="velocity">
-          <param name="min">-1.0</param>
-          <param name="max">1.0</param>
+          <param name="min">-${picker['picker_rail_picker_base_joint']['limits']['velocity']}</param>
+          <param name="max">${picker['picker_rail_picker_base_joint']['limits']['velocity']}</param>
         </command_interface>
         <state_interface name="position">
-          <param name="initial_value">0.0</param>
+          <param name="initial_value">${picker['picker_rail_picker_base_joint']['safety_controller']['soft_lower']}</param>
         </state_interface>
         <state_interface name="velocity"/>
       </joint>
 
-      <!-- picker_base_picker_jaw_joint (X-axis picker extension) -->
+      <!-- picker_base_picker_jaw_joint (X-axis picker extension) - uses soft limits -->
       <joint name="picker_base_picker_jaw_joint">
         <command_interface name="position">
-          <param name="min">0.0</param>
-          <param name="max">0.2</param>
+          <param name="min">${picker['picker_base_picker_jaw_joint']['safety_controller']['soft_lower']}</param>
+          <param name="max">${picker['picker_base_picker_jaw_joint']['safety_controller']['soft_upper']}</param>
         </command_interface>
         <command_interface name="velocity">
-          <param name="min">-1.0</param>
-          <param name="max">1.0</param>
+          <param name="min">-${picker['picker_base_picker_jaw_joint']['limits']['velocity']}</param>
+          <param name="max">${picker['picker_base_picker_jaw_joint']['limits']['velocity']}</param>
         </command_interface>
         <state_interface name="position">
-          <param name="initial_value">0.0</param>
+          <param name="initial_value">${picker['picker_base_picker_jaw_joint']['safety_controller']['soft_lower']}</param>
         </state_interface>
         <state_interface name="velocity"/>
       </joint>

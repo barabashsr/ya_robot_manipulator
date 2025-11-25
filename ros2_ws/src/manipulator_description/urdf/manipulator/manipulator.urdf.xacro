@@ -57,8 +57,10 @@
       config_file="${config_file}"/>
 
     <!-- 4. ROS2 CONTROL: Hardware interfaces and controllers -->
+    <!-- Uses soft limits (safety_controller) from config_file for command interface limits -->
     <xacro:manipulator_ros2_control
       name="manipulator_system"
+      config_file="${config_file}"
       sim="${sim}"/>
 
   </xacro:macro>

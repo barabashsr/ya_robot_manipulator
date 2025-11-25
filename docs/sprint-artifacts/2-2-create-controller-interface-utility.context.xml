@@ -1,349 +1,273 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!--
-  Story Context: 2-2-create-controller-interface-utility
-  Generated: 2025-11-25
-  Purpose: Provide dev agent with all necessary context for implementation
--->
-<storyContext>
+<story-context id="2-2-create-controller-interface-utility" v="1.0">
   <metadata>
-    <storyId>2-2-create-controller-interface-utility</storyId>
-    <storyTitle>Create Controller Interface Utility</storyTitle>
-    <epicId>epic-2</epicId>
-    <epicTitle>Simulation Foundation & Joint Control</epicTitle>
-    <generatedDate>2025-11-25</generatedDate>
+    <epicId>2</epicId>
+    <storyId>2</storyId>
+    <title>Create Controller Interface Utility</title>
     <status>ready-for-dev</status>
+    <generatedAt>2025-11-25</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/2-2-create-controller-interface-utility.md</sourceStoryPath>
   </metadata>
 
-  <storyFile>
-    <path>docs/sprint-artifacts/2-2-create-controller-interface-utility.md</path>
-    <description>Full story with acceptance criteria, tasks, and test requirements</description>
-  </storyFile>
-
-  <architectureReferences>
-    <reference>
-      <source>docs/architecture-ros2-control-v2-CORRECTIONS.md</source>
-      <lines>13-28</lines>
-      <description>Individual ForwardCommandControllers per joint architecture</description>
-    </reference>
-    <reference>
-      <source>docs/sprint-artifacts/tech-spec-epic-2.md</source>
-      <section>APIs and Interfaces</section>
-      <description>ControllerInterface utility specification</description>
-    </reference>
-    <reference>
-      <source>docs/sprint-artifacts/tech-spec-epic-2.md</source>
-      <section>Unified Launch File Pattern</section>
-      <description>use_sim_time pattern for simulation vs hardware</description>
-    </reference>
-  </architectureReferences>
-
-  <configurationFiles>
-    <file>
-      <path>ros2_ws/src/manipulator_description/config/manipulator_controllers.yaml</path>
-      <purpose>Controller definitions - maps joint names to ForwardCommandController instances</purpose>
-    </file>
-    <file>
-      <path>ros2_ws/src/manipulator_description/urdf/manipulator/ros2_control.xacro</path>
-      <purpose>Joint limits definitions - min/max positions for each joint</purpose>
-    </file>
-    <file>
-      <path>ros2_ws/src/manipulator_control/launch/manipulator_simulation.launch.py</path>
-      <purpose>Unified launch file to update with use_sim_time argument</purpose>
-    </file>
-  </configurationFiles>
-
-  <controllerTopicMapping>
-    <description>Each joint has an individual ForwardCommandController publishing Float64 position commands</description>
-    <controller>
-      <joint>base_main_frame_joint</joint>
-      <topic>/base_main_frame_joint_controller/command</topic>
-      <msgType>std_msgs/Float64</msgType>
-    </controller>
-    <controller>
-      <joint>main_frame_selector_frame_joint</joint>
-      <topic>/main_frame_selector_frame_joint_controller/command</topic>
-      <msgType>std_msgs/Float64</msgType>
-    </controller>
-    <controller>
-      <joint>selector_left_container_jaw_joint</joint>
-      <topic>/selector_left_container_jaw_joint_controller/command</topic>
-      <msgType>std_msgs/Float64</msgType>
-    </controller>
-    <controller>
-      <joint>selector_right_container_jaw_joint</joint>
-      <topic>/selector_right_container_jaw_joint_controller/command</topic>
-      <msgType>std_msgs/Float64</msgType>
-    </controller>
-    <controller>
-      <joint>selector_frame_gripper_joint</joint>
-      <topic>/selector_frame_gripper_joint_controller/command</topic>
-      <msgType>std_msgs/Float64</msgType>
-    </controller>
-    <controller>
-      <joint>selector_frame_picker_frame_joint</joint>
-      <topic>/selector_frame_picker_frame_joint_controller/command</topic>
-      <msgType>std_msgs/Float64</msgType>
-    </controller>
-    <controller>
-      <joint>picker_frame_picker_rail_joint</joint>
-      <topic>/picker_frame_picker_rail_joint_controller/command</topic>
-      <msgType>std_msgs/Float64</msgType>
-    </controller>
-    <controller>
-      <joint>picker_rail_picker_base_joint</joint>
-      <topic>/picker_rail_picker_base_joint_controller/command</topic>
-      <msgType>std_msgs/Float64</msgType>
-    </controller>
-    <controller>
-      <joint>picker_base_picker_jaw_joint</joint>
-      <topic>/picker_base_picker_jaw_joint_controller/command</topic>
-      <msgType>std_msgs/Float64</msgType>
-    </controller>
-  </controllerTopicMapping>
-
-  <jointLimitsReference>
-    <description>Joint position limits from ros2_control.xacro - MUST be enforced in validation</description>
-    <joint name="base_main_frame_joint" min="0.0" max="4.0" axis="X" description="X-axis railway"/>
-    <joint name="main_frame_selector_frame_joint" min="-0.01" max="1.5" axis="Z" description="Z-axis vertical"/>
-    <joint name="selector_left_container_jaw_joint" min="-0.2" max="0.2" axis="Y" description="Left container jaw"/>
-    <joint name="selector_right_container_jaw_joint" min="-0.2" max="0.2" axis="Y" description="Right container jaw"/>
-    <joint name="selector_frame_gripper_joint" min="-0.4" max="0.4" axis="Y" description="Gripper Y-axis"/>
-    <joint name="selector_frame_picker_frame_joint" min="-0.01" max="0.3" axis="Z" description="Picker Z-axis vertical"/>
-    <joint name="picker_frame_picker_rail_joint" min="-0.3" max="0.3" axis="Y" description="Picker Y-axis rail"/>
-    <joint name="picker_rail_picker_base_joint" min="0.0" max="0.12" axis="X" description="Picker X-axis base"/>
-    <joint name="picker_base_picker_jaw_joint" min="0.0" max="0.2" axis="X" description="Picker X-axis jaw extension"/>
-  </jointLimitsReference>
-
-  <existingPackageStructure>
-    <package name="manipulator_control">
-      <location>ros2_ws/src/manipulator_control</location>
-      <existingFiles>
-        <file>src/virtual_limit_switches.py</file>
-        <file>config/limit_switches.yaml</file>
-        <file>launch/virtual_limit_switches.launch.py</file>
-        <file>launch/manipulator_simulation.launch.py</file>
-        <file>action/MoveJoint.action</file>
-        <file>action/MoveJointGroup.action</file>
-      </existingFiles>
-      <toCreate>
-        <file>src/controller_interface.py</file>
-      </toCreate>
-    </package>
-  </existingPackageStructure>
-
-  <rosInterfaces>
-    <subscription>
-      <topic>/joint_states</topic>
-      <msgType>sensor_msgs/msg/JointState</msgType>
-      <purpose>Get current joint positions for get_joint_position() method</purpose>
-      <qos>depth=10</qos>
-    </subscription>
-    <publishers count="9">
-      <publisher>
-        <topic>/base_main_frame_joint_controller/command</topic>
-        <msgType>std_msgs/msg/Float64</msgType>
-      </publisher>
-      <publisher>
-        <topic>/main_frame_selector_frame_joint_controller/command</topic>
-        <msgType>std_msgs/msg/Float64</msgType>
-      </publisher>
-      <publisher>
-        <topic>/selector_left_container_jaw_joint_controller/command</topic>
-        <msgType>std_msgs/msg/Float64</msgType>
-      </publisher>
-      <publisher>
-        <topic>/selector_right_container_jaw_joint_controller/command</topic>
-        <msgType>std_msgs/msg/Float64</msgType>
-      </publisher>
-      <publisher>
-        <topic>/selector_frame_gripper_joint_controller/command</topic>
-        <msgType>std_msgs/msg/Float64</msgType>
-      </publisher>
-      <publisher>
-        <topic>/selector_frame_picker_frame_joint_controller/command</topic>
-        <msgType>std_msgs/msg/Float64</msgType>
-      </publisher>
-      <publisher>
-        <topic>/picker_frame_picker_rail_joint_controller/command</topic>
-        <msgType>std_msgs/msg/Float64</msgType>
-      </publisher>
-      <publisher>
-        <topic>/picker_rail_picker_base_joint_controller/command</topic>
-        <msgType>std_msgs/msg/Float64</msgType>
-      </publisher>
-      <publisher>
-        <topic>/picker_base_picker_jaw_joint_controller/command</topic>
-        <msgType>std_msgs/msg/Float64</msgType>
-      </publisher>
-    </publishers>
-  </rosInterfaces>
-
-  <apiSpecification>
-    <class name="ControllerInterface">
-      <description>Utility for commanding individual ForwardCommandControllers</description>
-      <constructor>
-        <param name="node" type="rclpy.node.Node">Reference to ROS2 node for creating publishers/subscriptions</param>
-      </constructor>
-      <method name="command_joint">
-        <signature>command_joint(joint_name: str, position: float) -> bool</signature>
-        <description>Command a single joint to target position</description>
-        <returns>True if command sent, False if joint unknown or position out of limits</returns>
-        <validation>Must check joint exists and position within limits before publishing</validation>
-      </method>
-      <method name="command_joint_group">
-        <signature>command_joint_group(joint_names: List[str], positions: List[float]) -> bool</signature>
-        <description>Command multiple joints simultaneously</description>
-        <returns>True if all commands sent, False if any validation fails</returns>
-        <validation>Validate ALL joints/positions before sending ANY commands</validation>
-      </method>
-      <method name="get_joint_position">
-        <signature>get_joint_position(joint_name: str) -> Optional[float]</signature>
-        <description>Get current joint position from /joint_states</description>
-        <returns>Current position or None if joint not found</returns>
-      </method>
-      <method name="get_joint_limits">
-        <signature>get_joint_limits(joint_name: str) -> Tuple[float, float]</signature>
-        <description>Return (min_limit, max_limit) for joint</description>
-        <returns>Tuple of (min, max) limits, or (0.0, 0.0) if joint unknown</returns>
-      </method>
-    </class>
-  </apiSpecification>
-
-  <launchFileUpdate>
-    <file>ros2_ws/src/manipulator_control/launch/manipulator_simulation.launch.py</file>
-    <changes>
-      <change id="1">
-        <description>Add use_sim_time DeclareLaunchArgument with default 'true'</description>
-        <code><![CDATA[
-use_sim_time_arg = DeclareLaunchArgument(
-    'use_sim_time',
-    default_value='true',
-    description='Use simulation time (true for Gazebo, false for hardware)'
-)
-use_sim_time = LaunchConfiguration('use_sim_time')
-        ]]></code>
-      </change>
-      <change id="2">
-        <description>Import IfCondition from launch.conditions</description>
-        <code><![CDATA[
-from launch.conditions import IfCondition
-        ]]></code>
-      </change>
-      <change id="3">
-        <description>Add condition to virtual_limit_switches_node (simulation-only)</description>
-        <code><![CDATA[
-virtual_limit_switches_node = TimerAction(
-    period=3.0,
-    actions=[
-        Node(
-            package='manipulator_control',
-            executable='virtual_limit_switches.py',
-            name='virtual_limit_switches',
-            output='screen',
-            parameters=[
-                {'config_file': limit_switches_config},
-                {'use_sim_time': use_sim_time}
-            ],
-            condition=IfCondition(use_sim_time)  # Only launch in simulation
-        )
-    ]
-)
-        ]]></code>
-      </change>
-      <change id="4">
-        <description>Add use_sim_time_arg to LaunchDescription return</description>
-        <code><![CDATA[
-return LaunchDescription([
-    # Declare arguments
-    enable_joy_arg,
-    use_sim_time_arg,  # ADD THIS
-    ...
-])
-        ]]></code>
-      </change>
-    </changes>
-  </launchFileUpdate>
-
-  <previousStoryLearnings>
-    <story id="2-1-implement-virtual-limit-switch-simulation">
-      <status>done</status>
-      <learnings>
-        <learning>Virtual limit switches working at 10 Hz, all 18 topics verified</learning>
-        <learning>Config adjusted for Gazebo simulation limits (5mm inset from joint boundaries)</learning>
-        <learning>Unified launch file created with delayed node starts (3s for joint_states availability)</learning>
-        <learning>Build time ~2.5s for manipulator_control package</learning>
-      </learnings>
-    </story>
-    <story id="1-3-define-service-and-message-interfaces">
-      <status>done</status>
-      <learnings>
-        <learning>All 20 interfaces defined: 12 actions + 5 services + 3 messages</learning>
-        <learning>Build time ~25s for full package with interfaces</learning>
-      </learnings>
-    </story>
-  </previousStoryLearnings>
-
-  <technicalConstraints>
-    <constraint>ROS2 Jazzy + Gazebo Harmonic compatibility</constraint>
-    <constraint>Must work with existing ForwardCommandControllers</constraint>
-    <constraint>Publishers created once on initialization (not per-call)</constraint>
-    <constraint>Joint state subscription uses QoS depth 10</constraint>
-    <constraint>All methods non-blocking (publishers are async)</constraint>
-    <constraint>This is a utility class, not a standalone node</constraint>
-  </technicalConstraints>
+  <story>
+    <asA>developer</asA>
+    <iWant>a utility to send position commands to individual ForwardCommandController instances</iWant>
+    <soThat>action servers can control joints without hardcoding controller topic names</soThat>
+    <tasks>
+      <task id="1" ac="1,2,3,4,5,6,7,8">Implement ControllerInterface Class
+        <subtask id="1.1">Create src/controller_interface.py</subtask>
+        <subtask id="1.2">Implement __init__() - load limits from manipulator_params.yaml, create publishers, subscribe to joint_states</subtask>
+        <subtask id="1.3">Implement _load_joint_limits_from_params() - parse manipulator_params.yaml structure for soft limits</subtask>
+        <subtask id="1.4">Implement _joint_state_cb() - update position cache from /joint_states</subtask>
+        <subtask id="1.5">Implement command_joint() - validate position against soft limits, publish Float64</subtask>
+        <subtask id="1.6">Implement command_joint_group() - iterate and command multiple joints</subtask>
+        <subtask id="1.7">Implement get_joint_position() - return from position cache</subtask>
+        <subtask id="1.8">Implement get_joint_limits() - return (min, max) tuple</subtask>
+        <subtask id="1.9">Add logging for all validation failures</subtask>
+      </task>
+      <task id="2" ac="9,10">Create Test Scripts
+        <subtask id="2.1">Create test/test_controller_interface.py with pytest unit tests</subtask>
+        <subtask id="2.2">Create scripts/test_controller_interface_manual.py for Gazebo testing</subtask>
+        <subtask id="2.3">Add comprehensive test commands to story documentation</subtask>
+      </task>
+      <task id="3" ac="1">Update Package Configuration
+        <subtask id="3.1">Update CMakeLists.txt to install controller_interface.py to lib/</subtask>
+        <subtask id="3.2">Rebuild package and verify installation</subtask>
+      </task>
+      <task id="4" ac="all">Developer Self-Validation (MANDATORY)
+        <subtask id="4.1">Run unit tests with pytest</subtask>
+        <subtask id="4.2">Run manual Gazebo test with documented commands</subtask>
+        <subtask id="4.3">Verify all 9 joints respond to commands</subtask>
+        <subtask id="4.4">Verify limit validation rejects out-of-range commands</subtask>
+      </task>
+    </tasks>
+  </story>
 
   <acceptanceCriteria>
-    <criterion id="AC-1">ControllerInterface class exists at ros2_ws/src/manipulator_control/src/controller_interface.py</criterion>
-    <criterion id="AC-2">Utility provides command_joint(joint_name, position) -> bool method</criterion>
-    <criterion id="AC-3">Utility provides command_joint_group(joint_names, positions) -> bool method</criterion>
-    <criterion id="AC-4">Utility provides get_joint_position(joint_name) -> Optional[float] method</criterion>
-    <criterion id="AC-5">Utility provides get_joint_limits(joint_name) -> Tuple[float, float] method</criterion>
-    <criterion id="AC-6">Position commands validated against joint limits; invalid returns False with logged warning</criterion>
-    <criterion id="AC-7">Controller names and joint limits loaded/defined from configuration</criterion>
-    <criterion id="AC-8">Launch file updated with use_sim_time argument and IfCondition for virtual_limit_switches</criterion>
+    <ac id="1">ControllerInterface class exists at ros2_ws/src/manipulator_control/src/controller_interface.py</ac>
+    <ac id="2">Utility discovers and maps all 9 joint controllers from manipulator_controllers.yaml</ac>
+    <ac id="3">command_joint(joint_name, position) publishes Float64 to correct controller topic</ac>
+    <ac id="4">command_joint_group(joint_names, positions) commands multiple joints simultaneously</ac>
+    <ac id="5">get_joint_position(joint_name) returns current position from /joint_states</ac>
+    <ac id="6">Position commands are validated against joint soft limits before publishing</ac>
+    <ac id="7">Invalid commands return False with logged warning (not exception)</ac>
+    <ac id="8">Joint soft limits loaded from manipulator_params.yaml at runtime</ac>
+    <ac id="9">Unit tests exist at test/test_controller_interface.py</ac>
+    <ac id="10">Manual test script demonstrates all methods working in Gazebo</ac>
   </acceptanceCriteria>
 
-  <testCommands>
-    <description>MANDATORY: Run these tests after implementation to verify all ACs</description>
-    <testGroup name="Build Verification">
-      <command><![CDATA[
-cd /home/robo/robo/ya_robot_manipulator/ros2_ws
-colcon build --packages-select manipulator_control
-echo "Exit code: $?"
-      ]]></command>
-    </testGroup>
-    <testGroup name="Launch Simulation">
-      <command><![CDATA[
-source /home/robo/robo/ya_robot_manipulator/ros2_ws/install/setup.bash
-ros2 launch manipulator_control manipulator_simulation.launch.py
-      ]]></command>
-    </testGroup>
-    <testGroup name="Test use_sim_time Argument">
-      <command><![CDATA[
-# Default (use_sim_time=true) - virtual limit switches should launch
-ros2 launch manipulator_control manipulator_simulation.launch.py
-ros2 node list | grep virtual_limit_switches
-# Expected: /virtual_limit_switches
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-2.md</path>
+        <title>Epic 2 Technical Specification</title>
+        <section>Controller Interface Utility</section>
+        <snippet>ControllerInterface utility class for commanding ForwardCommandControllers. NOT a ROS2 node - requires parent node reference. Validates against soft limits from manipulator_params.yaml.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture-ros2-control-v2-CORRECTIONS.md</path>
+        <title>ROS2 Control Architecture v2.1</title>
+        <section>Section 9 - Configuration Management (Single Source of Truth)</section>
+        <snippet>Unified Limits Architecture: manipulator_params.yaml is PRIMARY SOURCE. Soft limits = Controller limits. ControllerInterface loads from same YAML file.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics.md</path>
+        <title>Epics</title>
+        <section>Story 2.2</section>
+        <snippet>Create ControllerInterface utility. USE: manipulator_params.yaml for joint limits. DO NOT CREATE: New config files. DO NOT DUPLICATE: Controller limits inside Python code.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <file>
+        <path>ros2_ws/src/manipulator_control/CMakeLists.txt</path>
+        <kind>build-config</kind>
+        <symbol>CMakeLists.txt</symbol>
+        <reason>Must update to install controller_interface.py to lib/ directory</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/src/virtual_limit_switches.py</path>
+        <kind>reference</kind>
+        <symbol>VirtualLimitSwitchNode</symbol>
+        <reason>Reference implementation pattern from Story 2.1 - node structure, YAML loading</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_description/config/manipulator_params.yaml</path>
+        <kind>config</kind>
+        <symbol>manipulator_params.yaml</symbol>
+        <reason>SINGLE SOURCE OF TRUTH - load soft limits from safety_controller sections</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_description/config/manipulator_controllers.yaml</path>
+        <kind>config</kind>
+        <symbol>manipulator_controllers.yaml</symbol>
+        <reason>Reference for controller names (topic pattern: /{joint_name}_controller/command)</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_description/urdf/manipulator/ros2_control.xacro</path>
+        <kind>urdf</kind>
+        <symbol>ros2_control.xacro</symbol>
+        <reason>Reference - shows how ros2_control loads limits from manipulator_params.yaml</reason>
+      </file>
+    </code>
+    <dependencies>
+      <ros2>
+        <pkg>rclpy</pkg>
+        <pkg>std_msgs</pkg>
+        <pkg>sensor_msgs</pkg>
+        <pkg>ament_index_python</pkg>
+      </ros2>
+      <python>
+        <pkg>yaml</pkg>
+        <pkg>typing</pkg>
+      </python>
+    </dependencies>
+  </artifacts>
 
-# With use_sim_time=false - virtual limit switches should NOT launch
-ros2 launch manipulator_control manipulator_simulation.launch.py use_sim_time:=false
-ros2 node list | grep virtual_limit_switches
-# Expected: (empty - no output)
-      ]]></command>
-    </testGroup>
-    <testGroup name="Interactive ControllerInterface Test">
-      <description>See story file for full Python test script</description>
-    </testGroup>
-  </testCommands>
+  <constraints>
+    <constraint type="architecture">ControllerInterface is a UTILITY CLASS, not a ROS2 node - requires parent node reference</constraint>
+    <constraint type="config">NO new config files - load limits from existing manipulator_params.yaml</constraint>
+    <constraint type="config">NO duplication of limit values - parse from YAML at runtime</constraint>
+    <constraint type="limits">Validate against SOFT LIMITS (safety_controller), not hard limits</constraint>
+    <constraint type="message">Use std_msgs/Float64 for position commands (not Float64MultiArray)</constraint>
+    <constraint type="topic">Controller topic pattern: /{joint_name}_controller/command</constraint>
+    <constraint type="compatibility">ROS2 Jazzy + Gazebo Harmonic</constraint>
+  </constraints>
 
-  <deliverables>
-    <deliverable>
-      <file>ros2_ws/src/manipulator_control/src/controller_interface.py</file>
-      <description>ControllerInterface utility class</description>
-    </deliverable>
-    <deliverable>
-      <file>ros2_ws/src/manipulator_control/launch/manipulator_simulation.launch.py</file>
-      <description>Updated launch file with use_sim_time argument</description>
-    </deliverable>
-  </deliverables>
-</storyContext>
+  <interfaces>
+    <!-- Publishers to controller command topics -->
+    <topic name="/base_main_frame_joint_controller/command" type="std_msgs/Float64" direction="publish"/>
+    <topic name="/main_frame_selector_frame_joint_controller/command" type="std_msgs/Float64" direction="publish"/>
+    <topic name="/selector_frame_gripper_joint_controller/command" type="std_msgs/Float64" direction="publish"/>
+    <topic name="/selector_frame_picker_frame_joint_controller/command" type="std_msgs/Float64" direction="publish"/>
+    <topic name="/picker_frame_picker_rail_joint_controller/command" type="std_msgs/Float64" direction="publish"/>
+    <topic name="/picker_rail_picker_base_joint_controller/command" type="std_msgs/Float64" direction="publish"/>
+    <topic name="/picker_base_picker_jaw_joint_controller/command" type="std_msgs/Float64" direction="publish"/>
+    <topic name="/selector_left_container_jaw_joint_controller/command" type="std_msgs/Float64" direction="publish"/>
+    <topic name="/selector_right_container_jaw_joint_controller/command" type="std_msgs/Float64" direction="publish"/>
+    <!-- Subscription to joint states -->
+    <subscription name="/joint_states" type="sensor_msgs/JointState"/>
+  </interfaces>
+
+  <tests>
+    <standards>Build verification + unit tests + Gazebo integration. Verify all 9 joints respond, limits enforced, position feedback works.</standards>
+    <locations>
+      <location>ros2_ws/src/manipulator_control/src/controller_interface.py</location>
+      <location>ros2_ws/src/manipulator_control/test/test_controller_interface.py</location>
+      <location>ros2_ws/src/manipulator_control/scripts/test_controller_interface_manual.py</location>
+    </locations>
+    <ideas>
+      <idea ac="3">command_joint('base_main_frame_joint', 1.0) publishes to /base_main_frame_joint_controller/command</idea>
+      <idea ac="6">command_joint('base_main_frame_joint', 10.0) returns False (outside soft limit 3.9)</idea>
+      <idea ac="7">command_joint('fake_joint', 1.0) returns False with warning logged</idea>
+      <idea ac="5">get_joint_position('base_main_frame_joint') returns current position after joint_states callback</idea>
+      <idea ac="4">command_joint_group(['base_main_frame_joint', 'main_frame_selector_frame_joint'], [2.0, 0.5]) commands both</idea>
+      <idea ac="8">Limits match manipulator_params.yaml safety_controller values exactly</idea>
+    </ideas>
+  </tests>
+
+  <previousStoryLearnings>
+    <epic key="story-2.1" status="done">
+      <summary>Virtual Limit Switches implemented. 18 topics publishing at /manipulator/end_switches/*. Unified launch file available.</summary>
+      <newFiles>
+        <file>ros2_ws/src/manipulator_control/src/virtual_limit_switches.py</file>
+        <file>ros2_ws/src/manipulator_control/config/limit_switches.yaml</file>
+        <file>ros2_ws/src/manipulator_control/launch/virtual_limit_switches.launch.py</file>
+        <file>ros2_ws/src/manipulator_control/launch/manipulator_simulation.launch.py</file>
+      </newFiles>
+      <architecturalDecisions>
+        <decision>CMakeLists.txt installs Python to lib/${PROJECT_NAME} with RENAME</decision>
+        <decision>Config files installed to share/${PROJECT_NAME}/config</decision>
+        <decision>Launch files installed to share/${PROJECT_NAME}/launch</decision>
+        <decision>Build time: ~0.7s for rebuild, ~2.5s clean build</decision>
+      </architecturalDecisions>
+      <learnings>
+        <learning>Trigger positions need ~5mm inset from URDF limits due to Gazebo boundary bouncing</learning>
+        <learning>Use ament_index_python.packages.get_package_share_directory() for config file paths</learning>
+      </learnings>
+    </epic>
+  </previousStoryLearnings>
+
+  <jointLimitsReference>
+    <note>SOFT LIMITS from manipulator_params.yaml safety_controller - these are validation limits for ControllerInterface</note>
+    <joint name="base_main_frame_joint" soft_lower="0.1" soft_upper="3.9" hard_lower="0.0" hard_upper="4.0" axis="X"/>
+    <joint name="main_frame_selector_frame_joint" soft_lower="0.05" soft_upper="1.45" hard_lower="-0.01" hard_upper="1.5" axis="Z"/>
+    <joint name="selector_frame_gripper_joint" soft_lower="-0.39" soft_upper="0.39" hard_lower="-0.4" hard_upper="0.4" axis="Y"/>
+    <joint name="selector_frame_picker_frame_joint" soft_lower="0.005" soft_upper="0.29" hard_lower="-0.01" hard_upper="0.3" axis="Z"/>
+    <joint name="picker_frame_picker_rail_joint" soft_lower="-0.29" soft_upper="0.29" hard_lower="-0.3" hard_upper="0.3" axis="Y"/>
+    <joint name="picker_rail_picker_base_joint" soft_lower="0.005" soft_upper="0.24" hard_lower="0.0" hard_upper="0.25" axis="X"/>
+    <joint name="picker_base_picker_jaw_joint" soft_lower="0.005" soft_upper="0.19" hard_lower="0.0" hard_upper="0.2" axis="X"/>
+    <joint name="selector_left_container_jaw_joint" soft_lower="-0.19" soft_upper="0.19" hard_lower="-0.2" hard_upper="0.2" axis="-Y"/>
+    <joint name="selector_right_container_jaw_joint" soft_lower="-0.19" soft_upper="0.19" hard_lower="-0.2" hard_upper="0.2" axis="+Y"/>
+  </jointLimitsReference>
+
+  <configurationReusePolicy>
+    <use>
+      <item>manipulator_description/config/manipulator_params.yaml - PRIMARY SOURCE for joint limits (soft + hard)</item>
+      <item>manipulator_description/config/manipulator_controllers.yaml - controller names reference</item>
+    </use>
+    <doNotCreate>
+      <item>NO new YAML config files for limits</item>
+      <item>NO duplication of limit values anywhere</item>
+    </doNotCreate>
+    <doNotDuplicate>
+      <item>Controller limits inside Python code - load from YAML</item>
+      <item>Controller topic names - derive from joint names using pattern: /{joint_name}_controller/command</item>
+    </doNotDuplicate>
+  </configurationReusePolicy>
+
+  <codeSnippets>
+    <snippet name="load_joint_limits_from_params" language="python">
+<![CDATA[
+def _load_joint_limits_from_params(self) -> dict:
+    """Load soft limits from manipulator_params.yaml (single source of truth)."""
+    from ament_index_python.packages import get_package_share_directory
+    import yaml
+    import os
+
+    pkg_path = get_package_share_directory('manipulator_description')
+    params_file = os.path.join(pkg_path, 'config', 'manipulator_params.yaml')
+
+    with open(params_file, 'r') as f:
+        params = yaml.safe_load(f)
+
+    limits = {}
+    # Search through all assemblies for joint definitions
+    for assembly_name, assembly in params.items():
+        if not isinstance(assembly, dict):
+            continue
+        for key, value in assembly.items():
+            # Joint entries have 'safety_controller' with soft limits
+            if isinstance(value, dict) and 'safety_controller' in value:
+                joint_name = key
+                sc = value['safety_controller']
+                limits[joint_name] = {
+                    'min': sc['soft_lower'],
+                    'max': sc['soft_upper'],
+                    'velocity': value['limits'].get('velocity', 1.0),
+                }
+    return limits
+]]>
+    </snippet>
+    <snippet name="command_joint" language="python">
+<![CDATA[
+def command_joint(self, joint_name: str, position: float) -> bool:
+    """Command single joint to position. Returns False if validation fails."""
+    if joint_name not in self.joint_limits:
+        self.logger.warning(f"Unknown joint: {joint_name}")
+        return False
+
+    limits = self.joint_limits[joint_name]
+    if not (limits['min'] <= position <= limits['max']):
+        self.logger.warning(
+            f"Position {position} outside soft limits [{limits['min']}, {limits['max']}] for {joint_name}"
+        )
+        return False
+
+    msg = Float64()
+    msg.data = position
+    self.publishers[joint_name].publish(msg)
+    return True
+]]>
+    </snippet>
+  </codeSnippets>
+</story-context>

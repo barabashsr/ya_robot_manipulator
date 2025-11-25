@@ -15,6 +15,22 @@ This document provides the complete epic and story breakdown for ya_robot_manipu
 
 ---
 
+## Configuration Reuse Policy
+
+**CRITICAL REQUIREMENT:** DO NOT duplicate hardware configuration in new nodes. All nodes MUST load existing configurations:
+
+| Configuration | Source File (Single Source of Truth) | Notes |
+|--------------|--------------------------------------|-------|
+| Joint limits | `manipulator_description/urdf/manipulator/ros2_control.xacro` | Load at runtime, DO NOT hardcode |
+| Controller names | `manipulator_description/config/manipulator_controllers.yaml` | Discover topics dynamically |
+| Switch positions | `manipulator_control/config/limit_switches.yaml` | Already created, use as-is |
+| Storage params | `manipulator_description/config/storage_params.yaml` | Box dimensions, cabinet config |
+| Manipulator params | `manipulator_description/config/manipulator_params.yaml` | Joint params reference |
+
+**Node-specific config:** Create NEW config files ONLY for parameters unique to that node (publish rates, timeouts, action-specific settings). Never duplicate joint limits, switch positions, or controller names.
+
+---
+
 ## Unified Launch File Pattern
 
 **CRITICAL REQUIREMENT:** All Epic 2+ stories that add nodes, action servers, or services MUST update the unified launch file.
@@ -247,13 +263,15 @@ So that picker state machine and safety monitoring can operate without physical 
 **Given** the manipulator has 9 joints with position limits defined in ros2_control.xacro
 **When** I launch the virtual_limit_switches_node
 **Then** the node publishes boolean states for all 18 switches at 10 Hz:
-- `/manipulator/end_switches/base_main_frame_min` and `_max`
-- `/manipulator/end_switches/selector_frame_min` and `_max`
-- `/manipulator/end_switches/gripper_extended` and `gripper_retracted`
-- `/manipulator/end_switches/picker_frame_min` and `_max`
-- `/manipulator/end_switches/picker_rail_min` and `_max`
-- `/manipulator/end_switches/picker_base_min` and `_max`
-- `/manipulator/end_switches/picker_jaw_opened` and `_closed`
+- `/manipulator/end_switches/base_main_frame_min` and `_max` (X-axis rail)
+- `/manipulator/end_switches/selector_frame_min` and `_max` (Z-axis selector)
+- `/manipulator/end_switches/gripper_left` and `gripper_right` (Y-axis gripper - LEFT/RIGHT not extend/retract!)
+- `/manipulator/end_switches/picker_frame_min` and `_max` (Z-axis picker vertical)
+- `/manipulator/end_switches/picker_rail_min` and `_max` (Y-axis picker rail)
+- `/manipulator/end_switches/picker_retracted` and `picker_extended` (X-axis picker extension)
+- `/manipulator/end_switches/picker_jaw_opened` and `picker_jaw_closed` (X-axis picker jaw)
+- `/manipulator/end_switches/container_left_min`, `container_left_max` (Y-axis left jaw)
+- `/manipulator/end_switches/container_right_min`, `container_right_max` (Y-axis right jaw)
 
 **And** switch states transition to TRUE when joint position reaches trigger threshold (within 0.01m tolerance)
 **And** switch trigger positions are loaded from `config/limit_switches.yaml`
@@ -262,11 +280,19 @@ So that picker state machine and safety monitoring can operate without physical 
 **Prerequisites:** Story 1.1 (package structure exists)
 
 **Technical Notes:**
-- Reference architecture lines 249-306 for virtual limit switch implementation
+- Reference architecture "Core Physical Workflows Reference" section and "Switch Name Reference Table"
 - Configuration file: `manipulator_control/config/limit_switches.yaml` with trigger_position and trigger_tolerance for each switch
-- Use joint limits from `ros2_ws/src/manipulator_description/urdf/manipulator/ros2_control.xacro` to set trigger positions (e.g., jaw_closed at 0.19, jaw_opened at 0.01)
+- **CRITICAL:** Use correct switch names from `ros2_ws/src/manipulator_control/config/limit_switches.yaml`:
+  - `gripper_left` (Y=+0.39) / `gripper_right` (Y=-0.39) - NOT gripper_extended/retracted
+  - `picker_extended` (X=0.24) / `picker_retracted` (X=0.01) - NOT picker_base_min/max
+  - `picker_jaw_opened` (X=0.19) / `picker_jaw_closed` (X=0.01) - grasp control
 - Publish rate: 10 Hz minimum for picker state machine responsiveness
-- Example: picker_jaw_closed triggers when picker_base_picker_jaw_joint >= 0.19
+- Example: picker_jaw_closed triggers when picker_base_picker_jaw_joint <= 0.01
+
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_control/config/limit_switches.yaml` - already exists with all switch definitions
+- **DO NOT CREATE:** New config file for switch positions - load from existing file
+- ✅ `selector_frame_max` corrected to 1.45 (was 1.90, exceeding joint max of 1.5)
 
 ---
 
@@ -302,6 +328,12 @@ So that action servers can control joints without hardcoding controller topic na
 - Cache joint limits on initialization for validation performance
 - **LAUNCH FILE UPDATE:** Update `manipulator_simulation.launch.py` to add `use_sim_time` argument and apply `IfCondition(use_sim_time)` to virtual_limit_switches node (simulation-only). See "Unified Launch File Pattern" section.
 
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_description/config/manipulator_controllers.yaml` - controller names and joint mappings
+- **USE:** `manipulator_description/urdf/manipulator/ros2_control.xacro` - joint limits (parse XACRO or use ROS2 param server)
+- **DO NOT CREATE:** New config for joint limits or controller topics - load from existing files
+- **CREATE ONLY:** Utility-specific parameters if needed (e.g., retry count, logging level)
+
 ---
 
 ### Story 2.3: Implement MoveJoint Action Server
@@ -336,6 +368,12 @@ So that I can test joint control and build higher-level coordinated motions.
 - Simple point-to-point motion (no trajectory interpolation at this level)
 - NFR-002: Position accuracy ±0.01m for storage operations
 - **LAUNCH FILE UPDATE:** Add move_joint_server node to `manipulator_simulation.launch.py` as Common node (no condition - runs in both sim and hardware). Use 3s delayed start.
+
+**Implementation Notes (Config Reuse):**
+- **USE:** ControllerInterface (Story 2.2) - already loads joint limits and controller topics
+- **CREATE:** `config/action_servers.yaml` - NEW file for action-specific parameters only:
+  - `timeout_sec`, `position_tolerance`, `feedback_rate` - these are action server parameters, NOT hardware config
+- **DO NOT DUPLICATE:** Joint limits in action_servers.yaml - get from ControllerInterface
 
 ---
 
@@ -378,6 +416,13 @@ So that I can observe system behavior during testing and debugging.
 - Color scheme: Red (1.0, 0.0, 0.0), Green (0.0, 1.0, 0.0) with alpha for transparency
 - Department markers will be added in Epic 5 (Item Picking)
 
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_description/config/storage_params.yaml` - box dimensions for marker sizes
+- **USE:** TF frames from URDF (addr_l_1_2_3 format) - address positions
+- **CREATE:** `config/state_markers.yaml` - NEW file for marker-specific parameters only:
+  - `marker_namespace`, `update_rate`, `colors`, `sizes` - visualization parameters
+- **DO NOT DUPLICATE:** Box dimensions or address positions - load from existing files
+
 ---
 
 ### Story 2.5: Implement MoveJointGroup Action Server
@@ -415,6 +460,14 @@ So that I can execute coordinated multi-joint motions efficiently.
 - Use ControllerInterface.command_joint_group() for simultaneous commands
 - Aggregate progress: sum(individual_progress) / joint_count
 - All joints must reach targets within 1 second of each other (coordinate arrival)
+
+**Implementation Notes (Config Reuse):**
+- **USE:** ControllerInterface (Story 2.2) - already loads joint limits and controller topics
+- **USE:** `config/action_servers.yaml` (Story 2.3) - shared timeout/tolerance settings
+- **CREATE:** `config/kinematic_chains.yaml` - NEW file for joint group definitions:
+  - `joint_groups` with joint lists, default velocities, descriptions
+  - `mimic_mode` for container jaws - this is group coordination logic, not hardware config
+- **DO NOT DUPLICATE:** Joint names or limits - reference from existing config
 
 ---
 
@@ -499,6 +552,11 @@ So that action servers can navigate without hardcoded address tables.
 - Load cabinet configurations from storage_params.yaml (cabinet_rows section)
 - NFR-003: Address validation response time < 100ms
 
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_description/config/storage_params.yaml` - cabinet configurations, row/column counts
+- **USE:** TF frames from URDF (addr_{side}_{cabinet}_{row}_{column} format)
+- **DO NOT CREATE:** New config for address lookups - all coordinates resolved via TF
+
 ---
 
 ### Story 3.2: Implement GetAddressCoordinates Service
@@ -531,6 +589,10 @@ So that any node can resolve addresses without duplicating TF lookup logic.
 - Use AddressResolver.get_address_coordinates() for implementation
 - Cache cabinet configurations on node startup for performance
 - Log all service calls at DEBUG level for troubleshooting
+
+**Implementation Notes (Config Reuse):**
+- **USE:** AddressResolver (Story 3.1) - already loads storage_params.yaml
+- **DO NOT CREATE:** New config - this is a service wrapper around AddressResolver
 
 ---
 
@@ -567,6 +629,11 @@ So that navigation and other coordinated motions use consistent groupings.
 - Container mimic behavior: Ensures jaws open symmetrically around center line
 - Use yaml.safe_load() to parse configuration on startup
 
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_control/config/kinematic_chains.yaml` - joint group definitions (created in Story 2.5)
+- **USE:** ControllerInterface (Story 2.2) - already loads joint limits and controller topics
+- **DO NOT DUPLICATE:** Joint names - reference from kinematic_chains.yaml
+
 ---
 
 ### Story 3.4: Implement NavigateToAddress Action Server
@@ -601,6 +668,11 @@ So that I can position for box extraction or item picking operations.
 - Positioning error = sqrt((x_target - x_actual)^2 + (z_target - z_actual)^2)
 - NFR-002: Position accuracy ±0.02m for cabinet operations
 - Update state marker publisher to show green marker at target address during navigation
+
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_control/config/action_servers.yaml` - timeout_sec, position_tolerance (add navigate_to_address section)
+- **USE:** GetAddressCoordinates service (Story 3.2), MoveJointGroup (Story 2.5)
+- **DO NOT CREATE:** Separate config for navigation - add section to action_servers.yaml
 
 ---
 
@@ -639,6 +711,11 @@ So that I can observe navigation targets and track which addresses have been acc
 - Track extracted addresses in state_marker_publisher node state
 - Markers persist across action completions until explicitly cleared
 - Use marker action=DELETE to remove markers when boxes returned
+
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_control/config/visualization.yaml` - marker colors, sizes (add target_address, extracted_addresses sections)
+- **USE:** `manipulator_description/config/storage_params.yaml` - box dimensions for marker sizes
+- **DO NOT CREATE:** Separate marker config - extend visualization.yaml from Story 2.4
 
 ---
 
@@ -688,6 +765,10 @@ So that I can ensure positioning accuracy meets requirements across all cabinet 
 - NFR-002: ±0.02m position accuracy required for box extraction
 - NFR-008: 95%+ success rate for navigation operations
 
+**Implementation Notes (Config Reuse):**
+- **USE:** Existing configurations from Stories 3.1-3.5
+- **DO NOT CREATE:** New config - tests use existing configs
+
 ---
 
 ## Epic 4A: Box Extraction Core
@@ -736,6 +817,12 @@ So that gripper motion avoids cabinet frame collisions during box operations.
 - Approach speeds: 0.05 m/s (slow/safe), 0.08 m/s (normal), 0.1 m/s (fast)
 - Waypoint descriptions aid debugging (e.g., "Align Z height", "Insert to target depth")
 
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_description/config/storage_params.yaml` - cabinet exterior dimensions, wall_thickness
+- **CREATE:** `manipulator_control/config/trajectory.yaml` - NEW file for trajectory-specific parameters:
+  - `safety_margin`, `clearance_height`, `speeds` (approach, normal, fast)
+- **DO NOT DUPLICATE:** Cabinet dimensions - load from storage_params.yaml
+
 ---
 
 ### Story 4A.2: Implement Electromagnet Simulator and Service
@@ -781,6 +868,11 @@ So that box extraction actions can control magnet state via ROS2 service.
 - Alternative approach: Use `gazebo_ros_link_attacher` for older compatibility
 - For hardware: Replace with GPIO control (e.g., RPi.GPIO for electromagnet relay)
 - Service name: `/manipulator/electromagnet/toggle`
+
+**Implementation Notes (Config Reuse):**
+- **CREATE:** `manipulator_control/config/electromagnet.yaml` - NEW file for electromagnet parameters:
+  - `proximity_distance`, `engagement_wait_sec`, `disengagement_wait_sec`, `state_topic`
+- **DO NOT DUPLICATE:** Link names - reference from URDF
 
 ---
 
@@ -1007,6 +1099,12 @@ self.active_boxes[box_id] = {
 - **Department frames are the GOAL** - they provide precise 3D positions for items within the box
 - **Gazebo spawning is OPTIONAL** - only for visual feedback during simulation testing
 
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_description/config/storage_params.yaml` - box dimensions, department_configurations
+- **CREATE:** `manipulator_control/config/box_spawner.yaml` - NEW file for spawner-specific parameters:
+  - `tf_broadcast_rate_hz`, `department_frame_prefix`, `gazebo.world_name`, `gazebo.allow_renaming`
+- **DO NOT DUPLICATE:** Box dimensions or department calculations - load from storage_params.yaml
+
 ---
 
 ### Story 4A.4: Implement ExtractBox Action Server
@@ -1077,6 +1175,12 @@ So that I can access items stored in boxes for picking operations.
 - NFR-004: 90% success rate for box extraction operations
 - NFR-005: Complete extraction cycle < 60 seconds
 
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_control/config/action_servers.yaml` - add extract_box section (timeout_sec, approach_speed, extraction_speed)
+- **USE:** `manipulator_control/config/trajectory.yaml` - trajectory generation parameters
+- **USE:** `manipulator_control/config/electromagnet.yaml` - magnet engagement parameters
+- **DO NOT CREATE:** Separate extract_box config - add section to action_servers.yaml
+
 ---
 
 ### Story 4A.5: Implement ReturnBox Action Server
@@ -1131,6 +1235,12 @@ So that I can restore warehouse organization after item picking operations.
 - NFR-004: 90% success rate for return operations
 - ReturnBox is prerequisite for Epic 6 complete workflow testing
 
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_control/config/action_servers.yaml` - add return_box section (timeout_sec, insertion_speed, retraction_speed)
+- **USE:** `manipulator_control/config/trajectory.yaml` - trajectory generation parameters
+- **USE:** `manipulator_control/config/electromagnet.yaml` - magnet release parameters
+- **DO NOT CREATE:** Separate return_box config - add section to action_servers.yaml
+
 ---
 
 ## Epic 4B: Advanced Box Operations
@@ -1175,6 +1285,10 @@ So that PutBox and MoveBoxToLoad actions can ensure safe and valid box relocatio
 - Box width compatibility: Critical for physical fit (4-col box = 0.06m width, 5-col = 0.055m width)
 - Error messages: "Address (left, 1, 2, 3) is occupied by box_l_1_2_3", "Box width 4-col incompatible with cabinet 5-col"
 
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_description/config/storage_params.yaml` - cabinet configurations, box dimensions
+- **DO NOT CREATE:** New config - validator uses storage_params.yaml
+
 ---
 
 ### Story 4B.2: Implement Occupancy Tracker in Box Spawn Manager
@@ -1206,6 +1320,10 @@ So that address validation can prevent invalid box placement operations.
 - Service definition: `srv/GetOccupancyState.srv`
 - Future enhancement: Persist occupancy to database for system restart recovery
 - Integration point for Epic 6 complete workflow tracking
+
+**Implementation Notes (Config Reuse):**
+- **USE:** Box spawn manager internal state (from Story 4A.3)
+- **DO NOT CREATE:** New config - occupancy is runtime state, not configuration
 
 ---
 
@@ -1264,6 +1382,12 @@ So that I can reorganize warehouse storage or correct box placements.
 - Use YZTrajectoryGenerator.generate_insertion_trajectory() for placement
 - NFR-006: Box relocation operations complete within 90 seconds
 
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_control/config/action_servers.yaml` - add put_box section (timeout_sec)
+- **USE:** `manipulator_control/config/trajectory.yaml` - trajectory generation parameters
+- **USE:** `manipulator_control/config/electromagnet.yaml` - magnet release parameters
+- **DO NOT CREATE:** Separate put_box config - add section to action_servers.yaml
+
 ---
 
 ### Story 4B.4: Implement MoveBoxToLoad Action Server
@@ -1321,6 +1445,12 @@ So that I can enable external access for inspection, packing, or inventory opera
 - NFR-006: Complete move-to-load-and-return cycle < 150 seconds
 - Use case: External system inspection, packing operations, inventory verification
 
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_control/config/action_servers.yaml` - add move_box_to_load section (timeout_sec)
+- **CREATE:** `manipulator_control/config/load_positions.yaml` - NEW file for load station coordinates:
+  - `positions` (load_station_left, load_station_right, inspection_area)
+- **DO NOT DUPLICATE:** Source address handling - uses existing ExtractBox, ReturnBox, PutBox actions
+
 ---
 
 ## Epic 5: Item Picking & Department Frames
@@ -1361,6 +1491,11 @@ So that PickItem action can navigate picker to precise department locations.
 - Example: departments_10 has depth=0.02m, offset_y=0.005m, step_y=0.024m
 - Store timer handle in active_boxes[box_id]['tf_timer'] for cleanup
 - Frame timestamps: self.get_clock().now().to_msg() for each broadcast
+
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_description/config/storage_params.yaml` - department_configurations (offset_y, step_y, depth)
+- **USE:** `manipulator_control/config/box_spawner.yaml` - tf_broadcast_rate_hz (from Story 4A.3)
+- **DO NOT DUPLICATE:** Department calculations - load from storage_params.yaml
 
 ---
 
@@ -1406,6 +1541,11 @@ So that I can verify department frame positioning and observe picker targets.
 - Color scheme: Red semi-transparent spheres match "target location" visual convention
 - Marker lifetimes: 0 (persistent) since managed by explicit DELETE on despawn
 
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_control/config/visualization.yaml` - add department_centers, dept_labels sections (marker colors, sizes, label_height)
+- **USE:** `manipulator_description/config/storage_params.yaml` - box dimensions for label positioning
+- **DO NOT CREATE:** Separate marker config - extend visualization.yaml from Story 2.4
+
 ---
 
 ### Story 5.3: Implement ManipulateContainer Action for Jaw Control
@@ -1445,6 +1585,12 @@ So that I can grip, hold, and release containers for item storage operations.
 - Synchronization check: abs(left_position + opening/2) < 0.01 AND abs(right_position - opening/2) < 0.01
 - Joint limits: Both jaws -0.2 to +0.2 (±0.2m range), so max opening = 0.4m total
 - Hardware note: Real hardware has mechanical mimic, software mimic only for Gazebo simulation
+
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_control/config/action_servers.yaml` - add manipulate_container section (timeout_sec, sync_tolerance, sync_timeout_sec)
+- **USE:** `manipulator_control/config/kinematic_chains.yaml` - container joint group definition (from Story 2.5)
+- **USE:** ControllerInterface (Story 2.2) - for joint commands
+- **DO NOT DUPLICATE:** Joint names or limits - use kinematic_chains.yaml
 
 ---
 
@@ -1501,13 +1647,22 @@ So that I can use containers to collect picked items during warehouse operations
 - Lift height: 0.2m above storage position to clear support and verify grip
 - Action timeouts: GetContainer 30s, PlaceContainer 25s
 
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_control/config/action_servers.yaml` - add get_container, place_container sections (timeout_sec, jaw_margin, lift_height)
+- **CREATE:** `manipulator_control/config/container_storage.yaml` - NEW file for container locations:
+  - `storage_locations` (position, max_width for each), `slot_config` (default_max_slots, slot_margin, insertion_depth)
+- **USE:** ManipulateContainer action (Story 5.3) for jaw control
+
 ---
 
-### Story 5.5: Implement PickItem Action with Limit Switch State Machine
+### Story 5.5: Implement PickItem Action with Limit Switch State Machine (CORRECTED)
 
 As a robotics operator,
 I want to pick items from specific departments in extracted boxes using limit switch feedback,
 So that I can retrieve items reliably without precise position encoders.
+
+**CRITICAL WORKFLOW CORRECTION:**
+The picker does NOT extend into the box - it LOWERS into it (Z-axis). The extension mechanism (X-axis) is used AFTER lifting to position the item OVER the container for release.
 
 **Acceptance Criteria:**
 
@@ -1515,44 +1670,57 @@ So that I can retrieve items reliably without precise position encoders.
 **When** I send PickItem goal with box_id="box_l_1_2_3", department_num=5
 **Then** the action server executes state machine:
 
-**State 1: APPROACH_ITEM (progress 0-20%)**
+**State 1: POSITION_Y (progress 0-15%)**
 - Get department frame transform: {box_id}_dept_5
-- Calculate picker joint positions to align with department center
-- Move picker base/rail joints to position
-- Transition: When position reached (within 0.02m)
-- Feedback: current_phase="positioning"
+- Calculate picker Y position to align with department center
+- Move `picker_frame_picker_rail_joint` (Y-axis) to department position
+- Transition: When Y position reached (within 0.02m)
+- Monitor: `picker_rail_min/max` for safety
+- Feedback: current_phase="positioning_y"
 
-**State 2: OPEN_JAW (progress 20-30%)**
-- Command picker_base_picker_jaw_joint to open (position 0.01, near min limit)
-- Monitor `/manipulator/end_switches/picker_jaw_opened`
+**State 2: OPEN_JAW (progress 15-25%)**
+- Command `picker_base_picker_jaw_joint` to open (position toward 0.19, max limit)
+- Monitor `/manipulator/end_switches/picker_jaw_opened` (trigger at X=0.19)
 - Transition: When picker_jaw_opened=TRUE
 - Feedback: current_phase="opening_jaw"
 
-**State 3: EXTEND_JAW (progress 30-50%)**
-- Command picker_rail_picker_base_joint to extend (position toward 0.12, max limit)
-- Monitor `/manipulator/end_switches/picker_jaw_extended` (trigger at 0.11)
-- Transition: When picker_jaw_extended=TRUE
-- Feedback: current_phase="extending_jaw"
+**State 3: LOWER_PICKER (progress 25-40%)**
+- Command `selector_frame_picker_frame_joint` to lower (Z-axis negative, toward min)
+- Monitor `/manipulator/end_switches/picker_frame_min` (trigger at Z=0.005)
+- Transition: When picker_frame_min=TRUE or target Z reached
+- Feedback: current_phase="lowering_picker"
 
-**State 4: CLOSE_JAW (progress 50-70%)**
-- Command picker_base_picker_jaw_joint to close (position toward 0.2, max limit)
-- Monitor `/manipulator/end_switches/picker_jaw_closed` (trigger at 0.19)
+**State 4: CLOSE_JAW (progress 40-55%)**
+- Command `picker_base_picker_jaw_joint` to close (position toward 0.01, min limit)
+- Monitor `/manipulator/end_switches/picker_jaw_closed` (trigger at X=0.01)
 - Transition: When picker_jaw_closed=TRUE (item grasped)
 - Feedback: current_phase="grasping"
 
-**State 5: RETRACT_JAW (progress 70-85%)**
-- Command picker_rail_picker_base_joint to retract (position 0.01, near min)
-- Monitor `/manipulator/end_switches/picker_jaw_retracted` (trigger at 0.01)
-- Transition: When picker_jaw_retracted=TRUE
-- Feedback: current_phase="retracting"
+**State 5: LIFT_PICKER (progress 55-70%)**
+- Command `selector_frame_picker_frame_joint` to raise (Z-axis positive, toward max)
+- Monitor `/manipulator/end_switches/picker_frame_max` (trigger at Z=0.295) or position
+- Transition: When clear of box (picker_frame_max=TRUE or target Z reached)
+- Feedback: current_phase="lifting_picker"
 
-**State 6: LIFT_ITEM (progress 85-100%)**
-- Move picker vertically up (selector_frame_picker_frame_joint +0.05m)
-- Wait for motion completion
-- Transition: Complete
-- Feedback: current_phase="lifting"
+**State 6: EXTEND_PICKER (progress 70-80%)**
+- Command `picker_rail_picker_base_joint` to extend (X-axis positive, toward max)
+- Monitor `/manipulator/end_switches/picker_extended` (trigger at X=0.24)
+- Transition: When picker_extended=TRUE (positioned over container)
+- Feedback: current_phase="extending_picker"
 
-**And** each state has timeout (5 seconds per state, 30 seconds total action timeout)
+**State 7: RELEASE_ITEM (progress 80-90%)**
+- Command `picker_base_picker_jaw_joint` to open (position toward 0.19)
+- Monitor `/manipulator/end_switches/picker_jaw_opened` (trigger at X=0.19)
+- Transition: When picker_jaw_opened=TRUE (item released into container)
+- Feedback: current_phase="releasing_item"
+
+**State 8: RETRACT_PICKER (progress 90-100%)**
+- Command `picker_rail_picker_base_joint` to retract (X-axis negative, toward min)
+- Monitor `/manipulator/end_switches/picker_retracted` (trigger at X=0.01)
+- Transition: When picker_retracted=TRUE (home position)
+- Feedback: current_phase="retracting_picker"
+
+**And** each state has timeout (5 seconds per state, 45 seconds total action timeout)
 **And** state transitions only on limit switch events (not position thresholds)
 **And** if any state times out, action aborts with descriptive error
 **And** result returns success=true, item_grasped=true if state machine completes
@@ -1560,13 +1728,29 @@ So that I can retrieve items reliably without precise position encoders.
 **Prerequisites:** Story 2.1 (virtual limit switches), Story 5.1 (department frames), Story 2.2 (ControllerInterface)
 
 **Technical Notes:**
-- Reference architecture lines 137-181 for picker state machine design
+- Reference architecture "Core Physical Workflows Reference" section, Workflow 5
 - Action definition: `action/PickItem.action`
 - State machine implementation: Use rclpy state machine or simple enum-based states
-- Limit switch topics: All defined in Story 2.1 output
-- Picker joint names: selector_frame_picker_frame_joint (Z vertical), picker_frame_picker_rail_joint (Y rail), picker_rail_picker_base_joint (X slider/extension), picker_base_picker_jaw_joint (X jaw)
+- **Correct Limit Switch Names:**
+  - `picker_jaw_opened` (X=0.19) / `picker_jaw_closed` (X=0.01) - jaw grasp
+  - `picker_extended` (X=0.24) / `picker_retracted` (X=0.01) - picker X-axis extension
+  - `picker_frame_min` (Z=0.005) / `picker_frame_max` (Z=0.295) - picker Z-axis vertical
+  - `picker_rail_min` (Y=-0.29) / `picker_rail_max` (Y=+0.29) - picker Y-axis rail
+- **Joint to Movement Mapping:**
+  - `selector_frame_picker_frame_joint` (Z) - Lower INTO box / Lift OUT of box
+  - `picker_frame_picker_rail_joint` (Y) - Position along department axis
+  - `picker_rail_picker_base_joint` (X) - Extend OVER container after lift
+  - `picker_base_picker_jaw_joint` (X) - Open/close jaw for grasp
 - Department center coordinates: From TF lookup of {box_id}_dept_{department_num}
 - NFR-007: Item picking operations 85%+ success rate (validated in Epic 6 testing)
+
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_control/config/limit_switches.yaml` - switch trigger positions and joint mappings
+- **USE:** `manipulator_control/config/kinematic_chains.yaml` - picker joint group definition (from Story 2.5)
+- **USE:** `manipulator_control/config/action_servers.yaml` - add pick_item section (timeout_sec, state_timeout_sec)
+- **CREATE:** `manipulator_control/config/pick_item_states.yaml` - NEW file for state machine configuration:
+  - `states` (each state: joint, switch, target), references limit_switches.yaml switch names
+- **DO NOT DUPLICATE:** Switch positions or joint limits - reference existing configs
 
 ---
 
@@ -1606,6 +1790,11 @@ So that PickItem action can reliably target all departments in all box configura
 - Edge case testing: First department (dept_1) and last department (dept_10/14/16)
 - Storage params reference: department_configurations section with offset_y and step_y values
 - Use pytest with launch_testing for Gazebo simulation integration
+
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_description/config/storage_params.yaml` - department_configurations, box dimensions
+- **USE:** `manipulator_description/config/manipulator_params.yaml` - picker joint limits
+- **DO NOT CREATE:** New config - tests use existing configs
 
 ---
 
@@ -1654,6 +1843,12 @@ So that I can collect multiple items during warehouse picking operations.
 - Picker jaw opening: Command to opened position (0.01) to release item
 - Integration with PickItem: Item must be in picker jaw (picker_jaw_closed=true) at start
 - Future enhancement: Add item tracking in container slots (Epic 6)
+
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_control/config/action_servers.yaml` - add place_item_in_container section (timeout_sec)
+- **USE:** `manipulator_control/config/container_storage.yaml` - slot_config (slot_margin, default_max_slots)
+- **USE:** `manipulator_control/config/limit_switches.yaml` - picker_jaw_opened switch for release confirmation
+- **DO NOT DUPLICATE:** Container dimensions - use jaw positions to calculate slot positions
 
 ---
 
@@ -1716,6 +1911,10 @@ So that I can ensure picker state machine and department frame system work relia
 - Record bag files of successful runs for regression testing
 - NFR-007: Item picking accuracy 85%+ for successful grasps
 - Integration with Epic 6: This validates building blocks for high-level PickItemFromStorage workflow
+
+**Implementation Notes (Config Reuse):**
+- **USE:** Existing configurations from Stories 5.1-5.7
+- **DO NOT CREATE:** New config - tests use existing configs
 
 ---
 
@@ -1796,6 +1995,11 @@ So that I can retrieve items with a single high-level command integrating all su
 - NFR-001: Complete pick cycle < 120 seconds target, 180 seconds max timeout
 - NFR-008: 85%+ success rate for complete autonomous pick operations
 
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_control/config/action_servers.yaml` - add pick_item_from_storage section (timeout_sec)
+- **USE:** All existing action server configs for sub-action calls
+- **DO NOT CREATE:** Separate high-level config - reuses existing action configurations
+
 ---
 
 ### Story 6.2: Implement Comprehensive Error Handling and Recovery
@@ -1843,6 +2047,12 @@ So that transient failures don't require manual intervention and system state re
 - Safe state definition: All joints mid-range, magnet OFF, no extracted boxes (or returned)
 - Log all errors at ERROR level with full context (action name, goal parameters, error details)
 - Recovery testing: Inject failures in test suite to validate recovery paths
+
+**Implementation Notes (Config Reuse):**
+- **CREATE:** `manipulator_control/config/error_handling.yaml` - NEW file for error handling configuration:
+  - `retry_policy` (max_retries, backoff_delays_sec), `error_codes`, `recovery_strategies`
+- **USE:** All existing action server configs for retry parameters
+- **DO NOT DUPLICATE:** Action timeouts - reference from action_servers.yaml
 
 ---
 
@@ -1896,6 +2106,11 @@ So that developers and operators can monitor all aspects of manipulator state in
 - Current action marker: TEXT_VIEW_FACING type, positioned at (rail_center_x, 0, selector_z + 0.5) for visibility
 - Error marker: Marker.MESH_RESOURCE with red X or CUBE with ARROW pointing down
 - Marker namespaces: Use consistent naming ("magnet_state", "picker_state", "container_state", "action_status", "error_indicator")
+
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_control/config/visualization.yaml` - add container_gripped, picker_active, current_action_text, error_state marker sections
+- **USE:** All existing marker configurations from Stories 2.4, 3.5, 5.2
+- **DO NOT CREATE:** Separate marker config - extend visualization.yaml
 
 ---
 
@@ -1967,6 +2182,12 @@ So that I can validate system reliability and identify regressions quickly.
 - Test addresses selection: Cover all 8 cabinet types, edge rows (top, bottom), edge columns (left, right)
 - Error injection: Use service calls or topic publications to simulate failures (e.g., force magnet service to return failure)
 
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_control/config/testing.yaml` - NEW file for test suite configuration:
+  - `integration_tests.success_rate_minimum`
+- **USE:** All existing action server configs for timeouts
+- **DO NOT CREATE:** Separate test config per test type - group in testing.yaml
+
 ---
 
 ### Story 6.5: Implement Reliability and Stress Testing
@@ -2032,6 +2253,12 @@ So that I can ensure the system meets NFR success rate requirements in productio
 - Overnight test: Optional for final validation before production deployment
 - Success criteria: 85%+ success rate is minimum for Level 2 integration readiness
 
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_control/config/testing.yaml` - add reliability_test, stress_test, endurance_test sections:
+  - `reliability_test.iterations`, `stress_test.duration_minutes`, `success_threshold`
+- **USE:** All existing action server configs for timeouts
+- **DO NOT CREATE:** Separate stress test config - extend testing.yaml
+
 ---
 
 ### Story 6.6: Create Test Harness and Performance Profiling Tools
@@ -2089,6 +2316,11 @@ So that I can optimize slow operations and meet timing requirements consistently
 - Baseline comparison: Store JSON with execution time statistics, compare current run to detect regressions
 - Use cases: Identify timeout values (95th percentile + margin), validate NFR-001 timing requirements, detect performance regressions after code changes
 
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_control/config/testing.yaml` - add profiling section (iterations_per_action)
+- **USE:** All existing action server configs for timeout baselines
+- **DO NOT CREATE:** Separate profiling config - extend testing.yaml
+
 ---
 
 ### Story 6.7: Performance Profiling and Optimization
@@ -2144,6 +2376,11 @@ So that operations complete within specified time limits consistently.
 - Safety validation: Test optimized speeds 10 times, verify no collisions or errors
 - Performance documentation: List all tuned parameters with before/after execution times
 - Trade-offs: Speed vs. accuracy (faster motion may reduce positioning accuracy), speed vs. reliability (faster may increase failure rates)
+
+**Implementation Notes (Config Reuse):**
+- **USE:** `manipulator_control/config/testing.yaml` - add nfr_targets section (pick_cycle_sec, extract_cycle_sec, relocation_sec)
+- **USE:** All existing action server configs - optimization updates go to existing files
+- **DO NOT CREATE:** Separate NFR config - add targets to testing.yaml
 
 ---
 
@@ -2247,6 +2484,11 @@ So that I can use, maintain, and extend the system effectively.
 - API documentation: Can be auto-generated from action/service definitions using rosdoc2
 - Update existing README.md to link to new documentation
 - Documentation review: Have another developer validate clarity and completeness
+
+**Implementation Notes (Config Reuse):**
+- **DOCUMENT:** All 11 new config files from this plan + 4 existing config files
+- **DOCUMENT:** Configuration Reuse Policy and single source of truth principles
+- **DO NOT CREATE:** New config - this story produces documentation only
 
 ---
 

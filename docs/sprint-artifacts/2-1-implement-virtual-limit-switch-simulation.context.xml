@@ -133,20 +133,23 @@
   </constraints>
 
   <interfaces>
-    <topic name="/manipulator/end_switches/base_main_frame_min" type="std_msgs/Bool"/>
-    <topic name="/manipulator/end_switches/base_main_frame_max" type="std_msgs/Bool"/>
-    <topic name="/manipulator/end_switches/selector_frame_min" type="std_msgs/Bool"/>
-    <topic name="/manipulator/end_switches/selector_frame_max" type="std_msgs/Bool"/>
-    <topic name="/manipulator/end_switches/gripper_retracted" type="std_msgs/Bool"/>
-    <topic name="/manipulator/end_switches/gripper_extended" type="std_msgs/Bool"/>
-    <topic name="/manipulator/end_switches/picker_frame_min" type="std_msgs/Bool"/>
-    <topic name="/manipulator/end_switches/picker_frame_max" type="std_msgs/Bool"/>
-    <topic name="/manipulator/end_switches/picker_rail_min" type="std_msgs/Bool"/>
-    <topic name="/manipulator/end_switches/picker_rail_max" type="std_msgs/Bool"/>
-    <topic name="/manipulator/end_switches/picker_base_min" type="std_msgs/Bool"/>
-    <topic name="/manipulator/end_switches/picker_base_max" type="std_msgs/Bool"/>
-    <topic name="/manipulator/end_switches/picker_jaw_opened" type="std_msgs/Bool"/>
-    <topic name="/manipulator/end_switches/picker_jaw_closed" type="std_msgs/Bool"/>
+    <!-- CORRECTED switch names - use semantic naming from limit_switches.yaml -->
+    <topic name="/manipulator/end_switches/base_main_frame_min" type="std_msgs/Bool" note="X=0.01"/>
+    <topic name="/manipulator/end_switches/base_main_frame_max" type="std_msgs/Bool" note="X=3.9"/>
+    <topic name="/manipulator/end_switches/selector_frame_min" type="std_msgs/Bool" note="Z=0.005"/>
+    <topic name="/manipulator/end_switches/selector_frame_max" type="std_msgs/Bool" note="Z=1.90"/>
+    <!-- Gripper: LEFT/RIGHT semantics, NOT extend/retract -->
+    <topic name="/manipulator/end_switches/gripper_right" type="std_msgs/Bool" note="Y=-0.39 toward RIGHT cabinets"/>
+    <topic name="/manipulator/end_switches/gripper_left" type="std_msgs/Bool" note="Y=+0.39 toward LEFT cabinets"/>
+    <topic name="/manipulator/end_switches/picker_frame_min" type="std_msgs/Bool" note="Z=0.005"/>
+    <topic name="/manipulator/end_switches/picker_frame_max" type="std_msgs/Bool" note="Z=0.295"/>
+    <topic name="/manipulator/end_switches/picker_rail_min" type="std_msgs/Bool" note="Y=-0.29"/>
+    <topic name="/manipulator/end_switches/picker_rail_max" type="std_msgs/Bool" note="Y=+0.29"/>
+    <!-- Picker extension: retracted/extended semantics, NOT picker_base_min/max -->
+    <topic name="/manipulator/end_switches/picker_retracted" type="std_msgs/Bool" note="X=0.01 home position"/>
+    <topic name="/manipulator/end_switches/picker_extended" type="std_msgs/Bool" note="X=0.24 over container"/>
+    <topic name="/manipulator/end_switches/picker_jaw_opened" type="std_msgs/Bool" note="X=0.19"/>
+    <topic name="/manipulator/end_switches/picker_jaw_closed" type="std_msgs/Bool" note="X=0.01"/>
     <topic name="/manipulator/end_switches/container_left_min" type="std_msgs/Bool"/>
     <topic name="/manipulator/end_switches/container_left_max" type="std_msgs/Bool"/>
     <topic name="/manipulator/end_switches/container_right_min" type="std_msgs/Bool"/>

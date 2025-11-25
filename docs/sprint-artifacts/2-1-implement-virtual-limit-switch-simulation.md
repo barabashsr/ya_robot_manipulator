@@ -75,42 +75,46 @@ so that **picker state machine and safety monitoring can operate without physica
 - [Source: docs/architecture-ros2-control-v2-CORRECTIONS.md] Lines 247-306: Virtual limit switch implementation pattern
 - [Source: docs/sprint-artifacts/tech-spec-epic-2.md] Limit switch configuration and topic definitions
 
-### 18 Limit Switch Topics
+### 18 Limit Switch Topics (CORRECTED)
+
+**CRITICAL:** The actual switch names from `config/limit_switches.yaml` use semantic naming:
+- Gripper: `gripper_left` / `gripper_right` (NOT extended/retracted - reflects LEFT/RIGHT cabinet direction)
+- Picker extension: `picker_extended` / `picker_retracted` (NOT picker_base_min/max)
 
 ```
-/manipulator/end_switches/base_main_frame_min
-/manipulator/end_switches/base_main_frame_max
-/manipulator/end_switches/selector_frame_min
-/manipulator/end_switches/selector_frame_max
-/manipulator/end_switches/gripper_extended
-/manipulator/end_switches/gripper_retracted
-/manipulator/end_switches/picker_frame_min
-/manipulator/end_switches/picker_frame_max
-/manipulator/end_switches/picker_rail_min
-/manipulator/end_switches/picker_rail_max
-/manipulator/end_switches/picker_base_min
-/manipulator/end_switches/picker_base_max
-/manipulator/end_switches/picker_jaw_opened
-/manipulator/end_switches/picker_jaw_closed
+/manipulator/end_switches/base_main_frame_min       (X=0.01)
+/manipulator/end_switches/base_main_frame_max       (X=3.9)
+/manipulator/end_switches/selector_frame_min        (Z=0.005)
+/manipulator/end_switches/selector_frame_max        (Z=1.90)
+/manipulator/end_switches/gripper_left              (Y=+0.39, toward left cabinets)
+/manipulator/end_switches/gripper_right             (Y=-0.39, toward right cabinets)
+/manipulator/end_switches/picker_frame_min          (Z=0.005)
+/manipulator/end_switches/picker_frame_max          (Z=0.295)
+/manipulator/end_switches/picker_rail_min           (Y=-0.29)
+/manipulator/end_switches/picker_rail_max           (Y=+0.29)
+/manipulator/end_switches/picker_retracted          (X=0.01, home position)
+/manipulator/end_switches/picker_extended           (X=0.24, over container)
+/manipulator/end_switches/picker_jaw_opened         (X=0.19)
+/manipulator/end_switches/picker_jaw_closed         (X=0.01)
 /manipulator/end_switches/container_left_min
 /manipulator/end_switches/container_left_max
 /manipulator/end_switches/container_right_min
 /manipulator/end_switches/container_right_max
 ```
 
-### Joint to Switch Mapping
+### Joint to Switch Mapping (CORRECTED)
 
-| Joint | Min Switch | Max Switch |
-|-------|------------|------------|
-| base_main_frame_joint | base_main_frame_min | base_main_frame_max |
-| main_frame_selector_frame_joint | selector_frame_min | selector_frame_max |
-| selector_frame_gripper_joint | gripper_retracted | gripper_extended |
-| selector_frame_picker_frame_joint | picker_frame_min | picker_frame_max |
-| picker_frame_picker_rail_joint | picker_rail_min | picker_rail_max |
-| picker_rail_picker_base_joint | picker_base_min | picker_base_max |
-| picker_base_picker_jaw_joint | picker_jaw_opened | picker_jaw_closed |
-| selector_left_container_jaw_joint | container_left_min | container_left_max |
-| selector_right_container_jaw_joint | container_right_min | container_right_max |
+| Joint | Switch 1 | Switch 2 | Notes |
+|-------|----------|----------|-------|
+| base_main_frame_joint | base_main_frame_min | base_main_frame_max | X-axis rail |
+| main_frame_selector_frame_joint | selector_frame_min | selector_frame_max | Z-axis vertical |
+| selector_frame_gripper_joint | **gripper_right** | **gripper_left** | Y-axis: RIGHT(-Y) / LEFT(+Y) |
+| selector_frame_picker_frame_joint | picker_frame_min | picker_frame_max | Z-axis picker vertical |
+| picker_frame_picker_rail_joint | picker_rail_min | picker_rail_max | Y-axis picker rail |
+| picker_rail_picker_base_joint | **picker_retracted** | **picker_extended** | X-axis picker extension |
+| picker_base_picker_jaw_joint | **picker_jaw_closed** | **picker_jaw_opened** | X-axis jaw grasp |
+| selector_left_container_jaw_joint | container_left_min | container_left_max | Y-axis |
+| selector_right_container_jaw_joint | container_right_min | container_right_max | Y-axis |
 
 ### Implementation Pattern (from architecture)
 
