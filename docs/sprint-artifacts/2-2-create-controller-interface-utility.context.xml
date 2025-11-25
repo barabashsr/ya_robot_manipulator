@@ -100,7 +100,7 @@
         <path>ros2_ws/src/manipulator_description/config/manipulator_controllers.yaml</path>
         <kind>config</kind>
         <symbol>manipulator_controllers.yaml</symbol>
-        <reason>Reference for controller names (topic pattern: /{joint_name}_controller/command)</reason>
+        <reason>Reference for controller names (topic pattern: /{joint_name}_controller/commands - plural, Float64MultiArray)</reason>
       </file>
       <file>
         <path>ros2_ws/src/manipulator_description/urdf/manipulator/ros2_control.xacro</path>
@@ -128,22 +128,22 @@
     <constraint type="config">NO new config files - load limits from existing manipulator_params.yaml</constraint>
     <constraint type="config">NO duplication of limit values - parse from YAML at runtime</constraint>
     <constraint type="limits">Validate against SOFT LIMITS (safety_controller), not hard limits</constraint>
-    <constraint type="message">Use std_msgs/Float64 for position commands (not Float64MultiArray)</constraint>
-    <constraint type="topic">Controller topic pattern: /{joint_name}_controller/command</constraint>
+    <constraint type="message">Use std_msgs/Float64MultiArray for position commands (single element array)</constraint>
+    <constraint type="topic">Controller topic pattern: /{joint_name}_controller/commands (plural)</constraint>
     <constraint type="compatibility">ROS2 Jazzy + Gazebo Harmonic</constraint>
   </constraints>
 
   <interfaces>
     <!-- Publishers to controller command topics -->
-    <topic name="/base_main_frame_joint_controller/command" type="std_msgs/Float64" direction="publish"/>
-    <topic name="/main_frame_selector_frame_joint_controller/command" type="std_msgs/Float64" direction="publish"/>
-    <topic name="/selector_frame_gripper_joint_controller/command" type="std_msgs/Float64" direction="publish"/>
-    <topic name="/selector_frame_picker_frame_joint_controller/command" type="std_msgs/Float64" direction="publish"/>
-    <topic name="/picker_frame_picker_rail_joint_controller/command" type="std_msgs/Float64" direction="publish"/>
-    <topic name="/picker_rail_picker_base_joint_controller/command" type="std_msgs/Float64" direction="publish"/>
-    <topic name="/picker_base_picker_jaw_joint_controller/command" type="std_msgs/Float64" direction="publish"/>
-    <topic name="/selector_left_container_jaw_joint_controller/command" type="std_msgs/Float64" direction="publish"/>
-    <topic name="/selector_right_container_jaw_joint_controller/command" type="std_msgs/Float64" direction="publish"/>
+    <topic name="/base_main_frame_joint_controller/commands" type="std_msgs/Float64MultiArray" direction="publish"/>
+    <topic name="/main_frame_selector_frame_joint_controller/commands" type="std_msgs/Float64MultiArray" direction="publish"/>
+    <topic name="/selector_frame_gripper_joint_controller/commands" type="std_msgs/Float64MultiArray" direction="publish"/>
+    <topic name="/selector_frame_picker_frame_joint_controller/commands" type="std_msgs/Float64MultiArray" direction="publish"/>
+    <topic name="/picker_frame_picker_rail_joint_controller/commands" type="std_msgs/Float64MultiArray" direction="publish"/>
+    <topic name="/picker_rail_picker_base_joint_controller/commands" type="std_msgs/Float64MultiArray" direction="publish"/>
+    <topic name="/picker_base_picker_jaw_joint_controller/commands" type="std_msgs/Float64MultiArray" direction="publish"/>
+    <topic name="/selector_left_container_jaw_joint_controller/commands" type="std_msgs/Float64MultiArray" direction="publish"/>
+    <topic name="/selector_right_container_jaw_joint_controller/commands" type="std_msgs/Float64MultiArray" direction="publish"/>
     <!-- Subscription to joint states -->
     <subscription name="/joint_states" type="sensor_msgs/JointState"/>
   </interfaces>
@@ -156,7 +156,7 @@
       <location>ros2_ws/src/manipulator_control/scripts/test_controller_interface_manual.py</location>
     </locations>
     <ideas>
-      <idea ac="3">command_joint('base_main_frame_joint', 1.0) publishes to /base_main_frame_joint_controller/command</idea>
+      <idea ac="3">command_joint('base_main_frame_joint', 1.0) publishes to /base_main_frame_joint_controller/commands</idea>
       <idea ac="6">command_joint('base_main_frame_joint', 10.0) returns False (outside soft limit 3.9)</idea>
       <idea ac="7">command_joint('fake_joint', 1.0) returns False with warning logged</idea>
       <idea ac="5">get_joint_position('base_main_frame_joint') returns current position after joint_states callback</idea>
@@ -211,7 +211,7 @@
     </doNotCreate>
     <doNotDuplicate>
       <item>Controller limits inside Python code - load from YAML</item>
-      <item>Controller topic names - derive from joint names using pattern: /{joint_name}_controller/command</item>
+      <item>Controller topic names - derive from joint names using pattern: /{joint_name}_controller/commands</item>
     </doNotDuplicate>
   </configurationReusePolicy>
 

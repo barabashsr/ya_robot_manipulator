@@ -1,0 +1,502 @@
+<story-context id="2-3-implement-movejoint-action-server" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>3</storyId>
+    <title>Implement MoveJoint Action Server</title>
+    <status>ready-for-dev</status>
+    <generatedAt>2025-11-26</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/2-3-implement-movejoint-action-server.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>robotics operator</asA>
+    <iWant>to command individual joints to target positions via action interface</iWant>
+    <soThat>I can test joint control and build higher-level coordinated motions</soThat>
+    <tasks>
+      <task id="1" ac="8">Create Configuration File
+        <subtask id="1.1">Create config/action_servers.yaml with timeout_sec, position_tolerance, feedback_rate</subtask>
+        <subtask id="1.2">Add header comments documenting all parameters</subtask>
+      </task>
+      <task id="2" ac="1,2,3,4,5,6,7,11">Implement MoveJoint Action Server
+        <subtask id="2.1">Create src/move_joint_server.py</subtask>
+        <subtask id="2.2">Implement __init__() - load config, create ControllerInterface, create ActionServer</subtask>
+        <subtask id="2.3">Implement _load_config() - load parameters from action_servers.yaml</subtask>
+        <subtask id="2.4">Implement goal_callback() - validate joint_name and position limits, ACCEPT_AND_EXECUTE for preemption</subtask>
+        <subtask id="2.5">Implement cancel_callback() - accept all cancel requests</subtask>
+        <subtask id="2.6">Implement execute_callback() - main execution loop with feedback at 10Hz</subtask>
+        <subtask id="2.7">Implement _calc_progress() - progress percentage calculation</subtask>
+        <subtask id="2.8">Add comprehensive logging for goal accept/reject/complete/cancel</subtask>
+      </task>
+      <task id="3" ac="1,10">Update Package Configuration
+        <subtask id="3.1">Update CMakeLists.txt to install move_joint_server.py as executable</subtask>
+        <subtask id="3.2">Update CMakeLists.txt to install config/action_servers.yaml</subtask>
+        <subtask id="3.3">Add node to manipulator_simulation.launch.py with 3s TimerAction delay</subtask>
+      </task>
+      <task id="4" ac="9">Create Test Scripts
+        <subtask id="4.1">Create scripts/test_move_joint_action.py - comprehensive action test</subtask>
+        <subtask id="4.2">Document CLI test commands using ros2 action send_goal</subtask>
+      </task>
+      <task id="5" ac="all">Developer Self-Validation (MANDATORY)
+        <subtask id="5.1">Build package and verify no errors (exit code 0)</subtask>
+        <subtask id="5.2">Launch simulation and verify action server starts after 3s delay</subtask>
+        <subtask id="5.3">Test valid goal - joint moves to target, feedback received, success returned</subtask>
+        <subtask id="5.4">Test invalid joint name - goal rejected</subtask>
+        <subtask id="5.5">Test out-of-range position - goal rejected</subtask>
+        <subtask id="5.6">Test cancel during motion - goal cancels correctly</subtask>
+        <subtask id="5.7">Test preemption - new goal cancels current goal (AC-11)</subtask>
+        <subtask id="5.8">Verify position tolerance works (0.01m)</subtask>
+        <subtask id="5.9">Update package README.md with new node and action</subtask>
+        <subtask id="5.10">Document all test results in Dev Agent Record</subtask>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <ac id="1">MoveJoint action server node exists at ros2_ws/src/manipulator_control/src/move_joint_server.py</ac>
+    <ac id="2">Server validates joint_name exists and target_position is within soft limits</ac>
+    <ac id="3">Server uses ControllerInterface to command the joint</ac>
+    <ac id="4">Feedback published at 10 Hz with current_position and progress_percent (0-100%)</ac>
+    <ac id="5">Server monitors /joint_states to detect when target reached (within 0.01m tolerance)</ac>
+    <ac id="6">Returns success result when position reached or aborts on timeout (30 seconds default)</ac>
+    <ac id="7">Action supports preemption (cancellation during motion)</ac>
+    <ac id="8">Timeout loaded from config/action_servers.yaml</ac>
+    <ac id="9">Action can be tested using ros2 action send_goal CLI</ac>
+    <ac id="10">Action server added to manipulator_simulation.launch.py as Common node with 3s delayed start</ac>
+    <ac id="11">New goal PREEMPTS (cancels) any currently executing goal - no queueing, no rejection</ac>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-2.md</path>
+        <title>Epic 2 Technical Specification</title>
+        <section>MoveJoint Action Server</section>
+        <snippet>Action server for single joint control. Uses ControllerInterface utility. Feedback at 10Hz. Position tolerance 0.01m.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture-ros2-control-v2-CORRECTIONS.md</path>
+        <title>ROS2 Control Architecture v2.1</title>
+        <section>Low-Level Action Implementation Patterns</section>
+        <snippet>MoveJoint action server validates goals, commands via ControllerInterface, monitors /joint_states for completion.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics.md</path>
+        <title>Epics</title>
+        <section>Story 2.3 + Mandatory Developer Validation Requirements</section>
+        <snippet>MoveJoint action server. CRITICAL: Developer must execute ALL tests and update README.md before marking done.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/2-2-create-controller-interface-utility.md</path>
+        <title>Story 2.2 - ControllerInterface</title>
+        <section>Implementation Complete</section>
+        <snippet>ControllerInterface API: command_joint(), command_joint_group(), get_joint_position(), get_joint_limits(), get_all_joint_names(). Uses /commands topic (Float64MultiArray).</snippet>
+      </doc>
+    </docs>
+    <code>
+      <file>
+        <path>ros2_ws/src/manipulator_control/src/controller_interface.py</path>
+        <kind>dependency</kind>
+        <symbol>ControllerInterface</symbol>
+        <reason>MUST USE - utility class for joint control. Pass parent node in __init__(). Methods: command_joint(), get_joint_position(), get_joint_limits(), get_all_joint_names()</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/action/MoveJoint.action</path>
+        <kind>interface</kind>
+        <symbol>MoveJoint.action</symbol>
+        <reason>Action definition - Goal: joint_name, target_position, max_velocity. Feedback: current_position, progress_percent. Result: success, final_position, execution_time, message</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/CMakeLists.txt</path>
+        <kind>build-config</kind>
+        <symbol>CMakeLists.txt</symbol>
+        <reason>Must update to install move_joint_server.py and action_servers.yaml</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/launch/manipulator_simulation.launch.py</path>
+        <kind>launch</kind>
+        <symbol>manipulator_simulation.launch.py</symbol>
+        <reason>Must add move_joint_server node with TimerAction(period=3.0) delay</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/src/virtual_limit_switches.py</path>
+        <kind>reference</kind>
+        <symbol>VirtualLimitSwitchNode</symbol>
+        <reason>Reference for node structure, YAML loading pattern from Story 2.1</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_description/config/manipulator_params.yaml</path>
+        <kind>config</kind>
+        <symbol>manipulator_params.yaml</symbol>
+        <reason>Joint limits source - accessed via ControllerInterface (do NOT load directly)</reason>
+      </file>
+    </code>
+    <dependencies>
+      <ros2>
+        <pkg>rclpy</pkg>
+        <pkg>rclpy.action</pkg>
+        <pkg>rclpy.callback_groups</pkg>
+        <pkg>sensor_msgs</pkg>
+        <pkg>ament_index_python</pkg>
+      </ros2>
+      <python>
+        <pkg>yaml</pkg>
+        <pkg>typing</pkg>
+        <pkg>os</pkg>
+      </python>
+      <internal>
+        <pkg>manipulator_control.action.MoveJoint</pkg>
+        <pkg>controller_interface.ControllerInterface</pkg>
+      </internal>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="architecture">Action server MUST use ControllerInterface - do NOT publish directly to controller topics</constraint>
+    <constraint type="architecture">Action server is a ROS2 Node - ControllerInterface requires node reference in __init__()</constraint>
+    <constraint type="goal-policy">PREEMPT policy - new goal cancels current goal, no queueing, no rejection of valid goals</constraint>
+    <constraint type="config">Create NEW file config/action_servers.yaml for action-specific parameters only</constraint>
+    <constraint type="config">DO NOT duplicate joint limits in action_servers.yaml - get from ControllerInterface</constraint>
+    <constraint type="topic">Controller topic pattern: /{joint_name}_controller/commands (plural, Float64MultiArray)</constraint>
+    <constraint type="tolerance">Position tolerance 0.01m per NFR-002</constraint>
+    <constraint type="feedback">Feedback rate 10 Hz</constraint>
+    <constraint type="timeout">Default timeout 30 seconds</constraint>
+    <constraint type="launch">Add to launch file as Common node (no condition) with 3s TimerAction delay</constraint>
+    <constraint type="compatibility">ROS2 Jazzy + Gazebo Harmonic</constraint>
+    <constraint type="documentation">MUST update package README.md before marking story done</constraint>
+  </constraints>
+
+  <interfaces>
+    <!-- Action Server -->
+    <action name="/move_joint" type="manipulator_control/action/MoveJoint" role="server"/>
+    <!-- Used via ControllerInterface (do not create directly) -->
+    <topic name="/{joint_name}_controller/commands" type="std_msgs/Float64MultiArray" direction="publish" note="via ControllerInterface"/>
+    <subscription name="/joint_states" type="sensor_msgs/JointState" note="via ControllerInterface"/>
+  </interfaces>
+
+  <tests>
+    <standards>Build verification + Gazebo integration. Test valid goals, invalid joints, out-of-range positions, cancel, preemption, tolerance.</standards>
+    <locations>
+      <location>ros2_ws/src/manipulator_control/src/move_joint_server.py</location>
+      <location>ros2_ws/src/manipulator_control/config/action_servers.yaml</location>
+      <location>ros2_ws/src/manipulator_control/scripts/test_move_joint_action.py</location>
+    </locations>
+    <ideas>
+      <idea ac="2,3">Valid goal: ros2 action send_goal /move_joint ... joint moves, feedback received, success=True</idea>
+      <idea ac="2">Invalid joint: ros2 action send_goal /move_joint "{joint_name: 'fake_joint'}" - goal rejected</idea>
+      <idea ac="2">Out-of-range: ros2 action send_goal /move_joint "{target_position: 99.0}" - goal rejected</idea>
+      <idea ac="7">Cancel: send goal, then ros2 action cancel /move_joint - goal status CANCELED</idea>
+      <idea ac="11">Preemption: send goal A, wait 2s, send goal B - goal A CANCELED, goal B executes</idea>
+      <idea ac="5">Tolerance: final_position within 0.01m of target_position</idea>
+      <idea ac="4">Feedback: progress_percent increases from 0 to 100 during motion</idea>
+      <idea ac="6">Timeout: if joint stuck, goal aborts after 30s</idea>
+    </ideas>
+  </tests>
+
+  <previousStoryLearnings>
+    <epic key="story-2.2" status="done">
+      <summary>ControllerInterface utility implemented. Validates against soft limits. Uses /commands topic (Float64MultiArray). All 9 joints working.</summary>
+      <newFiles>
+        <file>ros2_ws/src/manipulator_control/src/controller_interface.py</file>
+        <file>ros2_ws/src/manipulator_control/test/test_controller_interface.py</file>
+        <file>ros2_ws/src/manipulator_control/scripts/test_controller_interface_manual.py</file>
+      </newFiles>
+      <architecturalDecisions>
+        <decision>ControllerInterface is utility class, NOT a node - requires parent node reference</decision>
+        <decision>Topic pattern: /{joint_name}_controller/commands (plural, Float64MultiArray)</decision>
+        <decision>Soft limits loaded from manipulator_params.yaml safety_controller sections</decision>
+      </architecturalDecisions>
+      <learnings>
+        <learning>CRITICAL: Topic is /commands (plural) with Float64MultiArray, NOT /command with Float64</learning>
+        <learning>ControllerInterface already subscribes to /joint_states - use get_joint_position()</learning>
+        <learning>All validation done by ControllerInterface - action server just calls command_joint()</learning>
+      </learnings>
+      <apiReference>
+        <method name="command_joint(joint_name: str, position: float) -> bool">Command single joint, returns False if validation fails</method>
+        <method name="get_joint_position(joint_name: str) -> Optional[float]">Get current position from /joint_states cache</method>
+        <method name="get_joint_limits(joint_name: str) -> Optional[Tuple[float, float]]">Get (min, max) soft limits</method>
+        <method name="get_all_joint_names() -> List[str]">Get list of all 9 joint names</method>
+      </apiReference>
+    </epic>
+    <epic key="story-2.1" status="done">
+      <summary>Virtual Limit Switches implemented. Unified launch file available at manipulator_simulation.launch.py.</summary>
+      <architecturalDecisions>
+        <decision>TimerAction for delayed node start - controllers need time to initialize</decision>
+        <decision>CMakeLists.txt installs Python to lib/${PROJECT_NAME}</decision>
+        <decision>Config files installed to share/${PROJECT_NAME}/config</decision>
+      </architecturalDecisions>
+    </epic>
+  </previousStoryLearnings>
+
+  <jointLimitsReference>
+    <note>SOFT LIMITS from manipulator_params.yaml - accessed via ControllerInterface.get_joint_limits()</note>
+    <joint name="base_main_frame_joint" soft_lower="0.1" soft_upper="3.9" axis="X"/>
+    <joint name="main_frame_selector_frame_joint" soft_lower="0.05" soft_upper="1.45" axis="Z"/>
+    <joint name="selector_frame_gripper_joint" soft_lower="-0.39" soft_upper="0.39" axis="Y"/>
+    <joint name="selector_frame_picker_frame_joint" soft_lower="0.005" soft_upper="0.29" axis="Z"/>
+    <joint name="picker_frame_picker_rail_joint" soft_lower="-0.29" soft_upper="0.29" axis="Y"/>
+    <joint name="picker_rail_picker_base_joint" soft_lower="0.005" soft_upper="0.24" axis="X"/>
+    <joint name="picker_base_picker_jaw_joint" soft_lower="0.005" soft_upper="0.19" axis="X"/>
+    <joint name="selector_left_container_jaw_joint" soft_lower="-0.19" soft_upper="0.19" axis="-Y"/>
+    <joint name="selector_right_container_jaw_joint" soft_lower="-0.19" soft_upper="0.19" axis="+Y"/>
+  </jointLimitsReference>
+
+  <configurationReusePolicy>
+    <use>
+      <item>ControllerInterface - for joint limits, position feedback, and commanding (Story 2.2)</item>
+      <item>manipulator_simulation.launch.py - add node to existing unified launch file</item>
+    </use>
+    <create>
+      <item>config/action_servers.yaml - NEW file for action-specific parameters (timeout, tolerance, rate)</item>
+    </create>
+    <doNotDuplicate>
+      <item>Joint limits - get from ControllerInterface, not from config file</item>
+      <item>Controller topic names - ControllerInterface handles this</item>
+      <item>/joint_states subscription - ControllerInterface already subscribes</item>
+    </doNotDuplicate>
+  </configurationReusePolicy>
+
+  <codeSnippets>
+    <snippet name="action_servers_yaml" language="yaml">
+<![CDATA[
+# config/action_servers.yaml
+# Action server parameters - NOT hardware config
+# These parameters are specific to action server behavior
+
+move_joint:
+  timeout_sec: 30.0           # Max time to reach target position
+  position_tolerance: 0.01    # Success threshold in meters (NFR-002)
+  feedback_rate: 10.0         # Feedback publish rate in Hz
+
+move_joint_group:
+  timeout_sec: 30.0
+  position_tolerance: 0.01
+  feedback_rate: 10.0
+]]>
+    </snippet>
+    <snippet name="action_server_init" language="python">
+<![CDATA[
+#!/usr/bin/env python3
+"""
+MoveJoint Action Server
+
+Commands individual joints to target positions with feedback.
+Uses ControllerInterface for joint control and limit validation.
+PREEMPT policy: new goal cancels any executing goal.
+"""
+
+import os
+import yaml
+import rclpy
+from rclpy.node import Node
+from rclpy.action import ActionServer, GoalResponse, CancelResponse
+from rclpy.callback_groups import ReentrantCallbackGroup
+from ament_index_python.packages import get_package_share_directory
+
+from manipulator_control.action import MoveJoint
+
+# Import ControllerInterface from src directory
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
+from controller_interface import ControllerInterface
+
+
+class MoveJointServer(Node):
+    def __init__(self):
+        super().__init__('move_joint_server')
+
+        # Load configuration from action_servers.yaml
+        self._load_config()
+
+        # Initialize ControllerInterface (shared utility from Story 2.2)
+        self.controller = ControllerInterface(self)
+
+        # Track current goal for preemption
+        self._current_goal_handle = None
+
+        # Create action server with ReentrantCallbackGroup for preemption
+        self._action_server = ActionServer(
+            self,
+            MoveJoint,
+            'move_joint',
+            execute_callback=self.execute_callback,
+            goal_callback=self.goal_callback,
+            cancel_callback=self.cancel_callback,
+            callback_group=ReentrantCallbackGroup()
+        )
+
+        self.get_logger().info('MoveJoint action server ready (PREEMPT policy)')
+]]>
+    </snippet>
+    <snippet name="goal_callback_preempt" language="python">
+<![CDATA[
+def goal_callback(self, goal_request):
+    """
+    Accept or reject incoming goal - PREEMPT policy.
+
+    Valid goals are always accepted. If a goal is currently executing,
+    it will be canceled when the new goal starts executing.
+    """
+    joint_name = goal_request.joint_name
+    target = goal_request.target_position
+
+    # Validate joint exists
+    if joint_name not in self.controller.get_all_joint_names():
+        self.get_logger().warning(f'Rejecting goal: unknown joint "{joint_name}"')
+        return GoalResponse.REJECT
+
+    # Validate position within soft limits
+    limits = self.controller.get_joint_limits(joint_name)
+    if limits and not (limits[0] <= target <= limits[1]):
+        self.get_logger().warning(
+            f'Rejecting goal: position {target} outside limits [{limits[0]}, {limits[1]}]'
+        )
+        return GoalResponse.REJECT
+
+    # PREEMPT: Cancel current goal if one is executing
+    if self._current_goal_handle is not None and self._current_goal_handle.is_active:
+        self.get_logger().info('Preempting current goal for new goal')
+        self._current_goal_handle.abort()  # or use cancel
+
+    self.get_logger().info(f'Accepting goal: {joint_name} -> {target}')
+    return GoalResponse.ACCEPT
+]]>
+    </snippet>
+    <snippet name="execute_callback" language="python">
+<![CDATA[
+async def execute_callback(self, goal_handle):
+    """Execute the motion goal with feedback."""
+    self._current_goal_handle = goal_handle
+
+    joint_name = goal_handle.request.joint_name
+    target = goal_handle.request.target_position
+
+    self.get_logger().info(f'Executing: {joint_name} -> {target}')
+
+    # Get starting position
+    start_pos = self.controller.get_joint_position(joint_name)
+    if start_pos is None:
+        goal_handle.abort()
+        return MoveJoint.Result(
+            success=False,
+            final_position=0.0,
+            execution_time=0.0,
+            message=f'Cannot read position for {joint_name}'
+        )
+
+    # Send command via ControllerInterface
+    if not self.controller.command_joint(joint_name, target):
+        goal_handle.abort()
+        return MoveJoint.Result(
+            success=False,
+            final_position=start_pos,
+            execution_time=0.0,
+            message='Command rejected by ControllerInterface'
+        )
+
+    # Monitor until complete
+    start_time = self.get_clock().now()
+    feedback_msg = MoveJoint.Feedback()
+    rate = self.create_rate(self.feedback_rate)
+
+    while rclpy.ok():
+        # Check if goal was preempted by a new goal
+        if not goal_handle.is_active:
+            self.get_logger().info('Goal preempted by new goal')
+            return MoveJoint.Result(
+                success=False,
+                final_position=self.controller.get_joint_position(joint_name) or 0.0,
+                execution_time=(self.get_clock().now() - start_time).nanoseconds / 1e9,
+                message='Preempted by new goal'
+            )
+
+        # Check for cancel request
+        if goal_handle.is_cancel_requested:
+            goal_handle.canceled()
+            self.get_logger().info('Goal canceled')
+            return MoveJoint.Result(
+                success=False,
+                final_position=self.controller.get_joint_position(joint_name) or 0.0,
+                execution_time=(self.get_clock().now() - start_time).nanoseconds / 1e9,
+                message='Canceled by client'
+            )
+
+        # Get current position
+        current_pos = self.controller.get_joint_position(joint_name)
+        if current_pos is None:
+            current_pos = start_pos  # Fallback
+
+        elapsed = (self.get_clock().now() - start_time).nanoseconds / 1e9
+
+        # Check success (within tolerance)
+        if abs(current_pos - target) <= self.position_tolerance:
+            goal_handle.succeed()
+            self.get_logger().info(f'Goal succeeded: {joint_name} at {current_pos:.4f}')
+            return MoveJoint.Result(
+                success=True,
+                final_position=current_pos,
+                execution_time=elapsed,
+                message='Target reached'
+            )
+
+        # Check timeout
+        if elapsed > self.timeout_sec:
+            goal_handle.abort()
+            self.get_logger().warning(f'Goal timeout after {elapsed:.1f}s')
+            return MoveJoint.Result(
+                success=False,
+                final_position=current_pos,
+                execution_time=elapsed,
+                message=f'Timeout after {elapsed:.1f}s'
+            )
+
+        # Publish feedback
+        feedback_msg.current_position = current_pos
+        feedback_msg.progress_percent = self._calc_progress(start_pos, current_pos, target)
+        goal_handle.publish_feedback(feedback_msg)
+
+        rate.sleep()
+]]>
+    </snippet>
+    <snippet name="launch_file_addition" language="python">
+<![CDATA[
+# Add to manipulator_simulation.launch.py
+
+from launch.actions import TimerAction
+
+# MoveJoint action server (Common - runs in both sim and hardware)
+# 3 second delay to allow controllers to initialize
+move_joint_server = TimerAction(
+    period=3.0,
+    actions=[
+        Node(
+            package='manipulator_control',
+            executable='move_joint_server',
+            name='move_joint_server',
+            parameters=[{'use_sim_time': use_sim_time}],
+            output='screen'
+        )
+    ]
+)
+
+# Add to LaunchDescription return
+return LaunchDescription([
+    # ... existing nodes ...
+    move_joint_server,
+])
+]]>
+    </snippet>
+  </codeSnippets>
+
+  <simulationRestartPolicy>
+    <note>CRITICAL: Before relaunching simulation, kill existing processes</note>
+    <commands>
+<![CDATA[
+pkill -9 gazebo || true
+pkill -9 gzserver || true
+pkill -9 gzclient || true
+pkill -9 rviz2 || true
+]]>
+    </commands>
+  </simulationRestartPolicy>
+</story-context>

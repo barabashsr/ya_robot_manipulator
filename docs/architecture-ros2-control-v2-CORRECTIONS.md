@@ -2705,11 +2705,12 @@ class ControllerInterface:
         # Load soft limits from manipulator_params.yaml (single source of truth)
         self.joint_limits = self._load_joint_limits_from_params()
 
-        # Create publisher for each controller (topic pattern: /{joint_name}_controller/command)
+        # Create publisher for each controller (topic pattern: /{joint_name}_controller/commands)
+        # NOTE: ForwardCommandController uses /commands (plural) with Float64MultiArray
         self.publishers = {}
         for joint_name in self.joint_limits.keys():
-            topic = f'/{joint_name}_controller/command'
-            self.publishers[joint_name] = node.create_publisher(Float64, topic, 10)
+            topic = f'/{joint_name}_controller/commands'
+            self.publishers[joint_name] = node.create_publisher(Float64MultiArray, topic, 10)
 
     def _load_joint_limits_from_params(self):
         """Load soft limits from manipulator_params.yaml"""

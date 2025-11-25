@@ -1,6 +1,6 @@
 # Story 2.2: Create Controller Interface Utility
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -33,24 +33,24 @@ The ControllerInterface is a **utility class** (not a standalone node) that abst
 ### Why Individual ForwardCommandControllers?
 
 This manipulator uses **9 individual ForwardCommandControllers** (one per joint) instead of JointTrajectoryController. Each controller:
-- Listens on: `/[joint_name]_controller/command` (std_msgs/Float64)
+- Listens on: `/[joint_name]_controller/commands` (std_msgs/Float64MultiArray)
 - Commands position directly (no trajectory interpolation)
 - Simpler but requires external coordination for multi-joint motion
 
-### Controller Topic Pattern
+### Controller Topic Pattern (CORRECTED: /commands plural, Float64MultiArray)
 
 ```
 Joint Name                              Controller Topic
 -------------------------------------------------------
-base_main_frame_joint                   /base_main_frame_joint_controller/command
-main_frame_selector_frame_joint         /main_frame_selector_frame_joint_controller/command
-selector_frame_gripper_joint            /selector_frame_gripper_joint_controller/command
-selector_frame_picker_frame_joint       /selector_frame_picker_frame_joint_controller/command
-picker_frame_picker_rail_joint          /picker_frame_picker_rail_joint_controller/command
-picker_rail_picker_base_joint           /picker_rail_picker_base_joint_controller/command
-picker_base_picker_jaw_joint            /picker_base_picker_jaw_joint_controller/command
-selector_left_container_jaw_joint       /selector_left_container_jaw_joint_controller/command
-selector_right_container_jaw_joint      /selector_right_container_jaw_joint_controller/command
+base_main_frame_joint                   /base_main_frame_joint_controller/commands
+main_frame_selector_frame_joint         /main_frame_selector_frame_joint_controller/commands
+selector_frame_gripper_joint            /selector_frame_gripper_joint_controller/commands
+selector_frame_picker_frame_joint       /selector_frame_picker_frame_joint_controller/commands
+picker_frame_picker_rail_joint          /picker_frame_picker_rail_joint_controller/commands
+picker_rail_picker_base_joint           /picker_rail_picker_base_joint_controller/commands
+picker_base_picker_jaw_joint            /picker_base_picker_jaw_joint_controller/commands
+selector_left_container_jaw_joint       /selector_left_container_jaw_joint_controller/commands
+selector_right_container_jaw_joint      /selector_right_container_jaw_joint_controller/commands
 ```
 
 ### Unified Limits Architecture
@@ -121,8 +121,8 @@ class ControllerInterface:
         # Create publishers for each controller
         self.publishers = {}
         for joint_name in self.joint_limits.keys():
-            topic = f'/{joint_name}_controller/command'
-            self.publishers[joint_name] = node.create_publisher(Float64, topic, 10)
+            topic = f'/{joint_name}_controller/commands'
+            self.publishers[joint_name] = node.create_publisher(Float64MultiArray, topic, 10)
 
         # Subscribe to joint states for position feedback
         self.joint_positions = {}
@@ -183,12 +183,12 @@ class ControllerInterface:
 │  ┌─────────────────────────────────────────┐                                │
 │  │ 1. Validate joint exists                 │                                │
 │  │ 2. Check: 0.0 <= 2.0 <= 4.0 ✓           │                                │
-│  │ 3. Create Float64(data=2.0)             │                                │
+│  │ 3. Create Float64MultiArray(data=[2.0]) │                                │
 │  │ 4. Publish to topic                     │                                │
 │  └─────────────────────────────────────────┘                                │
 │                    │                                                         │
 │                    ▼                                                         │
-│         /base_main_frame_joint_controller/command                           │
+│         /base_main_frame_joint_controller/commands                          │
 │                    │                                                         │
 └────────────────────│─────────────────────────────────────────────────────────┘
                      │
@@ -197,7 +197,7 @@ class ControllerInterface:
          │  ForwardCommandController         │
          │  (managed by ros2_control)        │
          │                                   │
-         │  Receives Float64 → moves joint   │
+         │  Receives Float64MultiArray       │
          └───────────────────────────────────┘
                      │
                      ▼
@@ -282,31 +282,31 @@ def _load_joint_limits_from_params(self, params_file: str) -> dict:
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Implement ControllerInterface Class (AC: 1, 2, 3, 4, 5, 6, 7, 8)
-  - [ ] 1.1 Create `src/controller_interface.py`
-  - [ ] 1.2 Implement `__init__()` - load limits from manipulator_params.yaml, create publishers, subscribe to joint_states
-  - [ ] 1.3 Implement `_load_joint_limits_from_params()` - parse manipulator_params.yaml structure
-  - [ ] 1.4 Implement `_joint_state_cb()` - update position cache
-  - [ ] 1.5 Implement `command_joint()` - validate and publish
-  - [ ] 1.6 Implement `command_joint_group()` - iterate and command
-  - [ ] 1.7 Implement `get_joint_position()` - return from cache
-  - [ ] 1.8 Implement `get_joint_limits()` - return tuple (also soft limits if available)
-  - [ ] 1.9 Add logging for all validation failures
+- [x] Task 1: Implement ControllerInterface Class (AC: 1, 2, 3, 4, 5, 6, 7, 8)
+  - [x] 1.1 Create `src/controller_interface.py`
+  - [x] 1.2 Implement `__init__()` - load limits from manipulator_params.yaml, create publishers, subscribe to joint_states
+  - [x] 1.3 Implement `_load_joint_limits_from_params()` - parse manipulator_params.yaml structure
+  - [x] 1.4 Implement `_joint_state_cb()` - update position cache
+  - [x] 1.5 Implement `command_joint()` - validate and publish
+  - [x] 1.6 Implement `command_joint_group()` - iterate and command
+  - [x] 1.7 Implement `get_joint_position()` - return from cache
+  - [x] 1.8 Implement `get_joint_limits()` - return tuple (also soft limits if available)
+  - [x] 1.9 Add logging for all validation failures
 
-- [ ] Task 2: Create Test Script (AC: 9, 10)
-  - [ ] 2.1 Create `test/test_controller_interface.py` with pytest unit tests
-  - [ ] 2.2 Create `scripts/test_controller_interface_manual.py` for Gazebo testing
-  - [ ] 2.3 Add comprehensive test commands to story documentation
+- [x] Task 2: Create Test Script (AC: 9, 10)
+  - [x] 2.1 Create `test/test_controller_interface.py` with pytest unit tests
+  - [x] 2.2 Create `scripts/test_controller_interface_manual.py` for Gazebo testing
+  - [x] 2.3 Add comprehensive test commands to story documentation
 
-- [ ] Task 3: Update Package Configuration (AC: 1)
-  - [ ] 3.1 Update CMakeLists.txt to install controller_interface.py
-  - [ ] 3.2 Build and verify installation
+- [x] Task 3: Update Package Configuration (AC: 1)
+  - [x] 3.1 Update CMakeLists.txt to install controller_interface.py
+  - [x] 3.2 Build and verify installation
 
-- [ ] Task 4: Developer Self-Validation (MANDATORY)
-  - [ ] 4.1 Run unit tests (pytest)
-  - [ ] 4.2 Run manual Gazebo test with documented commands
-  - [ ] 4.3 Verify all joints respond to commands
-  - [ ] 4.4 Verify limit validation rejects out-of-range commands
+- [x] Task 4: Developer Self-Validation (MANDATORY)
+  - [x] 4.1 Run unit tests (pytest) - 20/20 passed
+  - [x] 4.2 Run manual Gazebo test with documented commands - 9/9 passed
+  - [x] 4.3 Verify all joints respond to commands - all 9 joints moved
+  - [x] 4.4 Verify limit validation rejects out-of-range commands - confirmed
 
 ## Dev Notes
 
@@ -335,7 +335,7 @@ def _load_joint_limits_from_params(self, params_file: str) -> dict:
 
 **DO NOT DUPLICATE:**
 - Controller limits inside Python code
-- Controller topic names (derive from joint names using pattern: `/{joint_name}_controller/command`)
+- Controller topic names (derive from joint names using pattern: `/{joint_name}_controller/commands`)
 
 ### Project Structure
 
@@ -494,13 +494,13 @@ fi
 # 2. Check controller topics exist
 echo ""
 echo "2. Checking controller topics (requires Gazebo running)..."
-TOPICS=$(ros2 topic list 2>/dev/null | grep "_controller/command" | wc -l)
+TOPICS=$(ros2 topic list 2>/dev/null | grep "_controller/commands" | wc -l)
 echo "   Found $TOPICS/9 controller command topics"
 
 # 3. List controller topics
 echo ""
 echo "3. Controller command topics:"
-ros2 topic list 2>/dev/null | grep "_controller/command" | while read topic; do
+ros2 topic list 2>/dev/null | grep "_controller/commands" | while read topic; do
     echo "   - $topic"
 done
 
@@ -516,16 +516,30 @@ echo "=== Run pytest and manual tests next ==="
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.5 (claude-opus-4-5-20251101)
 
 ### Debug Log References
 
+- Initial implementation used `/command` topic pattern; corrected to `/commands` (ForwardCommandController uses Float64MultiArray)
+
 ### Completion Notes List
 
+- Unit tests: 20/20 passed
+- Manual Gazebo tests: 9/9 passed
+- All 9 joints discovered and commandable
+- Soft limits correctly loaded from manipulator_params.yaml
+- Invalid positions rejected with warnings logged
+
 ### File List
+
+- `ros2_ws/src/manipulator_control/src/controller_interface.py` (NEW)
+- `ros2_ws/src/manipulator_control/test/test_controller_interface.py` (NEW)
+- `ros2_ws/src/manipulator_control/scripts/test_controller_interface_manual.py` (NEW)
+- `ros2_ws/src/manipulator_control/CMakeLists.txt` (MODIFIED)
 
 ## Change Log
 
 | Date | Change | Author |
 |------|--------|--------|
 | 2025-11-25 | Story drafted with comprehensive key concepts, core logic explanation, and testing framework | SM Agent (Bob) |
+| 2025-11-26 | Implementation complete - ControllerInterface utility with all tests passing | Dev Agent (Amelia) |

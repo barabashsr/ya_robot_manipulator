@@ -38,8 +38,8 @@ The epic delivers a complete simulation environment with observable joint contro
 - Lines 443-466: Container jaw software mimic
 
 **Key Constraints:**
-- Individual ForwardCommandControllers - each joint has `/[joint_name]_controller/command` topic
-- Position commands via Float64 messages
+- Individual ForwardCommandControllers - each joint has `/[joint_name]_controller/commands` topic (plural)
+- Position commands via Float64MultiArray messages (single element array)
 - Joint limits from ros2_control.xacro
 - ROS2 Jazzy + Gazebo Harmonic compatibility
 
@@ -338,18 +338,18 @@ class ControllerInterface:
         """Return (min_limit, max_limit) for joint"""
 ```
 
-**Controller Topic Mapping:**
+**Controller Topic Mapping (CORRECTED - /commands plural, Float64MultiArray):**
 | Joint Name | Controller Topic |
 |------------|------------------|
-| base_main_frame_joint | /base_main_frame_joint_controller/command |
-| main_frame_selector_frame_joint | /main_frame_selector_frame_joint_controller/command |
-| selector_left_container_jaw_joint | /selector_left_container_jaw_joint_controller/command |
-| selector_right_container_jaw_joint | /selector_right_container_jaw_joint_controller/command |
-| selector_frame_gripper_joint | /selector_frame_gripper_joint_controller/command |
-| selector_frame_picker_frame_joint | /selector_frame_picker_frame_joint_controller/command |
-| picker_frame_picker_rail_joint | /picker_frame_picker_rail_joint_controller/command |
-| picker_rail_picker_base_joint | /picker_rail_picker_base_joint_controller/command |
-| picker_base_picker_jaw_joint | /picker_base_picker_jaw_joint_controller/command |
+| base_main_frame_joint | /base_main_frame_joint_controller/commands |
+| main_frame_selector_frame_joint | /main_frame_selector_frame_joint_controller/commands |
+| selector_left_container_jaw_joint | /selector_left_container_jaw_joint_controller/commands |
+| selector_right_container_jaw_joint | /selector_right_container_jaw_joint_controller/commands |
+| selector_frame_gripper_joint | /selector_frame_gripper_joint_controller/commands |
+| selector_frame_picker_frame_joint | /selector_frame_picker_frame_joint_controller/commands |
+| picker_frame_picker_rail_joint | /picker_frame_picker_rail_joint_controller/commands |
+| picker_rail_picker_base_joint | /picker_rail_picker_base_joint_controller/commands |
+| picker_base_picker_jaw_joint | /picker_base_picker_jaw_joint_controller/commands |
 
 **Limit Switch Topics (CORRECTED):**
 

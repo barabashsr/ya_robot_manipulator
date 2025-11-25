@@ -212,7 +212,7 @@ ros2 topic echo /manipulator/end_switches/picker_jaw_closed --once
 **6. Test Switch State Changes:**
 ```bash
 # Move picker jaw to closed position
-ros2 topic pub /picker_base_picker_jaw_joint_controller/command std_msgs/msg/Float64 "{data: 0.19}" --once
+ros2 topic pub /picker_base_picker_jaw_joint_controller/commands std_msgs/msg/Float64MultiArray "{data: [0.19]}" --once
 
 # Wait 2 seconds, then check switch
 sleep 2
@@ -220,7 +220,7 @@ ros2 topic echo /manipulator/end_switches/picker_jaw_closed --once
 # Expected: data: true
 
 # Move picker jaw to open position
-ros2 topic pub /picker_base_picker_jaw_joint_controller/command std_msgs/msg/Float64 "{data: 0.01}" --once
+ros2 topic pub /picker_base_picker_jaw_joint_controller/commands std_msgs/msg/Float64MultiArray "{data: [0.01]}" --once
 
 # Wait 2 seconds, then check switch
 sleep 2

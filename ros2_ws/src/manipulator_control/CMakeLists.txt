@@ -61,6 +61,13 @@ install(
   RENAME virtual_limit_switches
 )
 
+# Install Python modules (utility classes)
+install(
+  PROGRAMS
+    src/controller_interface.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 # Install directories
 install(
   DIRECTORY launch config

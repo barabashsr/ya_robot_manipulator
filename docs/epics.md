@@ -95,6 +95,83 @@ ros2 launch manipulator_control manipulator_simulation.launch.py use_sim_time:=f
 ros2 launch manipulator_control manipulator_simulation.launch.py enable_joy:=true
 ```
 
+### Simulation Restart Policy
+
+**CRITICAL REQUIREMENT:** Before relaunching simulation or tests, agents/developers MUST terminate existing processes:
+
+```bash
+# Kill Gazebo and RViz before relaunch
+pkill -9 gazebo || true
+pkill -9 gzserver || true
+pkill -9 gzclient || true
+pkill -9 rviz2 || true
+
+# Alternative: kill all ROS2 nodes
+pkill -9 -f ros2 || true
+```
+
+**Why:** Gazebo and RViz do not cleanly restart when launched while previous instances are running. This causes:
+- Port conflicts
+- Zombie processes
+- Failed controller initialization
+- TF tree corruption
+
+**Rule:** Any story test script or manual testing that launches simulation MUST include cleanup commands before launch.
+
+---
+
+## Mandatory Developer Validation Requirements
+
+**CRITICAL REQUIREMENT:** Every story MUST include developer self-validation before marking as complete.
+
+### Testing Requirements
+
+All stories that implement code MUST include:
+
+1. **Build Verification** - `colcon build` succeeds with exit code 0
+2. **Unit Tests** (if applicable) - pytest or equivalent passes
+3. **Integration Tests** - Manual or scripted tests in Gazebo environment
+4. **CLI Verification** - Verify nodes, topics, services, actions are available
+
+**Rule:** Developer MUST execute ALL tests in the story's "Test Requirements" section and document results in "Dev Agent Record" section before marking story as `done`.
+
+**Failure Handling:** If any test fails:
+- Story status remains `in_progress`
+- Failure details documented in Dev Agent Record
+- Fix implemented and ALL tests re-run
+- Only mark `done` when ALL tests pass
+
+### Documentation Update Requirements
+
+**CRITICAL REQUIREMENT:** After all tests pass, developer MUST update package documentation.
+
+**Required Updates:**
+
+1. **Package README.md** (`ros2_ws/src/manipulator_control/README.md`)
+   - Add new nodes/executables to "Nodes" section
+   - Add new topics/services/actions to "Interfaces" section
+   - Update "Usage" examples if applicable
+   - Add any new configuration files to "Configuration" section
+
+2. **Config File Comments** - All new YAML files must have header comments explaining purpose and parameters
+
+3. **Code Docstrings** - All new Python modules/classes/functions must have docstrings
+
+**Rule:** Story is NOT complete until documentation reflects all implemented functionality. Reviewers should be able to understand what was added by reading the README.
+
+### Story Completion Checklist
+
+Before marking any story as `done`, verify:
+
+- [ ] All acceptance criteria met
+- [ ] Build succeeds (exit code 0)
+- [ ] All unit tests pass
+- [ ] All integration/manual tests pass and documented
+- [ ] Package README.md updated with new functionality
+- [ ] Code has appropriate docstrings
+- [ ] Config files have header comments
+- [ ] Dev Agent Record section filled with test results
+
 ---
 
 ## Functional Requirements Inventory
@@ -307,7 +384,7 @@ So that action servers can control joints without hardcoding controller topic na
 **Given** the manipulator uses individual ForwardCommandControllers defined in manipulator_controllers.yaml
 **When** I use the ControllerInterface utility to command a joint
 **Then** the utility publishes Float64 position commands to the correct controller topic:
-- Format: `/[controller_name]/command` (e.g., `/base_main_frame_joint_controller/command`)
+- Format: `/[controller_name]/commands` (e.g., `/base_main_frame_joint_controller/commands`) - NOTE: plural "commands", uses Float64MultiArray
 
 **And** the utility loads controller names from `/ros2_ws/src/manipulator_description/config/manipulator_controllers.yaml`
 **And** the utility provides methods:
@@ -322,7 +399,7 @@ So that action servers can control joints without hardcoding controller topic na
 
 **Technical Notes:**
 - Reference architecture lines 13-28 for controller architecture (individual ForwardCommandControllers, NOT JointTrajectoryController)
-- Controller topics: each joint has `/[joint_name]_controller/command` (Float64)
+- Controller topics: each joint has `/[joint_name]_controller/commands` (Float64MultiArray) - NOTE: plural "commands"
 - Load joint limits from ros2_control.xacro or query controller_manager parameters
 - This utility will be used by MoveJoint and MoveJointGroup action servers
 - Cache joint limits on initialization for validation performance

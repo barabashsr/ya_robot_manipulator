@@ -46,8 +46,8 @@ development_status:
   # Epic 2: Simulation Foundation & Joint Control (6 stories)
   epic-2: contexted
   2-1-implement-virtual-limit-switch-simulation: done
-  2-2-create-controller-interface-utility: drafted
-  2-3-implement-movejoint-action-server: backlog
+  2-2-create-controller-interface-utility: done
+  2-3-implement-movejoint-action-server: ready-for-dev
   2-4-implement-state-marker-publisher-for-visualization: backlog
   2-5-implement-movejointgroup-action-server: backlog
   2-6-create-test-script-and-rqt-documentation: backlog
