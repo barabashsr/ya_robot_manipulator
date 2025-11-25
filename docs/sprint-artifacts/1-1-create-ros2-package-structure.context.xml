@@ -1,0 +1,182 @@
+<story-context id="1-1-create-ros2-package-structure" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>1</storyId>
+    <title>Create ROS2 Package Structure</title>
+    <status>ready-for-dev</status>
+    <generatedAt>2025-11-25</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/1-1-create-ros2-package-structure.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>a properly structured ROS2 package for manipulator_control with build configuration</iWant>
+    <soThat>I can define interfaces and implement control logic in subsequent stories</soThat>
+    <tasks>
+      <task id="1" ac="1,2">Create package directory structure
+        <subtask id="1.1">Create ros2_ws/src/manipulator_control/ directory</subtask>
+        <subtask id="1.2">Create subdirectories: action/, srv/, msg/, src/, launch/, config/, test/</subtask>
+        <subtask id="1.3">Create placeholder .gitkeep files in empty directories</subtask>
+      </task>
+      <task id="2" ac="3,7">Create CMakeLists.txt
+        <subtask id="2.1">Configure cmake_minimum_required and project</subtask>
+        <subtask id="2.2">Add find_package for all dependencies</subtask>
+        <subtask id="2.3">Configure rosidl_generate_interfaces (empty/commented for now)</subtask>
+        <subtask id="2.4">Add ament_export_dependencies</subtask>
+        <subtask id="2.5">Add ament_package() call</subtask>
+      </task>
+      <task id="3" ac="4,7">Create package.xml
+        <subtask id="3.1">Define package metadata (name, version, description, maintainer, license)</subtask>
+        <subtask id="3.2">Add buildtool_depend: ament_cmake, ament_cmake_python</subtask>
+        <subtask id="3.3">Add depend: rclcpp, rclpy, std_msgs, geometry_msgs, sensor_msgs, std_srvs, action_msgs</subtask>
+        <subtask id="3.4">Add depend: tf2, tf2_ros, tf2_geometry_msgs</subtask>
+        <subtask id="3.5">Add depend: controller_manager, controller_interface, ros2_control, ros2_controllers</subtask>
+        <subtask id="3.6">Add depend: ros_gz_bridge, ros_gz_interfaces, ros_gz_sim</subtask>
+        <subtask id="3.7">Add rosidl_default_generators (buildtool), rosidl_default_runtime (exec)</subtask>
+        <subtask id="3.8">Add member_of_group rosidl_interface_packages</subtask>
+        <subtask id="3.9">Add test_depend: ament_lint_auto, ament_lint_common</subtask>
+      </task>
+      <task id="4" ac="5">Create README.md
+        <subtask id="4.1">Write package description and purpose</subtask>
+        <subtask id="4.2">Document directory structure</subtask>
+        <subtask id="4.3">Add build instructions</subtask>
+        <subtask id="4.4">Add interface usage examples (placeholder for future)</subtask>
+      </task>
+      <task id="5" ac="6">Validate build
+        <subtask id="5.1">Run colcon build --packages-select manipulator_control</subtask>
+        <subtask id="5.2">Verify exit code 0</subtask>
+        <subtask id="5.3">Verify no errors or warnings in output</subtask>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <ac id="1">manipulator_control package exists at ros2_ws/src/manipulator_control/</ac>
+    <ac id="2">Directory structure includes: action/, srv/, msg/, src/, launch/, config/, test/</ac>
+    <ac id="3">CMakeLists.txt exists with ament_cmake configuration for interface generation</ac>
+    <ac id="4">package.xml exists with all required dependencies</ac>
+    <ac id="5">README.md exists with package description and build instructions</ac>
+    <ac id="6">colcon build --packages-select manipulator_control exits with code 0, no errors, no warnings</ac>
+    <ac id="7">Package is member of rosidl_interface_packages group for interface generation</ac>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-1.md</path>
+        <title>Epic 1 Technical Specification</title>
+        <section>Package Structure (Lines 57-72)</section>
+        <snippet>Complete directory structure: action/, srv/, msg/, src/, launch/, config/, test/ with responsibilities defined. CMakeLists.txt and package.xml for build configuration.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-1.md</path>
+        <title>Epic 1 Technical Specification</title>
+        <section>Dependencies (Lines 522-578)</section>
+        <snippet>Full dependency list including ROS2 core, TF2, ros2_control, Gazebo integration, and build dependencies. Package must be member of rosidl_interface_packages.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture-ros2-control-v2-CORRECTIONS.md</path>
+        <title>ROS2 Control Architecture v2.0</title>
+        <section>Controller Architecture (Lines 13-28)</section>
+        <snippet>Individual ForwardCommandControllers per joint. 9 joints total. manipulator_control will send commands to these controllers.</snippet>
+      </doc>
+      <doc>
+        <path>docs/prd.md</path>
+        <title>Product Requirements Document</title>
+        <section>Package Structure</section>
+        <snippet>manipulator_control package houses all control logic, action servers, utilities for Level 3 autonomous warehouse system.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <file>
+        <path>ros2_ws/src/manipulator_description/CMakeLists.txt</path>
+        <kind>build-config</kind>
+        <symbol>CMakeLists.txt</symbol>
+        <reason>Reference for ROS2 CMake patterns - uses ament_cmake, install directories, ament_package()</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_description/package.xml</path>
+        <kind>package-manifest</kind>
+        <symbol>package.xml</symbol>
+        <reason>Reference for package.xml format - format 3, dependencies, export section</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_description/config/manipulator_controllers.yaml</path>
+        <kind>config</kind>
+        <symbol>controller config</symbol>
+        <reason>Defines the 9 ForwardCommandControllers that manipulator_control will interface with</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_description/config/storage_params.yaml</path>
+        <kind>config</kind>
+        <symbol>storage params</symbol>
+        <reason>Cabinet configurations that manipulator_control will use for address resolution</reason>
+      </file>
+    </code>
+    <dependencies>
+      <ros2>
+        <pkg>rclcpp</pkg>
+        <pkg>rclpy</pkg>
+        <pkg>std_msgs</pkg>
+        <pkg>geometry_msgs</pkg>
+        <pkg>sensor_msgs</pkg>
+        <pkg>std_srvs</pkg>
+        <pkg>action_msgs</pkg>
+        <pkg>tf2</pkg>
+        <pkg>tf2_ros</pkg>
+        <pkg>tf2_geometry_msgs</pkg>
+        <pkg>controller_manager</pkg>
+        <pkg>controller_interface</pkg>
+        <pkg>ros2_control</pkg>
+        <pkg>ros2_controllers</pkg>
+        <pkg>ros_gz_bridge</pkg>
+        <pkg>ros_gz_interfaces</pkg>
+        <pkg>ros_gz_sim</pkg>
+        <pkg>rosidl_default_generators</pkg>
+        <pkg>rosidl_default_runtime</pkg>
+      </ros2>
+      <build>
+        <tool>ament_cmake</tool>
+        <tool>ament_cmake_python</tool>
+      </build>
+      <test>
+        <pkg>ament_lint_auto</pkg>
+        <pkg>ament_lint_common</pkg>
+      </test>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="platform">ROS2 Jazzy + Gazebo Harmonic compatibility required</constraint>
+    <constraint type="language">Package must support both Python and C++ interface generation</constraint>
+    <constraint type="scope">No implementation code in this story - structure and build only</constraint>
+    <constraint type="dependency">Sibling package manipulator_description already exists with URDF and ros2_control config</constraint>
+    <constraint type="architecture">Individual ForwardCommandControllers per joint - no JointTrajectoryController</constraint>
+    <constraint type="structure">Follow standard ROS2 package conventions</constraint>
+  </constraints>
+
+  <interfaces>
+    <note>No interfaces to implement in this story. Interface definitions come in Story 1.2 (actions) and Story 1.3 (services/messages).</note>
+    <future>
+      <interface name="MoveJoint.action" story="1.2"/>
+      <interface name="MoveJointGroup.action" story="1.2"/>
+      <interface name="NavigateToAddress.action" story="1.2"/>
+      <interface name="GetAddressCoordinates.srv" story="1.3"/>
+      <interface name="Address.msg" story="1.3"/>
+    </future>
+  </interfaces>
+
+  <tests>
+    <standards>Build verification testing only for this story. Run colcon build and verify exit code 0 with no errors or warnings. Future stories (1.2, 1.3) will add interface import tests.</standards>
+    <locations>
+      <location>ros2_ws/src/manipulator_control/test/</location>
+    </locations>
+    <ideas>
+      <idea ac="6">Run colcon build --packages-select manipulator_control, verify exit code 0</idea>
+      <idea ac="6">Verify build output contains no ERROR or WARNING lines</idea>
+      <idea ac="1,2">Verify all required directories exist after package creation</idea>
+      <idea ac="3,4">Verify CMakeLists.txt and package.xml are valid (colcon build parses them)</idea>
+    </ideas>
+  </tests>
+</story-context>
