@@ -331,7 +331,7 @@ So that I can execute coordinated multi-joint motions efficiently.
 
 **And** supported joint groups are:
 - "navigation": [base_main_frame_joint, main_frame_selector_frame_joint]
-- "gripper": [selector_frame_gripper_joint]
+- "gripper": [selector_frame_gripper_joint, main_frame_selector_frame_joint]
 - "picker": [4 picker joints]
 - "container": [selector_left_container_jaw_joint, selector_right_container_jaw_joint]
 
@@ -682,15 +682,18 @@ So that box extraction actions can control magnet state via ROS2 service.
 **When** I call the service with activate=true
 **Then** the electromagnet_simulator_node:
 1. Checks if a box is within proximity (< 0.05m from gripper_magnet_link)
-2. If yes, calls Gazebo attach service to link box model to gripper
+2. If yes, publishes Empty message to `/model/{box_id}/detachable_joint/attach` topic
+   - Uses DetachableJoint plugin to create fixed joint between gripper and box
+   - Box model must have DetachableJoint plugin configured in its URDF/SDF
 3. Publishes magnet state to `/manipulator/electromagnet/engaged` (Bool, true)
 4. Returns success=true
 
 **When** I call with activate=false
 **Then** the node:
-1. Calls Gazebo detach service to release attached box
-2. Publishes magnet state engaged=false
-3. Returns success=true
+1. Publishes Empty message to `/model/{box_id}/detachable_joint/detach` topic
+2. Box is released from gripper in Gazebo physics simulation
+3. Publishes magnet state engaged=false
+4. Returns success=true
 
 **And** magnet state topic publishes at 10 Hz for visualization
 **And** red sphere marker appears on gripper when magnet engaged (via state_marker_publisher)
@@ -701,9 +704,13 @@ So that box extraction actions can control magnet state via ROS2 service.
 **Technical Notes:**
 - Reference architecture lines 312-414 for electromagnet simulation approaches
 - Service definition: `srv/ToggleElectromagnet.srv`
-- Gazebo services: `/gazebo/attach` and `/gazebo/detach` (model_name, link_name pairs)
+- **Gazebo Harmonic Implementation:** Use **DetachableJoint** plugin for attach/detach
+  - Attach topic: `/model/{box_id}/detachable_joint/attach` (publish Empty message)
+  - Detach topic: `/model/{box_id}/detachable_joint/detach` (publish Empty message)
+  - Plugin creates fixed joint between `left_gripper_magnet` link and `{box_id}_base_link`
+  - Reference: [DetachableJoint Plugin Documentation](https://gazebosim.org/api/sim/9/detachablejoints.html)
 - Proximity check: Use TF to calculate distance between gripper_magnet_link and box_link
-- Alternative approach: Use gazebo_grasp_fix plugin if attach/detach services unreliable
+- Alternative approach: Use `gazebo_ros_link_attacher` for older compatibility
 - For hardware: Replace with GPIO control (e.g., RPi.GPIO for electromagnet relay)
 - Service name: `/manipulator/electromagnet/toggle`
 
@@ -712,45 +719,225 @@ So that box extraction actions can control magnet state via ROS2 service.
 ### Story 4A.3: Implement Dynamic Box Spawner with Department Frame Generation
 
 As a developer,
-I want to dynamically spawn boxes in Gazebo with department TF frames when extracted,
-So that boxes exist only when manipulated and department frames enable item picking.
+I want to dynamically add box URDF with department child links to the ROS2 TF tree,
+So that department positions are available for real item detection and picking in both hardware and simulation modes.
+
+**CRITICAL UNDERSTANDING:**
+- **PRIMARY GOAL:** Add box URDF to ROS2 TF tree → Department frames available for item positioning
+- **SECONDARY GOAL:** Spawn visual representation in Gazebo (simulation only, optional)
+- **Why this matters:** On real hardware, there's no Gazebo, but we NEED department TF frames to know where items are located within the box. The TF tree is the source of truth for item positions.
+
+**Implementation Order:**
+1. **FIRST:** Generate URDF + launch robot_state_publisher → TF frames exist
+2. **SECOND (optional):** If in simulation, also spawn visual model in Gazebo
+3. **Result:** Department frames work identically for hardware and simulation
 
 **Acceptance Criteria:**
 
 **Given** the SpawnBox service is defined with request (box_id, side, cabinet_num, row, column, num_departments) and response (success, message)
 **When** I call SpawnBox for address (left, 1, 2, 3) with 10 departments
 **Then** the box_spawn_manager_node:
-1. Loads box parameters from storage_params.yaml (width, height based on cabinet columns/rows)
-2. Gets spawn position from address TF frame (addr_l_1_2_3)
-3. Generates SDF box model with calculated dimensions
-4. Spawns box in Gazebo at address position using `/gazebo/spawn_entity` service
-5. Starts broadcasting department TF frames at 10 Hz:
-   - Frame names: `{box_id}_dept_{1..num_departments}`
-   - Parent frame: `{box_id}_link`
-   - Positions: Equally spaced along Y-axis per department_depth from storage_params
-6. Publishes department marker array (red spheres at department centers) to /visualization_marker_array
-7. Returns success=true
+
+**Phase 1: Generate URDF String (progress 0-20%)**
+1. Loads box parameters from storage_params.yaml (width, height, depth based on cabinet columns/rows)
+2. Gets spawn position from address TF frame (addr_l_1_2_3) via TF lookup
+3. Generates URDF XML string with:
+   - `<robot name="{box_id}">` root element
+   - Base link: `{box_id}_base_link` with visual/collision/inertial (box geometry with dimensions from storage_params)
+   - Department child links: `{box_id}_dept_1_link` through `{box_id}_dept_{num_departments}_link`
+   - Fixed joints connecting base_link to each department link with origins:
+     - x=0, y=offset_y + (dept_num - 1) × dept_depth, z=0 (equally spaced along Y-axis)
+     - dept_depth and offset_y from storage_params.yaml department_configurations
+   - Each department link has small visual marker (sphere radius 0.01m) for RViz visualization
+   - Inertial properties: mass=0.5kg total distributed across links
+
+**Phase 2: Add Box to ROS2 TF Tree (progress 20-70%) - PRIMARY GOAL**
+4. Spawns a robot_state_publisher node for this box with parameters:
+   - robot_description = URDF string
+   - frame_prefix = "" (no prefix, use box_id in URDF)
+   - use_sim_time = True (for simulation) or False (for hardware)
+   - **This publishes TF transforms for base_link and all department child links to /tf_static**
+   - **Department frames are NOW available in TF tree for item picking operations**
+5. Publishes static transform from **gripper magnet link** to `{box_id}_base_link`
+   - Uses tf2_ros.StaticTransformBroadcaster
+   - Transform: `left_gripper_magnet` → `{box_id}_base_link` at (0, 0, 0) with appropriate rotation
+   - **CRITICAL:** Box is attached to the gripper/electromagnet, not to world frame
+   - This makes the box follow the gripper as it moves during extraction
+6. Tracks robot_state_publisher process for cleanup on despawn
+7. **At this point, department TF frames are fully available: `{box_id}_dept_1_link`, etc.**
+8. **Department frames move with the gripper** since box is attached to gripper magnet link
+
+**Phase 3: Spawn in Gazebo (progress 70-90%) - SECONDARY (simulation only)**
+9. **IF in simulation mode** (check if Gazebo services are available):
+   - **Step 1:** Add DetachableJoint plugin to URDF for Gazebo attachment:
+     ```xml
+     <gazebo>
+       <plugin filename="gz-sim-detachable-joint-system" name="gz::sim::systems::DetachableJoint">
+         <parent_link>left_gripper_magnet</parent_link>
+         <child_model>{box_id}</child_model>
+         <child_link>{box_id}_base_link</child_link>
+         <topic>/model/{box_id}/detachable_joint</topic>
+       </plugin>
+     </gazebo>
+     ```
+   - **Step 2:** Creates SpawnEntity request (from `ros_gz_interfaces.srv.SpawnEntity`):
+     - entity_factory.name = box_id (e.g., "box_l_1_2_3")
+     - entity_factory.sdf = URDF string with DetachableJoint plugin (Gazebo Harmonic accepts URDF in SDF field)
+     - entity_factory.allow_renaming = False
+     - entity_factory.pose = get current pose of left_gripper_magnet via TF lookup
+   - **Step 3:** Calls `/world/{world_name}/create` service (default: `/world/default/create`)
+   - **Step 4:** Waits for Gazebo to confirm entity spawned
+   - **Step 5:** Publishes Empty message to `/model/{box_id}/detachable_joint/attach` to engage electromagnet
+     - DetachableJoint plugin creates fixed joint between `left_gripper_magnet` and `{box_id}_base_link`
+     - This creates physics constraint so box moves with gripper in simulation
+10. **ELSE (hardware mode)**: Skip Gazebo spawning - TF frames already available from Phase 2
+
+**Phase 4: Visualization Markers (progress 90-100%)**
+11. Publishes department marker array (red spheres + text labels D1, D2, ...) to /visualization_marker_array
+12. Returns success=true with box_id
 
 **When** I call DespawnBox with box_id
 **Then** the node:
-1. Stops broadcasting department TF frames
-2. Deletes department markers
-3. Calls `/gazebo/delete_entity` to remove box from simulation
-4. Returns success=true
+1. **IF in simulation mode**: Detach box from gripper first:
+   - Publishes Empty message to `/model/{box_id}/detachable_joint/detach`
+   - Wait 0.2 seconds for Gazebo to process detachment
+2. Kills the robot_state_publisher node for this box (removes TF frames from TF tree)
+3. Stops publishing static transform gripper_magnet → {box_id}_base_link
+4. Deletes department markers from /visualization_marker_array
+5. **IF in simulation mode**: Calls DeleteEntity service to remove box from Gazebo:
+   ```python
+   from ros_gz_interfaces.srv import DeleteEntity
+   req = DeleteEntity.Request()
+   req.entity.name = box_id
+   req.entity.type = 2  # MODEL type (gz.msgs.Entity.Type.MODEL)
+   # Call service: /world/default/remove
+   ```
+6. Removes box from internal tracking
+7. Returns success=true
 
+**And** department TF frames are available in TF tree: `{box_id}_dept_1_link`, `{box_id}_dept_2_link`, etc.
+**And** TF frames persist at 10Hz via robot_state_publisher (no manual broadcasting needed)
 **And** department markers include text labels (D1, D2, ...) above box for visualization
-**And** active boxes are tracked internally to manage TF broadcasting and cleanup
+**And** active boxes are tracked internally with their robot_state_publisher PIDs for cleanup
+**And** the approach works for both simulation (Gazebo) and hardware (TF frames exist without Gazebo)
 
 **Prerequisites:** Story 1.1 (package structure)
 
-**Technical Notes:**
-- Reference architecture lines 542-831 for box spawn manager implementation
-- Service definitions: `srv/SpawnBox.srv`, `srv/DespawnBox.srv`
-- Box dimensions from storage_params.yaml: box_configurations (columns_4, columns_5, columns_6) × (rows_6, rows_8, rows_10, rows_12, rows_14)
-- Department calculations: offset_y + (dept_num - 1) * step_y from department_configurations
-- SDF model generation: Simple box primitive with mass=0.5kg, blue color (0.3, 0.5, 0.8)
-- TF broadcaster: tf2_ros.TransformBroadcaster, timer at 10 Hz for department frame updates
-- Marker types: Marker.SPHERE (dept center) + Marker.TEXT_VIEW_FACING (label)
+**Technical Notes - ROS2 Jazzy + Gazebo Harmonic Specific:**
+
+**Required Packages:**
+- `ros_gz_interfaces` - Provides SpawnEntity and DeleteEntity services for Gazebo Harmonic
+- `ros_gz_sim` - Gazebo Harmonic ROS2 bridge (provides `/world/{world_name}/create` and `/world/{world_name}/remove` services)
+- `robot_state_publisher` - Standard ROS2 package for TF broadcasting from URDF
+
+**Service Endpoints (Gazebo Harmonic):**
+- Spawn: `/world/default/create` (type: `ros_gz_interfaces/srv/SpawnEntity`)
+- Delete: `/world/default/remove` (type: `ros_gz_interfaces/srv/DeleteEntity`)
+- World name may vary - check with `ros2 service list | grep create`
+
+**Python Implementation Example:**
+```python
+from ros_gz_interfaces.srv import SpawnEntity, DeleteEntity
+from geometry_msgs.msg import Pose
+
+# Create service client
+spawn_client = self.create_client(SpawnEntity, '/world/default/create')
+
+# Prepare request
+req = SpawnEntity.Request()
+req.entity_factory.name = "box_l_1_2_3"
+req.entity_factory.sdf = urdf_string  # URDF works in sdf field
+req.entity_factory.allow_renaming = False
+req.entity_factory.pose.position.x = 1.0
+req.entity_factory.pose.position.y = 2.0
+req.entity_factory.pose.position.z = 0.5
+
+# Call service
+future = spawn_client.call_async(req)
+```
+
+**References:**
+- **Gazebo Harmonic Spawn:** [Spawn a Gazebo model from ROS 2](https://gazebosim.org/docs/harmonic/ros2_spawn_model/)
+- **ros_gz_interfaces Package:** [ROS Package: ros_gz_interfaces](https://index.ros.org/p/ros_gz_interfaces/)
+- **Service Examples:** [Object spawner for Gazebo Harmonic](https://robotics.stackexchange.com/questions/113266/object-spawner-and-despawner-service-for-conveyor-belt-in-gazebo-harmonic-gz-si)
+- **URDF with robot_state_publisher:** [Using URDF with robot_state_publisher](https://docs.ros.org/en/humble/Tutorials/Intermediate/URDF/Using-URDF-with-Robot-State-Publisher.html)
+- **ROS2 Jazzy + Harmonic Integration:** [Issue with ros2 jazzy and gazebo harmonic](https://community.gazebosim.org/t/issue-with-ros2-jazzy-and-gazebo-harmonic-ros-integration/2954)
+
+**URDF Structure Example:**
+```xml
+<robot name="box_l_1_2_3">
+  <link name="box_l_1_2_3_base_link">
+    <visual><geometry><box size="0.4 0.6 0.3"/></geometry></visual>
+    <collision><geometry><box size="0.4 0.6 0.3"/></geometry></collision>
+    <inertial><mass value="0.5"/><inertia ixx="0.01" iyy="0.01" izz="0.01" ixy="0" ixz="0" iyz="0"/></inertial>
+  </link>
+
+  <link name="box_l_1_2_3_dept_1_link">
+    <visual><geometry><sphere radius="0.01"/></geometry></visual>
+  </link>
+
+  <joint name="box_l_1_2_3_dept_1_joint" type="fixed">
+    <parent link="box_l_1_2_3_base_link"/>
+    <child link="box_l_1_2_3_dept_1_link"/>
+    <origin xyz="0 0.05 0" rpy="0 0 0"/>  <!-- offset_y + 0 * dept_depth -->
+  </joint>
+
+  <!-- Repeat for dept_2 through dept_N with increasing Y offsets -->
+</robot>
+```
+
+**Implementation Details:**
+
+**Box Configuration (from storage_params.yaml):**
+- Box dimensions: box_configurations (columns_4, columns_5, columns_6) × (rows_6, rows_8, rows_10, rows_12, rows_14)
+- Department calculations: origin.y = offset_y + (dept_num - 1) × dept_depth from department_configurations
+
+**Service Definitions:**
+- Custom services: `srv/SpawnBox.srv`, `srv/DespawnBox.srv` (wrappers for user-friendly interface)
+- Internal usage: `ros_gz_interfaces.srv.SpawnEntity` and `ros_gz_interfaces.srv.DeleteEntity`
+
+**robot_state_publisher Launch:**
+```python
+import subprocess
+cmd = [
+    'ros2', 'run', 'robot_state_publisher', 'robot_state_publisher',
+    '--ros-args',
+    '-p', f'robot_description:={urdf_string}',
+    '-p', 'use_sim_time:=true',
+    '-p', f'frame_prefix:='  # No prefix, box_id already in link names
+]
+process = subprocess.Popen(cmd)
+```
+
+**Process Tracking:**
+```python
+self.active_boxes[box_id] = {
+    "rsp_process": process,
+    "urdf": urdf_string,
+    "num_departments": num_departments
+}
+```
+
+**Visualization:**
+- Marker types: `Marker.SPHERE` (dept center, red, 0.02m radius) + `Marker.TEXT_VIEW_FACING` (label "D1", "D2", etc.)
+- Update rate: 10 Hz (republish to maintain markers)
+
+**Priority and Hardware/Simulation Mode:**
+
+**PRIMARY (always executed):**
+1. Generate URDF with department child links
+2. Launch robot_state_publisher → **Department TF frames in TF tree**
+3. Publish static transform world → box_base_link
+4. **Result:** Department positions available for item picking via TF lookups
+
+**SECONDARY (simulation only):**
+5. Spawn visual box model in Gazebo (optional, for visualization)
+
+**Critical Understanding:**
+- **Hardware mode:** Steps 1-4 only → Department TF frames fully functional for real item detection and picking
+- **Simulation mode:** Steps 1-5 → TF frames + visual representation in Gazebo
+- **Department frames are the GOAL** - they provide precise 3D positions for items within the box
+- **Gazebo spawning is OPTIONAL** - only for visual feedback during simulation testing
 
 ---
 
@@ -782,16 +969,31 @@ So that I can access items stored in boxes for picking operations.
 - Wait 0.5 seconds for magnetic attachment
 - Feedback: current_phase="engaging_magnet", magnet_contact_detected=true
 
-**Phase 4: Extract (progress 50-80%)**
+**Phase 4: Spawn Box URDF (progress 50-60%) - CRITICAL TIMING**
+- **AFTER electromagnet engages**, call SpawnBox service with address and num_departments (from cabinet config)
+- Generate unique box_id: "box_{side}_{cabinet}_{row}_{col}"
+- **SpawnBox creates:**
+  - URDF with department child links
+  - robot_state_publisher broadcasting TF transforms
+  - Static transform: `left_gripper_magnet` → `{box_id}_base_link`
+  - **Result:** Box is now attached to gripper magnet in TF tree
+  - **Department frames are NOW available:** `{box_id}_dept_1_link`, `{box_id}_dept_2_link`, etc.
+  - **These frames will move with the gripper** during extraction
+- If simulation mode: Also spawns visual box model in Gazebo attached to gripper
+- Mark address as extracted (red marker via state update)
+- Feedback: current_phase="spawning_box", box_id="{box_id}"
+
+**Phase 5: Extract (progress 60-90%)**
 - Generate YZ extraction trajectory to safe position (safe_y=0.0)
 - Execute trajectory at extraction_speed (default 0.08 m/s)
+- **Box TF frames follow gripper** throughout extraction motion
+- **Department frames remain accessible** for subsequent PickItem actions
 - Feedback: current_phase="extracting"
 
-**Phase 5: Spawn Box (progress 80-100%)**
-- Call SpawnBox service with address and num_departments (from cabinet config)
-- Mark address as extracted (red marker via state update)
-- Generate unique box_id: "box_{side}_{cabinet}_{row}_{col}"
-- Feedback: current_phase="clearing"
+**Phase 6: Complete (progress 90-100%)**
+- Verify final position reached
+- **Box is now extracted with all department frames available in TF tree**
+- Feedback: current_phase="complete"
 
 **And** result returns box_id, success=true, box_extracted=true, magnet_engaged=true
 **And** action timeout: 45 seconds (configurable)
