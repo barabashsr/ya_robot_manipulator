@@ -1,0 +1,16 @@
+# config/action_servers.yaml
+# Action server parameters - NOT hardware config
+# These parameters are specific to action server behavior
+#
+# DO NOT add joint limits here - use ControllerInterface.get_joint_limits()
+# DO NOT add controller topic names - ControllerInterface handles this
+
+move_joint:
+  timeout_sec: 30.0           # Max time to reach target position (seconds)
+  position_tolerance: 0.01    # Success threshold in meters (NFR-002)
+  feedback_rate: 10.0         # Feedback publish rate (Hz)
+
+move_joint_group:
+  timeout_sec: 30.0           # Max time to reach all target positions
+  position_tolerance: 0.01    # Success threshold for each joint (meters)
+  feedback_rate: 10.0         # Feedback publish rate (Hz)

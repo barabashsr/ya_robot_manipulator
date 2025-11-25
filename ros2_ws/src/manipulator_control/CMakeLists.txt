@@ -61,11 +61,27 @@ install(
   RENAME virtual_limit_switches
 )
 
+# Install MoveJoint action server (Story 2.3)
+install(
+  PROGRAMS
+    src/move_joint_server.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME move_joint_server
+)
+
 # Install Python modules (utility classes)
 install(
   PROGRAMS
     src/controller_interface.py
   DESTINATION lib/${PROJECT_NAME}
+)
+
+# Install test scripts (Story 2.3)
+install(
+  PROGRAMS
+    scripts/test_move_joint_action.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME test_move_joint_action
 )
 
 # Install directories

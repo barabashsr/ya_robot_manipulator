@@ -77,6 +77,21 @@ def generate_launch_description():
         ]
     )
 
+    # MoveJoint action server (Story 2.3)
+    # Common node - runs in both sim and hardware modes
+    # 3 second delay to allow controllers to initialize
+    move_joint_server_node = TimerAction(
+        period=3.0,
+        actions=[
+            Node(
+                package='manipulator_control',
+                executable='move_joint_server',
+                name='move_joint_server',
+                output='screen'
+            )
+        ]
+    )
+
     # Joystick control launch (optional)
     joy_control_launch = TimerAction(
         period=3.0,  # Wait for controllers to be ready
@@ -104,6 +119,9 @@ def generate_launch_description():
 
         # Start virtual limit switches (delayed)
         virtual_limit_switches_node,
+
+        # Start MoveJoint action server (delayed) - Story 2.3
+        move_joint_server_node,
 
         # Start joystick control (optional, delayed)
         joy_control_launch
