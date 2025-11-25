@@ -15,6 +15,72 @@ This document provides the complete epic and story breakdown for ya_robot_manipu
 
 ---
 
+## Unified Launch File Pattern
+
+**CRITICAL REQUIREMENT:** All Epic 2+ stories that add nodes, action servers, or services MUST update the unified launch file.
+
+### Launch File Location
+`ros2_ws/src/manipulator_control/launch/manipulator_simulation.launch.py`
+
+### Simulation vs Hardware Separation
+
+The launch file uses `use_sim_time` argument to control which nodes are launched:
+
+```python
+# Launch argument
+use_sim_time_arg = DeclareLaunchArgument(
+    'use_sim_time',
+    default_value='true',
+    description='Use simulation time (true) or real hardware (false)'
+)
+use_sim_time = LaunchConfiguration('use_sim_time')
+
+# Simulation-only nodes (only launch when use_sim_time=true)
+# - virtual_limit_switches (simulates hardware limit switches)
+# - electromagnet_simulator (simulates hardware electromagnet)
+# - box_spawner (Gazebo box spawning)
+
+# Hardware-only nodes (only launch when use_sim_time=false)
+# - hardware_limit_switches (reads real GPIO)
+# - hardware_electromagnet (controls real GPIO)
+
+# Common nodes (launch regardless of use_sim_time)
+# - All action servers (MoveJoint, MoveJointGroup, etc.)
+# - State marker publisher
+# - Controller interface
+```
+
+### Node Categories
+
+| Category | Nodes | Condition |
+|----------|-------|-----------|
+| **Simulation-Only** | virtual_limit_switches, electromagnet_simulator, box_spawner | `use_sim_time=true` |
+| **Hardware-Only** | (future: hardware interfaces) | `use_sim_time=false` |
+| **Common** | Action servers, state_marker_publisher, utilities | Always |
+
+### Story Requirements
+
+Each story that creates a new node MUST:
+1. Add the node to `manipulator_simulation.launch.py`
+2. Set appropriate `condition` (simulation-only, hardware-only, or common)
+3. Use `use_sim_time` parameter for time-sensitive nodes
+4. Add delayed start (`TimerAction`) if node depends on Gazebo/controllers
+
+### Usage
+
+```bash
+# Simulation mode (default)
+ros2 launch manipulator_control manipulator_simulation.launch.py
+
+# Hardware mode
+ros2 launch manipulator_control manipulator_simulation.launch.py use_sim_time:=false
+
+# With joystick (simulation)
+ros2 launch manipulator_control manipulator_simulation.launch.py enable_joy:=true
+```
+
+---
+
 ## Functional Requirements Inventory
 
 **FR-001:** Warehouse Address Navigation - Navigate manipulator to any warehouse address (side, cabinet, row, column)
@@ -234,6 +300,7 @@ So that action servers can control joints without hardcoding controller topic na
 - Load joint limits from ros2_control.xacro or query controller_manager parameters
 - This utility will be used by MoveJoint and MoveJointGroup action servers
 - Cache joint limits on initialization for validation performance
+- **LAUNCH FILE UPDATE:** Update `manipulator_simulation.launch.py` to add `use_sim_time` argument and apply `IfCondition(use_sim_time)` to virtual_limit_switches node (simulation-only). See "Unified Launch File Pattern" section.
 
 ---
 
@@ -268,6 +335,7 @@ So that I can test joint control and build higher-level coordinated motions.
 - Subscribe to /joint_states to monitor progress
 - Simple point-to-point motion (no trajectory interpolation at this level)
 - NFR-002: Position accuracy ±0.01m for storage operations
+- **LAUNCH FILE UPDATE:** Add move_joint_server node to `manipulator_simulation.launch.py` as Common node (no condition - runs in both sim and hardware). Use 3s delayed start.
 
 ---
 

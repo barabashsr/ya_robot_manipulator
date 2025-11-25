@@ -53,7 +53,15 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   DEPENDENCIES geometry_msgs
 )
 
-# Install directories (for future use)
+# Install Python scripts
+install(
+  PROGRAMS
+    src/virtual_limit_switches.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME virtual_limit_switches
+)
+
+# Install directories
 install(
   DIRECTORY launch config
   DESTINATION share/${PROJECT_NAME}

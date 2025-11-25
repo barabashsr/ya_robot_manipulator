@@ -95,6 +95,81 @@ manipulator_control/
 - `JointCommand.msg` - Joint position command with velocity limit
 - `LimitSwitchState.msg` - Virtual limit switch status
 
+## Launch Files
+
+### Unified Simulation Launch (Recommended)
+
+Launch the complete simulation environment with a single command:
+
+```bash
+source install/setup.bash
+ros2 launch manipulator_control manipulator_simulation.launch.py
+```
+
+This unified launch file starts:
+- Gazebo simulation with robot model
+- All joint controllers (ros2_control)
+- RViz visualization
+- Virtual limit switches node (18 switches, publishing at 10 Hz)
+
+**With joystick control enabled:**
+```bash
+ros2 launch manipulator_control manipulator_simulation.launch.py enable_joy:=true
+```
+
+### Individual Launch Files
+
+**Virtual limit switches only** (requires Gazebo + controllers running):
+```bash
+ros2 launch manipulator_control virtual_limit_switches.launch.py
+```
+
+**Gazebo + controllers** (from manipulator_description package):
+```bash
+ros2 launch manipulator_description manipulator_control.launch.py
+```
+
+## Virtual Limit Switches
+
+The package includes a virtual limit switch simulation system with 18 limit switches (2 per joint) monitoring joint positions.
+
+**Switch topics** (std_msgs/Bool at 10 Hz):
+```
+/manipulator/end_switches/base_main_frame_min
+/manipulator/end_switches/base_main_frame_max
+/manipulator/end_switches/selector_frame_min
+/manipulator/end_switches/selector_frame_max
+/manipulator/end_switches/gripper_extended
+/manipulator/end_switches/gripper_retracted
+/manipulator/end_switches/picker_frame_min
+/manipulator/end_switches/picker_frame_max
+/manipulator/end_switches/picker_rail_min
+/manipulator/end_switches/picker_rail_max
+/manipulator/end_switches/picker_base_min
+/manipulator/end_switches/picker_base_max
+/manipulator/end_switches/picker_jaw_opened
+/manipulator/end_switches/picker_jaw_closed
+/manipulator/end_switches/container_left_min
+/manipulator/end_switches/container_left_max
+/manipulator/end_switches/container_right_min
+/manipulator/end_switches/container_right_max
+```
+
+**Verify switch operation:**
+```bash
+# Check all 18 topics exist
+ros2 topic list | grep end_switches
+
+# Monitor a specific switch
+ros2 topic echo /manipulator/end_switches/picker_jaw_closed
+
+# Check publish rate
+ros2 topic hz /manipulator/end_switches/picker_jaw_closed
+```
+
+**Configuration:**
+Switch trigger positions and tolerances are defined in `config/limit_switches.yaml`
+
 ## Usage Examples
 
 **Using action interfaces (Python):**
@@ -111,7 +186,7 @@ from manipulator_control.srv import GetAddressCoordinates
 
 **Using custom messages (Python):**
 ```python
-from manipulator_control.msg import Address, JointCommand
+from manipulator_control.msg import Address, JointCommand, LimitSwitchState
 # Message usage in Epic 2+
 ```
 

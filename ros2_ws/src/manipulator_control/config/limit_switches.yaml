@@ -1,0 +1,107 @@
+# Virtual Limit Switch Configuration
+# Defines trigger positions and tolerances for all 18 limit switches (2 per joint)
+# Used by VirtualLimitSwitchNode to simulate limit switch behavior in Gazebo
+
+publish_rate: 10.0  # Hz - frequency of switch state publications
+
+# Switch definitions (18 total across 9 joints)
+# Each switch triggers when joint position reaches trigger_position ± trigger_tolerance
+switches:
+  # Joint 1: base_main_frame_joint (X-axis railway: 0.0 to 3.0m)
+  base_main_frame_min:
+    joint: "base_main_frame_joint"
+    trigger_position: 0.0
+    trigger_tolerance: 0.01
+
+  base_main_frame_max:
+    joint: "base_main_frame_joint"
+    trigger_position: 3.0
+    trigger_tolerance: 0.01
+
+  # Joint 2: main_frame_selector_frame_joint (Z-axis vertical: 0.0 to 1.1m)
+  selector_frame_min:
+    joint: "main_frame_selector_frame_joint"
+    trigger_position: 0.005
+    trigger_tolerance: 0.01
+
+  selector_frame_max:
+    joint: "main_frame_selector_frame_joint"
+    trigger_position: 1.095
+    trigger_tolerance: 0.01
+
+  # Joint 3: selector_frame_gripper_joint (Gripper Y-axis: 0.0 to 0.6m)
+  gripper_retracted:
+    joint: "selector_frame_gripper_joint"
+    trigger_position: 0.005
+    trigger_tolerance: 0.01
+
+  gripper_extended:
+    joint: "selector_frame_gripper_joint"
+    trigger_position: 0.16
+    trigger_tolerance: 0.02
+
+  # Joint 4: selector_frame_picker_frame_joint (Picker Z-axis: 0.0 to 0.3m)
+  picker_frame_min:
+    joint: "selector_frame_picker_frame_joint"
+    trigger_position: 0.005
+    trigger_tolerance: 0.01
+
+  picker_frame_max:
+    joint: "selector_frame_picker_frame_joint"
+    trigger_position: 0.295
+    trigger_tolerance: 0.01
+
+  # Joint 5: picker_frame_picker_rail_joint (Picker Y-axis: 0.0 to 0.2m)
+  picker_rail_min:
+    joint: "picker_frame_picker_rail_joint"
+    trigger_position: 0.0
+    trigger_tolerance: 0.01
+
+  picker_rail_max:
+    joint: "picker_frame_picker_rail_joint"
+    trigger_position: 0.2
+    trigger_tolerance: 0.01
+
+  # Joint 6: picker_rail_picker_base_joint (Picker X-axis extension: 0.0 to 0.12m)
+  picker_base_min:
+    joint: "picker_rail_picker_base_joint"
+    trigger_position: 0.0
+    trigger_tolerance: 0.01
+
+  picker_base_max:
+    joint: "picker_rail_picker_base_joint"
+    trigger_position: 0.12
+    trigger_tolerance: 0.01
+
+  # Joint 7: picker_base_picker_jaw_joint (Picker jaw: 0.0 to 0.2m)
+  picker_jaw_opened:
+    joint: "picker_base_picker_jaw_joint"
+    trigger_position: 0.01  # Slightly open to indicate "fully opened"
+    trigger_tolerance: 0.005
+
+  picker_jaw_closed:
+    joint: "picker_base_picker_jaw_joint"
+    trigger_position: 0.19  # Nearly max (0.2) to indicate "fully closed"
+    trigger_tolerance: 0.005
+
+  # Joint 8: selector_left_container_jaw_joint (Container left jaw: -0.1 to 0.1m)
+  container_left_min:
+    joint: "selector_left_container_jaw_joint"
+    trigger_position: -0.095
+    trigger_tolerance: 0.01
+
+  container_left_max:
+    joint: "selector_left_container_jaw_joint"
+    trigger_position: 0.095
+    trigger_tolerance: 0.01
+
+  # Joint 9: selector_right_container_jaw_joint (Container right jaw: -0.1 to 0.1m)
+  container_right_min:
+    joint: "selector_right_container_jaw_joint"
+    trigger_position: -0.095
+    trigger_tolerance: 0.01
+
+  container_right_max:
+    joint: "selector_right_container_jaw_joint"
+    trigger_position: 0.095
+    trigger_tolerance: 0.01
