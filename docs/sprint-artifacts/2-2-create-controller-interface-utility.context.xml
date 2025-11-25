@@ -1,0 +1,349 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Story Context: 2-2-create-controller-interface-utility
+  Generated: 2025-11-25
+  Purpose: Provide dev agent with all necessary context for implementation
+-->
+<storyContext>
+  <metadata>
+    <storyId>2-2-create-controller-interface-utility</storyId>
+    <storyTitle>Create Controller Interface Utility</storyTitle>
+    <epicId>epic-2</epicId>
+    <epicTitle>Simulation Foundation & Joint Control</epicTitle>
+    <generatedDate>2025-11-25</generatedDate>
+    <status>ready-for-dev</status>
+  </metadata>
+
+  <storyFile>
+    <path>docs/sprint-artifacts/2-2-create-controller-interface-utility.md</path>
+    <description>Full story with acceptance criteria, tasks, and test requirements</description>
+  </storyFile>
+
+  <architectureReferences>
+    <reference>
+      <source>docs/architecture-ros2-control-v2-CORRECTIONS.md</source>
+      <lines>13-28</lines>
+      <description>Individual ForwardCommandControllers per joint architecture</description>
+    </reference>
+    <reference>
+      <source>docs/sprint-artifacts/tech-spec-epic-2.md</source>
+      <section>APIs and Interfaces</section>
+      <description>ControllerInterface utility specification</description>
+    </reference>
+    <reference>
+      <source>docs/sprint-artifacts/tech-spec-epic-2.md</source>
+      <section>Unified Launch File Pattern</section>
+      <description>use_sim_time pattern for simulation vs hardware</description>
+    </reference>
+  </architectureReferences>
+
+  <configurationFiles>
+    <file>
+      <path>ros2_ws/src/manipulator_description/config/manipulator_controllers.yaml</path>
+      <purpose>Controller definitions - maps joint names to ForwardCommandController instances</purpose>
+    </file>
+    <file>
+      <path>ros2_ws/src/manipulator_description/urdf/manipulator/ros2_control.xacro</path>
+      <purpose>Joint limits definitions - min/max positions for each joint</purpose>
+    </file>
+    <file>
+      <path>ros2_ws/src/manipulator_control/launch/manipulator_simulation.launch.py</path>
+      <purpose>Unified launch file to update with use_sim_time argument</purpose>
+    </file>
+  </configurationFiles>
+
+  <controllerTopicMapping>
+    <description>Each joint has an individual ForwardCommandController publishing Float64 position commands</description>
+    <controller>
+      <joint>base_main_frame_joint</joint>
+      <topic>/base_main_frame_joint_controller/command</topic>
+      <msgType>std_msgs/Float64</msgType>
+    </controller>
+    <controller>
+      <joint>main_frame_selector_frame_joint</joint>
+      <topic>/main_frame_selector_frame_joint_controller/command</topic>
+      <msgType>std_msgs/Float64</msgType>
+    </controller>
+    <controller>
+      <joint>selector_left_container_jaw_joint</joint>
+      <topic>/selector_left_container_jaw_joint_controller/command</topic>
+      <msgType>std_msgs/Float64</msgType>
+    </controller>
+    <controller>
+      <joint>selector_right_container_jaw_joint</joint>
+      <topic>/selector_right_container_jaw_joint_controller/command</topic>
+      <msgType>std_msgs/Float64</msgType>
+    </controller>
+    <controller>
+      <joint>selector_frame_gripper_joint</joint>
+      <topic>/selector_frame_gripper_joint_controller/command</topic>
+      <msgType>std_msgs/Float64</msgType>
+    </controller>
+    <controller>
+      <joint>selector_frame_picker_frame_joint</joint>
+      <topic>/selector_frame_picker_frame_joint_controller/command</topic>
+      <msgType>std_msgs/Float64</msgType>
+    </controller>
+    <controller>
+      <joint>picker_frame_picker_rail_joint</joint>
+      <topic>/picker_frame_picker_rail_joint_controller/command</topic>
+      <msgType>std_msgs/Float64</msgType>
+    </controller>
+    <controller>
+      <joint>picker_rail_picker_base_joint</joint>
+      <topic>/picker_rail_picker_base_joint_controller/command</topic>
+      <msgType>std_msgs/Float64</msgType>
+    </controller>
+    <controller>
+      <joint>picker_base_picker_jaw_joint</joint>
+      <topic>/picker_base_picker_jaw_joint_controller/command</topic>
+      <msgType>std_msgs/Float64</msgType>
+    </controller>
+  </controllerTopicMapping>
+
+  <jointLimitsReference>
+    <description>Joint position limits from ros2_control.xacro - MUST be enforced in validation</description>
+    <joint name="base_main_frame_joint" min="0.0" max="4.0" axis="X" description="X-axis railway"/>
+    <joint name="main_frame_selector_frame_joint" min="-0.01" max="1.5" axis="Z" description="Z-axis vertical"/>
+    <joint name="selector_left_container_jaw_joint" min="-0.2" max="0.2" axis="Y" description="Left container jaw"/>
+    <joint name="selector_right_container_jaw_joint" min="-0.2" max="0.2" axis="Y" description="Right container jaw"/>
+    <joint name="selector_frame_gripper_joint" min="-0.4" max="0.4" axis="Y" description="Gripper Y-axis"/>
+    <joint name="selector_frame_picker_frame_joint" min="-0.01" max="0.3" axis="Z" description="Picker Z-axis vertical"/>
+    <joint name="picker_frame_picker_rail_joint" min="-0.3" max="0.3" axis="Y" description="Picker Y-axis rail"/>
+    <joint name="picker_rail_picker_base_joint" min="0.0" max="0.12" axis="X" description="Picker X-axis base"/>
+    <joint name="picker_base_picker_jaw_joint" min="0.0" max="0.2" axis="X" description="Picker X-axis jaw extension"/>
+  </jointLimitsReference>
+
+  <existingPackageStructure>
+    <package name="manipulator_control">
+      <location>ros2_ws/src/manipulator_control</location>
+      <existingFiles>
+        <file>src/virtual_limit_switches.py</file>
+        <file>config/limit_switches.yaml</file>
+        <file>launch/virtual_limit_switches.launch.py</file>
+        <file>launch/manipulator_simulation.launch.py</file>
+        <file>action/MoveJoint.action</file>
+        <file>action/MoveJointGroup.action</file>
+      </existingFiles>
+      <toCreate>
+        <file>src/controller_interface.py</file>
+      </toCreate>
+    </package>
+  </existingPackageStructure>
+
+  <rosInterfaces>
+    <subscription>
+      <topic>/joint_states</topic>
+      <msgType>sensor_msgs/msg/JointState</msgType>
+      <purpose>Get current joint positions for get_joint_position() method</purpose>
+      <qos>depth=10</qos>
+    </subscription>
+    <publishers count="9">
+      <publisher>
+        <topic>/base_main_frame_joint_controller/command</topic>
+        <msgType>std_msgs/msg/Float64</msgType>
+      </publisher>
+      <publisher>
+        <topic>/main_frame_selector_frame_joint_controller/command</topic>
+        <msgType>std_msgs/msg/Float64</msgType>
+      </publisher>
+      <publisher>
+        <topic>/selector_left_container_jaw_joint_controller/command</topic>
+        <msgType>std_msgs/msg/Float64</msgType>
+      </publisher>
+      <publisher>
+        <topic>/selector_right_container_jaw_joint_controller/command</topic>
+        <msgType>std_msgs/msg/Float64</msgType>
+      </publisher>
+      <publisher>
+        <topic>/selector_frame_gripper_joint_controller/command</topic>
+        <msgType>std_msgs/msg/Float64</msgType>
+      </publisher>
+      <publisher>
+        <topic>/selector_frame_picker_frame_joint_controller/command</topic>
+        <msgType>std_msgs/msg/Float64</msgType>
+      </publisher>
+      <publisher>
+        <topic>/picker_frame_picker_rail_joint_controller/command</topic>
+        <msgType>std_msgs/msg/Float64</msgType>
+      </publisher>
+      <publisher>
+        <topic>/picker_rail_picker_base_joint_controller/command</topic>
+        <msgType>std_msgs/msg/Float64</msgType>
+      </publisher>
+      <publisher>
+        <topic>/picker_base_picker_jaw_joint_controller/command</topic>
+        <msgType>std_msgs/msg/Float64</msgType>
+      </publisher>
+    </publishers>
+  </rosInterfaces>
+
+  <apiSpecification>
+    <class name="ControllerInterface">
+      <description>Utility for commanding individual ForwardCommandControllers</description>
+      <constructor>
+        <param name="node" type="rclpy.node.Node">Reference to ROS2 node for creating publishers/subscriptions</param>
+      </constructor>
+      <method name="command_joint">
+        <signature>command_joint(joint_name: str, position: float) -> bool</signature>
+        <description>Command a single joint to target position</description>
+        <returns>True if command sent, False if joint unknown or position out of limits</returns>
+        <validation>Must check joint exists and position within limits before publishing</validation>
+      </method>
+      <method name="command_joint_group">
+        <signature>command_joint_group(joint_names: List[str], positions: List[float]) -> bool</signature>
+        <description>Command multiple joints simultaneously</description>
+        <returns>True if all commands sent, False if any validation fails</returns>
+        <validation>Validate ALL joints/positions before sending ANY commands</validation>
+      </method>
+      <method name="get_joint_position">
+        <signature>get_joint_position(joint_name: str) -> Optional[float]</signature>
+        <description>Get current joint position from /joint_states</description>
+        <returns>Current position or None if joint not found</returns>
+      </method>
+      <method name="get_joint_limits">
+        <signature>get_joint_limits(joint_name: str) -> Tuple[float, float]</signature>
+        <description>Return (min_limit, max_limit) for joint</description>
+        <returns>Tuple of (min, max) limits, or (0.0, 0.0) if joint unknown</returns>
+      </method>
+    </class>
+  </apiSpecification>
+
+  <launchFileUpdate>
+    <file>ros2_ws/src/manipulator_control/launch/manipulator_simulation.launch.py</file>
+    <changes>
+      <change id="1">
+        <description>Add use_sim_time DeclareLaunchArgument with default 'true'</description>
+        <code><![CDATA[
+use_sim_time_arg = DeclareLaunchArgument(
+    'use_sim_time',
+    default_value='true',
+    description='Use simulation time (true for Gazebo, false for hardware)'
+)
+use_sim_time = LaunchConfiguration('use_sim_time')
+        ]]></code>
+      </change>
+      <change id="2">
+        <description>Import IfCondition from launch.conditions</description>
+        <code><![CDATA[
+from launch.conditions import IfCondition
+        ]]></code>
+      </change>
+      <change id="3">
+        <description>Add condition to virtual_limit_switches_node (simulation-only)</description>
+        <code><![CDATA[
+virtual_limit_switches_node = TimerAction(
+    period=3.0,
+    actions=[
+        Node(
+            package='manipulator_control',
+            executable='virtual_limit_switches.py',
+            name='virtual_limit_switches',
+            output='screen',
+            parameters=[
+                {'config_file': limit_switches_config},
+                {'use_sim_time': use_sim_time}
+            ],
+            condition=IfCondition(use_sim_time)  # Only launch in simulation
+        )
+    ]
+)
+        ]]></code>
+      </change>
+      <change id="4">
+        <description>Add use_sim_time_arg to LaunchDescription return</description>
+        <code><![CDATA[
+return LaunchDescription([
+    # Declare arguments
+    enable_joy_arg,
+    use_sim_time_arg,  # ADD THIS
+    ...
+])
+        ]]></code>
+      </change>
+    </changes>
+  </launchFileUpdate>
+
+  <previousStoryLearnings>
+    <story id="2-1-implement-virtual-limit-switch-simulation">
+      <status>done</status>
+      <learnings>
+        <learning>Virtual limit switches working at 10 Hz, all 18 topics verified</learning>
+        <learning>Config adjusted for Gazebo simulation limits (5mm inset from joint boundaries)</learning>
+        <learning>Unified launch file created with delayed node starts (3s for joint_states availability)</learning>
+        <learning>Build time ~2.5s for manipulator_control package</learning>
+      </learnings>
+    </story>
+    <story id="1-3-define-service-and-message-interfaces">
+      <status>done</status>
+      <learnings>
+        <learning>All 20 interfaces defined: 12 actions + 5 services + 3 messages</learning>
+        <learning>Build time ~25s for full package with interfaces</learning>
+      </learnings>
+    </story>
+  </previousStoryLearnings>
+
+  <technicalConstraints>
+    <constraint>ROS2 Jazzy + Gazebo Harmonic compatibility</constraint>
+    <constraint>Must work with existing ForwardCommandControllers</constraint>
+    <constraint>Publishers created once on initialization (not per-call)</constraint>
+    <constraint>Joint state subscription uses QoS depth 10</constraint>
+    <constraint>All methods non-blocking (publishers are async)</constraint>
+    <constraint>This is a utility class, not a standalone node</constraint>
+  </technicalConstraints>
+
+  <acceptanceCriteria>
+    <criterion id="AC-1">ControllerInterface class exists at ros2_ws/src/manipulator_control/src/controller_interface.py</criterion>
+    <criterion id="AC-2">Utility provides command_joint(joint_name, position) -> bool method</criterion>
+    <criterion id="AC-3">Utility provides command_joint_group(joint_names, positions) -> bool method</criterion>
+    <criterion id="AC-4">Utility provides get_joint_position(joint_name) -> Optional[float] method</criterion>
+    <criterion id="AC-5">Utility provides get_joint_limits(joint_name) -> Tuple[float, float] method</criterion>
+    <criterion id="AC-6">Position commands validated against joint limits; invalid returns False with logged warning</criterion>
+    <criterion id="AC-7">Controller names and joint limits loaded/defined from configuration</criterion>
+    <criterion id="AC-8">Launch file updated with use_sim_time argument and IfCondition for virtual_limit_switches</criterion>
+  </acceptanceCriteria>
+
+  <testCommands>
+    <description>MANDATORY: Run these tests after implementation to verify all ACs</description>
+    <testGroup name="Build Verification">
+      <command><![CDATA[
+cd /home/robo/robo/ya_robot_manipulator/ros2_ws
+colcon build --packages-select manipulator_control
+echo "Exit code: $?"
+      ]]></command>
+    </testGroup>
+    <testGroup name="Launch Simulation">
+      <command><![CDATA[
+source /home/robo/robo/ya_robot_manipulator/ros2_ws/install/setup.bash
+ros2 launch manipulator_control manipulator_simulation.launch.py
+      ]]></command>
+    </testGroup>
+    <testGroup name="Test use_sim_time Argument">
+      <command><![CDATA[
+# Default (use_sim_time=true) - virtual limit switches should launch
+ros2 launch manipulator_control manipulator_simulation.launch.py
+ros2 node list | grep virtual_limit_switches
+# Expected: /virtual_limit_switches
+
+# With use_sim_time=false - virtual limit switches should NOT launch
+ros2 launch manipulator_control manipulator_simulation.launch.py use_sim_time:=false
+ros2 node list | grep virtual_limit_switches
+# Expected: (empty - no output)
+      ]]></command>
+    </testGroup>
+    <testGroup name="Interactive ControllerInterface Test">
+      <description>See story file for full Python test script</description>
+    </testGroup>
+  </testCommands>
+
+  <deliverables>
+    <deliverable>
+      <file>ros2_ws/src/manipulator_control/src/controller_interface.py</file>
+      <description>ControllerInterface utility class</description>
+    </deliverable>
+    <deliverable>
+      <file>ros2_ws/src/manipulator_control/launch/manipulator_simulation.launch.py</file>
+      <description>Updated launch file with use_sim_time argument</description>
+    </deliverable>
+  </deliverables>
+</storyContext>

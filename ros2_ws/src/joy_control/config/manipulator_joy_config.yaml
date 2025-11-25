@@ -70,12 +70,12 @@ joy_controller_node:
     axis_mappings.picker_frame_picker_rail.velocity_scale: 0.25
     axis_mappings.picker_frame_picker_rail.limits: [-0.3, 0.3]
 
-    # Picker X-axis slider (0.0 to 0.12 m) - Left Stick X
+    # Picker X-axis slider (0.0 to 0.25 m) - Left Stick X
     axis_mappings.picker_rail_picker_base.controller_topic: "/picker_rail_picker_base_joint_controller/commands"
     axis_mappings.picker_rail_picker_base.axis_index: 0
     axis_mappings.picker_rail_picker_base.axis_scale: -1.0
-    axis_mappings.picker_rail_picker_base.velocity_scale: 0.15
-    axis_mappings.picker_rail_picker_base.limits: [0.0, 0.12]
+    axis_mappings.picker_rail_picker_base.velocity_scale: 0.25
+    axis_mappings.picker_rail_picker_base.limits: [0.0, 0.25]
 
     # Picker Jaw (0.0 to 0.2 m) - Controlled by buttons
     axis_mappings.picker_base_picker_jaw.controller_topic: "/picker_base_picker_jaw_joint_controller/commands"

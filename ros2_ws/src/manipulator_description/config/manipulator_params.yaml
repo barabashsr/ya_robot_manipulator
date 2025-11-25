@@ -145,7 +145,7 @@ picker_assembly:
     origin: {xyz: [-0.138, 0, 0.144], rpy: [0, 0, 0]}
     axis: [0, 0, 1]  # Z-axis
     # Note: lower limit set to -0.01 to prevent gravity lock issue with dartsim
-    limits: {lower: -0.01, upper: 0.3, effort: 2000.0, velocity: 1.0}
+    limits: {lower: -0.01, upper: 0.3, effort: 2000.0, velocity: 1.0} 
     dynamics: {damping: 0.0, friction: 0.0}
 
   # Picker Rail (Y-axis rail)

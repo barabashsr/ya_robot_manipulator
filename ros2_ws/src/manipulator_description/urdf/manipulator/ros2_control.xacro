@@ -161,7 +161,7 @@
       <joint name="picker_rail_picker_base_joint">
         <command_interface name="position">
           <param name="min">0.0</param>
-          <param name="max">0.12</param>
+          <param name="max">0.25</param>
         </command_interface>
         <command_interface name="velocity">
           <param name="min">-1.0</param>
