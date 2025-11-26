@@ -213,6 +213,76 @@ class AddressResolver:
         self._logger.warning(error_msg)
         return (0.0, 0.0, 0.0, False, error_msg)
 
+    def get_address_pose(self, side: str, cabinet: int, row: int, column: int) -> tuple:
+        """
+        Resolve address to full pose (position + orientation) via TF lookup.
+
+        Args:
+            side: 'left' or 'right'
+            cabinet: Cabinet number (1-4)
+            row: Row number (1-based)
+            column: Column number (1-based)
+
+        Returns:
+            Tuple (x, y, z, qx, qy, qz, qw, success, error_msg)
+            - (x, y, z, qx, qy, qz, qw, True, '') if successful
+            - (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, False, error_message) if failed
+        """
+        # First validate the address
+        valid, error_msg = self.validate_address(side, cabinet, row, column)
+        if not valid:
+            return (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, False, error_msg)
+
+        # Construct frame name
+        frame_name = self._construct_frame_name(side, cabinet, row, column)
+
+        # TF lookup with fallback frames
+        frames_to_try = [self._reference_frame]
+        if self._reference_frame == self.DEFAULT_REFERENCE_FRAME:
+            frames_to_try.extend(self.FALLBACK_REFERENCE_FRAMES)
+
+        last_error = None
+        for ref_frame in frames_to_try:
+            try:
+                transform = self._tf_buffer.lookup_transform(
+                    ref_frame,
+                    frame_name,
+                    Time(),
+                    timeout=Duration(seconds=1.0)
+                )
+
+                # Extract position
+                x = transform.transform.translation.x
+                y = transform.transform.translation.y
+                z = transform.transform.translation.z
+
+                # Extract orientation quaternion
+                qx = transform.transform.rotation.x
+                qy = transform.transform.rotation.y
+                qz = transform.transform.rotation.z
+                qw = transform.transform.rotation.w
+
+                # Log if using fallback frame
+                if ref_frame != self.DEFAULT_REFERENCE_FRAME:
+                    self._logger.debug(
+                        f"Using fallback frame '{ref_frame}' instead of '{self.DEFAULT_REFERENCE_FRAME}'"
+                    )
+
+                return (x, y, z, qx, qy, qz, qw, True, '')
+
+            except (LookupException, ConnectivityException, ExtrapolationException) as e:
+                last_error = e
+                continue
+
+            except Exception as e:
+                last_error = e
+                continue
+
+        # All frames failed
+        error_msg = f"TF lookup failed for frame {frame_name}: {str(last_error)}"
+        self._logger.warning(error_msg)
+        return (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, False, error_msg)
+
     def get_cabinet_config(self, side: str, cabinet: int) -> dict:
         """
         Get cabinet configuration (columns, rows, departments).

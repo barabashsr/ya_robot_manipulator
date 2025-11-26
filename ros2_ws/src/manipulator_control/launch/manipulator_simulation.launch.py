@@ -123,6 +123,21 @@ def generate_launch_description():
         ]
     )
 
+    # Address Service Node (Story 3.2)
+    # Common node - provides /manipulator/get_address_coordinates service
+    # 3 second delay to allow TF to populate
+    address_service_node = TimerAction(
+        period=3.0,
+        actions=[
+            Node(
+                package='manipulator_control',
+                executable='address_service_node',
+                name='address_service_node',
+                output='screen'
+            )
+        ]
+    )
+
     # Joystick control launch (optional)
     joy_control_launch = TimerAction(
         period=3.0,  # Wait for controllers to be ready
@@ -159,6 +174,9 @@ def generate_launch_description():
 
         # Start MoveJointGroup action server (delayed) - Story 2.5
         move_joint_group_server_node,
+
+        # Start Address Service Node (delayed) - Story 3.2
+        address_service_node,
 
         # Start joystick control (optional, delayed)
         joy_control_launch

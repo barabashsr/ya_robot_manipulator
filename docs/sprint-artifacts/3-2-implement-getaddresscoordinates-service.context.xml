@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<story-context story-id="3.2" story-key="3-2-implement-getaddresscoordinates-service" generated="2025-11-27">
+  <summary>
+    Implement GetAddressCoordinates ROS2 service that wraps AddressResolver utility to provide
+    warehouse address → full pose (position + orientation) resolution via standard ROS2 service interface.
+  </summary>
+
+  <prerequisites>
+    <story id="3.1" status="ready-for-dev">Implement Address Resolver Utility</story>
+  </prerequisites>
+
+  <!-- =================================================================== -->
+  <!-- EXISTING CODE ARTIFACTS -->
+  <!-- =================================================================== -->
+
+  <existing-code>
+    <artifact type="utility" path="ros2_ws/src/manipulator_control/manipulator_utils/address_resolver.py">
+      <description>AddressResolver class - resolves warehouse addresses to coordinates via TF lookup</description>
+      <key-methods>
+        <method name="get_address_coordinates(side, cabinet, row, column)" returns="(x, y, z, success, error_msg)">
+          Position-only resolution - EXTEND with get_address_pose() for full pose
+        </method>
+        <method name="validate_address(side, cabinet, row, column)" returns="(valid, error_msg)">
+          Address validation against cabinet configurations
+        </method>
+        <method name="get_cabinet_config(side, cabinet)" returns="dict or None">
+          Returns {'columns': int, 'rows': int, 'departments': int}
+        </method>
+      </key-methods>
+      <constructor>AddressResolver(node, tf_buffer=None, reference_frame=None)</constructor>
+      <note>Requires spinning node for TF buffer population</note>
+    </artifact>
+
+    <artifact type="service-definition" path="ros2_ws/src/manipulator_control/srv/GetAddressCoordinates.srv">
+      <description>Service interface already exists - includes full pose with orientation</description>
+      <content><![CDATA[
+# Request: Warehouse storage address to resolve into 3D pose
+string side             # Cabinet side: "left" or "right"
+uint8 cabinet_num       # Cabinet number (1-4)
+uint8 row               # Row within cabinet (1-N, configured per cabinet)
+uint8 column            # Column within cabinet (1-N, configured per cabinet)
+
+---
+# Response: Resolved pose and status
+bool success            # True if address is valid and pose calculated
+geometry_msgs/Pose pose # Resolved 3D pose in base_link frame (position + orientation)
+string error_message    # Human-readable error message if success=false, empty otherwise
+]]></content>
+    </artifact>
+
+    <artifact type="cmake" path="ros2_ws/src/manipulator_control/CMakeLists.txt">
+      <description>Build configuration - already includes GetAddressCoordinates.srv in rosidl_generate_interfaces</description>
+      <relevant-sections>
+        <section name="python-package">ament_python_install_package(manipulator_utils)</section>
+        <section name="interface-generation">rosidl_generate_interfaces includes "srv/GetAddressCoordinates.srv"</section>
+      </relevant-sections>
+      <modifications-needed>Add install target for address_service_node.py</modifications-needed>
+    </artifact>
+
+    <artifact type="unit-tests" path="ros2_ws/src/manipulator_control/test/test_address_resolver.py">
+      <description>36 existing unit tests for AddressResolver - use as pattern for new tests</description>
+      <test-pattern>
+        <fixture name="ros2_context">Module-scoped ROS2 init/shutdown</fixture>
+        <fixture name="test_node">Per-test ROS2 node</fixture>
+        <fixture name="mock_tf_buffer">Mock TF buffer for isolated testing</fixture>
+        <fixture name="address_resolver">AddressResolver instance with mock buffer</fixture>
+      </test-pattern>
+      <helper-function name="create_mock_transform(x, y, z)">Creates TransformStamped for testing</helper-function>
+    </artifact>
+  </existing-code>
+
+  <!-- =================================================================== -->
+  <!-- REQUIRED CHANGES -->
+  <!-- =================================================================== -->
+
+  <required-changes>
+    <change type="extend" file="ros2_ws/src/manipulator_control/manipulator_utils/address_resolver.py">
+      <description>Add get_address_pose() method that returns full pose including orientation</description>
+      <new-method><![CDATA[
+def get_address_pose(self, side: str, cabinet: int, row: int, column: int) -> tuple:
+    """
+    Resolve address to full pose (position + orientation) via TF lookup.
+
+    Returns:
+        Tuple (x, y, z, qx, qy, qz, qw, success, error_msg)
+    """
+    # Validation same as get_address_coordinates
+    valid, error_msg = self.validate_address(side, cabinet, row, column)
+    if not valid:
+        return (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, False, error_msg)
+
+    frame_name = self._construct_frame_name(side, cabinet, row, column)
+
+    # TF lookup with fallback frames
+    for ref_frame in [self._reference_frame] + self.FALLBACK_REFERENCE_FRAMES:
+        try:
+            transform = self._tf_buffer.lookup_transform(...)
+            # Extract translation AND rotation
+            x = transform.transform.translation.x
+            y = transform.transform.translation.y
+            z = transform.transform.translation.z
+            qx = transform.transform.rotation.x
+            qy = transform.transform.rotation.y
+            qz = transform.transform.rotation.z
+            qw = transform.transform.rotation.w
+            return (x, y, z, qx, qy, qz, qw, True, '')
+        except:
+            continue
+
+    return (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, False, error_msg)
+]]></new-method>
+    </change>
+
+    <change type="create" file="ros2_ws/src/manipulator_control/manipulator_control/address_service_node.py">
+      <description>New ROS2 service node that hosts /manipulator/get_address_coordinates</description>
+      <implementation-pattern><![CDATA[
+class AddressServiceNode(Node):
+    def __init__(self):
+        super().__init__('address_service_node')
+        self._address_resolver = AddressResolver(self)  # Uses live TF
+        self._service = self.create_service(
+            GetAddressCoordinates,
+            '/manipulator/get_address_coordinates',
+            self._handle_get_address_coordinates
+        )
+
+    def _handle_get_address_coordinates(self, request, response):
+        # Call get_address_pose for full pose
+        x, y, z, qx, qy, qz, qw, success, error_msg = self._address_resolver.get_address_pose(
+            request.side, request.cabinet_num, request.row, request.column
+        )
+        response.success = success
+        if success:
+            response.pose.position = Point(x=x, y=y, z=z)
+            response.pose.orientation = Quaternion(x=qx, y=qy, z=qz, w=qw)
+        else:
+            response.error_message = error_msg
+        return response
+]]></implementation-pattern>
+    </change>
+
+    <change type="create" file="ros2_ws/src/manipulator_control/test/test_address_service.py">
+      <description>Unit tests for service node - follow test_address_resolver.py patterns</description>
+      <test-cases>
+        <test name="test_valid_address_returns_pose">Verify success=true with pose containing position and orientation</test>
+        <test name="test_orientation_from_tf">Verify orientation values match TF frame lookup</test>
+        <test name="test_invalid_cabinet_error">Verify success=false with descriptive error</test>
+        <test name="test_invalid_row_error">Verify row validation error message</test>
+        <test name="test_invalid_column_error">Verify column validation error message</test>
+      </test-cases>
+    </change>
+
+    <change type="modify" file="ros2_ws/src/manipulator_control/CMakeLists.txt">
+      <description>Add install target for address_service_node</description>
+      <add-after line="move_joint_group_server"><![CDATA[
+# Install Address Service Node (Story 3.2)
+install(
+  PROGRAMS
+    manipulator_control/address_service_node.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME address_service_node
+)
+]]></add-after>
+    </change>
+
+    <change type="create" file="ros2_ws/src/manipulator_control/test/test_address_resolver.py" action="extend">
+      <description>Add tests for new get_address_pose() method</description>
+      <new-tests><![CDATA[
+class TestPoseResolution:
+    """Test get_address_pose() returns full pose with orientation."""
+
+    def test_successful_pose_lookup(self, address_resolver, mock_tf_buffer):
+        """Returns position AND orientation from TF."""
+        transform = create_mock_transform_with_orientation(1.5, 0.4, 1.2, 0.0, 0.0, 0.707, 0.707)
+        mock_tf_buffer.lookup_transform.return_value = transform
+        x, y, z, qx, qy, qz, qw, success, _ = address_resolver.get_address_pose('left', 1, 1, 1)
+        assert success
+        assert (qx, qy, qz, qw) == (0.0, 0.0, 0.707, 0.707)
+
+    def test_pose_api_signature(self, address_resolver, mock_tf_buffer):
+        """get_address_pose returns 9-tuple (x,y,z,qx,qy,qz,qw,success,error)."""
+        mock_tf_buffer.lookup_transform.return_value = create_mock_transform(0, 0, 0)
+        result = address_resolver.get_address_pose('left', 1, 1, 1)
+        assert len(result) == 9
+]]></new-tests>
+    </change>
+  </required-changes>
+
+  <!-- =================================================================== -->
+  <!-- TECHNICAL REFERENCES -->
+  <!-- =================================================================== -->
+
+  <technical-references>
+    <reference type="tech-spec" path="docs/sprint-artifacts/tech-spec-epic-3.md">
+      <sections>
+        <section name="APIs and Interfaces">GetAddressCoordinates service definition</section>
+        <section name="Data Models">Address frame naming: addr_{l|r}_{cabinet}_{row}_{col}</section>
+        <section name="Performance NFRs">Service response &lt;100ms</section>
+      </sections>
+    </reference>
+
+    <reference type="epics" path="docs/epics.md" section="Story 3.2">
+      <acceptance-criteria>
+        <ac>Service defined with (side, cabinet, row, column) → (success, pose, error_message)</ac>
+        <ac>Response time &lt;100ms for valid addresses</ac>
+        <ac>CLI testable via ros2 service call</ac>
+      </acceptance-criteria>
+    </reference>
+
+    <reference type="architecture" path="docs/architecture-ros2-control-v2-CORRECTIONS.md">
+      <sections>
+        <section name="Section 2">Warehouse Addressing System - TF frame resolution</section>
+      </sections>
+    </reference>
+  </technical-references>
+
+  <!-- =================================================================== -->
+  <!-- CABINET CONFIGURATIONS (from storage_params.yaml) -->
+  <!-- =================================================================== -->
+
+  <cabinet-configs>
+    <left-row>
+      <cabinet num="1" columns="4" rows="10" departments="10"/>
+      <cabinet num="2" columns="4" rows="10" departments="10"/>
+      <cabinet num="3" columns="4" rows="6" departments="10"/>
+      <cabinet num="4" columns="5" rows="12" departments="14"/>
+    </left-row>
+    <right-row>
+      <cabinet num="1" columns="5" rows="12" departments="14"/>
+      <cabinet num="2" columns="5" rows="8" departments="14"/>
+      <cabinet num="3" columns="6" rows="14" departments="16"/>
+      <cabinet num="4" columns="4" rows="10" departments="10"/>
+    </right-row>
+  </cabinet-configs>
+
+  <!-- =================================================================== -->
+  <!-- VERIFICATION COMMANDS -->
+  <!-- =================================================================== -->
+
+  <verification-commands>
+    <build>colcon build --packages-select manipulator_control</build>
+    <unit-tests>
+      <test>pytest ros2_ws/src/manipulator_control/test/test_address_resolver.py -v</test>
+      <test>pytest ros2_ws/src/manipulator_control/test/test_address_service.py -v</test>
+    </unit-tests>
+    <integration-tests>
+      <test name="service-call">
+        ros2 service call /manipulator/get_address_coordinates manipulator_control/srv/GetAddressCoordinates "{side: 'left', cabinet_num: 1, row: 1, column: 1}"
+      </test>
+      <test name="verify-orientation">
+        ros2 run tf2_ros tf2_echo world addr_l_1_1_1
+      </test>
+      <test name="response-time">
+        time ros2 service call /manipulator/get_address_coordinates manipulator_control/srv/GetAddressCoordinates "{side: 'left', cabinet_num: 1, row: 1, column: 1}"
+      </test>
+    </integration-tests>
+  </verification-commands>
+</story-context>

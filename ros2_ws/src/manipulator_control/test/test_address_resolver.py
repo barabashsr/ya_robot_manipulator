@@ -62,6 +62,22 @@ def create_mock_transform(x: float, y: float, z: float) -> TransformStamped:
     return transform
 
 
+def create_mock_transform_with_orientation(
+    x: float, y: float, z: float,
+    qx: float, qy: float, qz: float, qw: float
+) -> TransformStamped:
+    """Create a mock TransformStamped with explicit orientation for testing."""
+    transform = TransformStamped()
+    transform.transform.translation.x = x
+    transform.transform.translation.y = y
+    transform.transform.translation.z = z
+    transform.transform.rotation.x = qx
+    transform.transform.rotation.y = qy
+    transform.transform.rotation.z = qz
+    transform.transform.rotation.w = qw
+    return transform
+
+
 # =============================================================================
 # TestFrameNameConstruction (AC1, AC2)
 # =============================================================================
@@ -368,6 +384,114 @@ class TestMockBufferInjection:
         # Second call
         x2, y2, z2, _, _ = resolver.get_address_coordinates('left', 1, 1, 2)
         assert (x2, y2, z2) == test_coords[1]
+
+
+# =============================================================================
+# TestPoseResolution (Story 3.2 - AC4, AC9)
+# =============================================================================
+
+class TestPoseResolution:
+    """Story 3.2 AC4, AC9: Test get_address_pose() returns full pose with orientation."""
+
+    def test_successful_pose_lookup(self, address_resolver, mock_tf_buffer):
+        """get_address_pose returns position AND orientation from TF."""
+        transform = create_mock_transform_with_orientation(
+            1.5, 0.4, 1.2, 0.0, 0.0, 0.707, 0.707
+        )
+        mock_tf_buffer.lookup_transform.return_value = transform
+
+        x, y, z, qx, qy, qz, qw, success, error = address_resolver.get_address_pose(
+            'left', 1, 1, 1
+        )
+
+        assert success is True
+        assert error == ''
+        assert x == 1.5
+        assert y == 0.4
+        assert z == 1.2
+        assert qx == 0.0
+        assert qy == 0.0
+        assert qz == 0.707
+        assert qw == 0.707
+
+    def test_pose_api_signature(self, address_resolver, mock_tf_buffer):
+        """get_address_pose returns 9-tuple (x,y,z,qx,qy,qz,qw,success,error)."""
+        mock_tf_buffer.lookup_transform.return_value = create_mock_transform(0.0, 0.0, 0.0)
+
+        result = address_resolver.get_address_pose('left', 1, 1, 1)
+
+        assert isinstance(result, tuple)
+        assert len(result) == 9
+        # Position (numeric)
+        assert isinstance(result[0], (int, float))  # x
+        assert isinstance(result[1], (int, float))  # y
+        assert isinstance(result[2], (int, float))  # z
+        # Orientation (numeric)
+        assert isinstance(result[3], (int, float))  # qx
+        assert isinstance(result[4], (int, float))  # qy
+        assert isinstance(result[5], (int, float))  # qz
+        assert isinstance(result[6], (int, float))  # qw
+        # Status
+        assert isinstance(result[7], bool)   # success
+        assert isinstance(result[8], str)    # error_msg
+
+    def test_orientation_not_identity_when_tf_has_rotation(self, address_resolver, mock_tf_buffer):
+        """Verify orientation is extracted from TF (not hardcoded identity)."""
+        transform = create_mock_transform_with_orientation(
+            0.0, 0.0, 0.0, 0.1, 0.2, 0.3, 0.9
+        )
+        mock_tf_buffer.lookup_transform.return_value = transform
+
+        _, _, _, qx, qy, qz, qw, success, _ = address_resolver.get_address_pose(
+            'left', 1, 1, 1
+        )
+
+        assert success is True
+        assert qx == 0.1
+        assert qy == 0.2
+        assert qz == 0.3
+        assert qw == 0.9
+
+    def test_invalid_address_returns_identity_quaternion(self, address_resolver, mock_tf_buffer):
+        """Invalid address returns identity quaternion (0,0,0,1) and success=False."""
+        x, y, z, qx, qy, qz, qw, success, error = address_resolver.get_address_pose(
+            'invalid', 1, 1, 1
+        )
+
+        assert success is False
+        assert "Side must be 'left' or 'right'" in error
+        # Position zeros
+        assert x == 0.0
+        assert y == 0.0
+        assert z == 0.0
+        # Identity quaternion
+        assert qx == 0.0
+        assert qy == 0.0
+        assert qz == 0.0
+        assert qw == 1.0
+        mock_tf_buffer.lookup_transform.assert_not_called()
+
+    def test_tf_lookup_failure_returns_identity_quaternion(self, address_resolver, mock_tf_buffer):
+        """TF lookup failure returns identity quaternion."""
+        mock_tf_buffer.lookup_transform.side_effect = LookupException('Frame not found')
+
+        x, y, z, qx, qy, qz, qw, success, error = address_resolver.get_address_pose(
+            'left', 1, 1, 1
+        )
+
+        assert success is False
+        assert 'TF lookup failed' in error
+        assert qw == 1.0  # identity quaternion w component
+
+    def test_pose_uses_world_frame(self, address_resolver, mock_tf_buffer):
+        """get_address_pose uses 'world' as target frame."""
+        mock_tf_buffer.lookup_transform.return_value = create_mock_transform(0, 0, 0)
+
+        address_resolver.get_address_pose('right', 2, 3, 4)
+
+        call_args = mock_tf_buffer.lookup_transform.call_args
+        assert call_args[0][0] == 'world'
+        assert call_args[0][1] == 'addr_r_2_3_4'
 
 
 # =============================================================================

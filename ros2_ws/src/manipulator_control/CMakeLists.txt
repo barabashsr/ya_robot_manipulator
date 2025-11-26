@@ -89,6 +89,14 @@ install(
   RENAME move_joint_group_server
 )
 
+# Install Address Service Node (Story 3.2)
+install(
+  PROGRAMS
+    manipulator_control/address_service_node.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME address_service_node
+)
+
 # Install Python modules (utility classes)
 install(
   PROGRAMS
