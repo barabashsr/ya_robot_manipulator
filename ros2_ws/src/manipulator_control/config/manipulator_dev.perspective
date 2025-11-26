@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  RQt Perspective for Manipulator Development
+  Pre-configured plugins for Epic 2 testing:
+  - Action Client for MoveJoint
+  - Action Client for MoveJointGroup
+  - Topic Monitor for limit switches
+  - Console for log viewing
+
+  Load: rqt - - perspective-file manipulator_dev.perspective
+  Or: File -> Open Perspective in RQt
+-->
+<perspective version="1">
+  <mainwindow>
+    <geometry>AdnQywACAAAAAABwAAAALQAABz8AAAQ6AAAAcAAAAEoAAAc/AAAEOgAAAAEAAAAAB4AAAAB
+wAAAASgAABz8AAAQ6</geometry>
+    <state>AAAA/wAAAAD9AAAAAgAAAAAAAAMQAAAD2PwCAAAAAvwAAAAAAAAB9AAAA9gA////+gAAAAAC
+AAAAAvwAAAAAAADgAAAAUAD////6AAAAAAEAAAAB+wAAAA5hY3Rpb25fY2xpZW50AQAAAAD/////AAAA
+bwD////8AAABfQAAAVsAAACvAP///foAAAQhAQAAAAL7AAAADmFjdGlvbl9jbGllbnQBAAAAAP////8A
+AABvAP////sAAAAOYWN0aW9uX2NsaWVudAEAAAAA/////wAAAG8A/////AAAAPUAAAE5AAABFQD///
+/6AAAAAAEAAAAB+wAAAA1jb25zb2xlX3dpbmRvdwEAAAAA/////wAAAG4A////AAAAAQAAA0AAAAP
+Y/AIAAAAB/AAAAAAAAANAAAABigD////6AAAAAAIAAAAB+wAAAA10b3BpY19tb25pdG9yAQAAAAD////
+/AAAAywD////7AAAADXRvcGljX21vbml0b3IBAAAAAP////8AAAC7AP///wAAAwAAAAPYAAAABAAAAAQA
+AAAIAAAACPwAAAABAAAAAgAAAAEAAAAaAHQAbwBvAGwAYgBhAHIAQQByAGUAYQMAAAAA/////wAA
+AAAAAAAADABTAGUAdAB0AGkAbgBnAHMDAAAAAAAAAAAAAAAAAAAAAAAAAA==</state>
+  </mainwindow>
+  <plugins>
+    <instance name="rqt_action/ActionClient" serial="1">
+      <arg name="action_type">manipulator_control/action/MoveJoint</arg>
+      <arg name="action_name">/move_joint</arg>
+    </instance>
+    <instance name="rqt_action/ActionClient" serial="2">
+      <arg name="action_type">manipulator_control/action/MoveJointGroup</arg>
+      <arg name="action_name">/move_joint_group</arg>
+    </instance>
+    <instance name="rqt_topic/TopicPlugin" serial="1">
+      <arg name="selected_topics">["/manipulator/end_switches/picker_jaw_closed", "/manipulator/end_switches/picker_jaw_opened", "/manipulator/end_switches/base_main_frame_min", "/manipulator/end_switches/base_main_frame_max"]</arg>
+    </instance>
+    <instance name="rqt_console/Console" serial="1">
+      <arg name="include_filter">move_joint|limit_switch|marker</arg>
+    </instance>
+  </plugins>
+</perspective>

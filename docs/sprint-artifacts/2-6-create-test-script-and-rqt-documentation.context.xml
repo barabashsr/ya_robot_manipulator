@@ -1,0 +1,329 @@
+<story-context id="2-6-test-script-and-rqt-documentation" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>6</storyId>
+    <title>Create Test Script and RQt Documentation</title>
+    <status>ready-for-dev</status>
+    <generatedAt>2025-11-26</generatedAt>
+    <generator>BMAD Story Context Workflow (SM Agent)</generator>
+    <sourceStoryPath>docs/sprint-artifacts/2-6-create-test-script-and-rqt-documentation.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>test scripts and RQt tool usage documentation</iWant>
+    <soThat>I can validate Epic 2 functionality and train other developers</soThat>
+    <tasks>
+      <task id="1">Create test script structure with pytest fixtures</task>
+      <task id="2">Implement limit switch tests (18 switches)</task>
+      <task id="3">Implement MoveJoint action tests (9 joints)</task>
+      <task id="4">Implement MoveJointGroup action tests (coordinated motion)</task>
+      <task id="5">Implement container mimic tests (symmetric jaw positions)</task>
+      <task id="6">Implement state marker tests (visibility)</task>
+      <task id="7">Create RQt documentation (TESTING_WITH_RQT.md)</task>
+      <task id="8">Create RQt perspective file (manipulator_dev.perspective)</task>
+      <task id="9">Run full test suite - DEVELOPER MUST VERIFY 90% PASS RATE</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1">Test script exists at test/test_epic2_joint_control.py</criterion>
+    <criterion id="AC2">Verify all 18 limit switches publish and change state correctly</criterion>
+    <criterion id="AC3">Send MoveJoint commands to each of 9 joints and verify position reached</criterion>
+    <criterion id="AC4">Send MoveJointGroup command to navigation group and verify coordinated motion</criterion>
+    <criterion id="AC5">Verify container jaw synchronization (both jaws mirror positions)</criterion>
+    <criterion id="AC6">Verify state markers appear/disappear correctly in RViz</criterion>
+    <criterion id="AC7">Test results logged with pass/fail status and execution time</criterion>
+    <criterion id="AC8">At least 90% of tests pass (Epic 2 completion criteria)</criterion>
+    <criterion id="AC9">docs/TESTING_WITH_RQT.md exists with complete RQt usage guide</criterion>
+    <criterion id="AC10">config/manipulator_dev.perspective with pre-configured plugins</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics.md</path>
+        <title>Epic Breakdown</title>
+        <section>Story 2.6: Create Test Script and RQt Documentation</section>
+        <snippet>Test script uses pytest and ros2 launch_testing framework. Test timeout: 5 minutes total. RQt perspective file with pre-configured plugins. NFR-008: 95% success rate for basic operations.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-2.md</path>
+        <title>Epic 2 Technical Specification</title>
+        <section>Test Strategy Summary</section>
+        <snippet>Unit tests for ControllerInterface (Story 2.2). Integration tests for action servers and limit switches. Manual verification in Gazebo/RViz required for visual components.</snippet>
+      </doc>
+    </docs>
+
+    <code>
+      <file>
+        <path>ros2_ws/src/manipulator_control/test/test_controller_interface.py</path>
+        <kind>test-reference</kind>
+        <symbol>TestControllerInterface</symbol>
+        <reason>PATTERN REFERENCE: Follow this exact pytest structure - fixtures for mock_node, mock_params_yaml, test classes with descriptive names, AC comments in docstrings.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/src/virtual_limit_switches.py</path>
+        <kind>test-target</kind>
+        <symbol>VirtualLimitSwitchNode</symbol>
+        <reason>TEST TARGET (AC2): Verify 18 switch topics publish, states change correctly.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/src/move_joint_server.py</path>
+        <kind>test-target</kind>
+        <symbol>MoveJointServer</symbol>
+        <reason>TEST TARGET (AC3): Test action at /move_joint with 9 joints.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/src/move_joint_group_server.py</path>
+        <kind>test-target</kind>
+        <symbol>MoveJointGroupServer</symbol>
+        <reason>TEST TARGET (AC4, AC5): Test action at /move_joint_group, container mimic mode.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/src/state_marker_publisher.py</path>
+        <kind>test-target</kind>
+        <symbol>StateMarkerPublisher</symbol>
+        <reason>TEST TARGET (AC6): Test /visualization_marker_array publication, marker visibility.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/config/limit_switches.yaml</path>
+        <kind>test-data</kind>
+        <reason>REFERENCE: 18 switch definitions with trigger positions. Use for test validation.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/config/kinematic_chains.yaml</path>
+        <kind>test-data</kind>
+        <reason>REFERENCE: 4 joint groups (navigation, gripper, picker, container). Use for MoveJointGroup tests.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/config/action_servers.yaml</path>
+        <kind>test-data</kind>
+        <reason>REFERENCE: timeout_sec=30.0, position_tolerance=0.01, feedback_rate=10.0. Use for expected values.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/launch/manipulator_simulation.launch.py</path>
+        <kind>test-prerequisite</kind>
+        <reason>LAUNCH: Must be running before tests. All Epic 2 nodes included.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/CMakeLists.txt</path>
+        <kind>build-config</kind>
+        <reason>MODIFY: Add install rule for perspective file. Test file auto-discovered by pytest.</reason>
+      </file>
+    </code>
+
+    <dependencies>
+      <python>
+        <package>pytest</package>
+        <package>pytest-timeout</package>
+      </python>
+      <ros2>
+        <package>rclpy</package>
+        <package>rclpy.action</package>
+        <package>sensor_msgs</package>
+        <package>std_msgs</package>
+        <package>visualization_msgs</package>
+        <package>launch_testing</package>
+        <package>launch_testing_ros</package>
+      </ros2>
+    </dependencies>
+  </artifacts>
+
+  <interfaces>
+    <interface>
+      <name>Test Script Structure</name>
+      <kind>pytest</kind>
+      <signature>
+        test/test_epic2_joint_control.py
+        ├── Fixtures
+        │   ├── ros2_context (scope='module') - Initialize ROS2
+        │   ├── test_node - Create node per test
+        │   ├── move_joint_client - ActionClient for /move_joint
+        │   └── move_joint_group_client - ActionClient for /move_joint_group
+        │
+        ├── TestLimitSwitches (AC2)
+        │   ├── test_all_18_switch_topics_exist()
+        │   ├── test_switch_triggers_at_position()
+        │   └── test_switch_clears_when_moved_away()
+        │
+        ├── TestMoveJoint (AC3)
+        │   ├── test_action_server_available()
+        │   ├── test_all_9_joints_reach_target()
+        │   ├── test_invalid_joint_rejected()
+        │   └── test_out_of_limits_rejected()
+        │
+        ├── TestMoveJointGroup (AC4)
+        │   ├── test_navigation_group_coordinated()
+        │   ├── test_picker_group_simultaneous()
+        │   └── test_feedback_progress_reported()
+        │
+        ├── TestContainerMimic (AC5)
+        │   ├── test_symmetric_jaw_positions()
+        │   └── test_multiple_opening_values()
+        │
+        └── TestStateMarkers (AC6)
+            ├── test_marker_publish_rate()
+            ├── test_magnet_marker_on_engage()
+            └── test_target_address_marker()
+      </signature>
+    </interface>
+    <interface>
+      <name>RQt Perspective File Format</name>
+      <kind>XML Configuration</kind>
+      <signature>
+        &lt;perspective&gt;
+          &lt;mainwindow&gt;
+            &lt;window&gt;...geometry...&lt;/window&gt;
+          &lt;/mainwindow&gt;
+          &lt;plugins&gt;
+            &lt;plugin name="rqt_action/ActionClient"&gt;
+              &lt;config&gt;/move_joint, /move_joint_group&lt;/config&gt;
+            &lt;/plugin&gt;
+            &lt;plugin name="rqt_topic/TopicPlugin"&gt;
+              &lt;config&gt;/manipulator/end_switches/*&lt;/config&gt;
+            &lt;/plugin&gt;
+            &lt;plugin name="rqt_console/Console"/&gt;
+          &lt;/plugins&gt;
+        &lt;/perspective&gt;
+      </signature>
+    </interface>
+    <interface>
+      <name>Limit Switch Topics (18)</name>
+      <kind>ROS2 Topics</kind>
+      <signature>
+        /manipulator/end_switches/base_main_frame_min      (std_msgs/Bool)
+        /manipulator/end_switches/base_main_frame_max      (std_msgs/Bool)
+        /manipulator/end_switches/selector_frame_min       (std_msgs/Bool)
+        /manipulator/end_switches/selector_frame_max       (std_msgs/Bool)
+        /manipulator/end_switches/gripper_left             (std_msgs/Bool)
+        /manipulator/end_switches/gripper_right            (std_msgs/Bool)
+        /manipulator/end_switches/picker_frame_min         (std_msgs/Bool)
+        /manipulator/end_switches/picker_frame_max         (std_msgs/Bool)
+        /manipulator/end_switches/picker_rail_min          (std_msgs/Bool)
+        /manipulator/end_switches/picker_rail_max          (std_msgs/Bool)
+        /manipulator/end_switches/picker_retracted         (std_msgs/Bool)
+        /manipulator/end_switches/picker_extended          (std_msgs/Bool)
+        /manipulator/end_switches/picker_jaw_opened        (std_msgs/Bool)
+        /manipulator/end_switches/picker_jaw_closed        (std_msgs/Bool)
+        /manipulator/end_switches/container_left_min       (std_msgs/Bool)
+        /manipulator/end_switches/container_left_max       (std_msgs/Bool)
+        /manipulator/end_switches/container_right_min      (std_msgs/Bool)
+        /manipulator/end_switches/container_right_max      (std_msgs/Bool)
+      </signature>
+    </interface>
+  </interfaces>
+
+  <constraints>
+    <constraint id="C1">TEST ISOLATION: Each test should be independent. Use fixtures for setup/teardown. Don't rely on test execution order.</constraint>
+    <constraint id="C2">TIMEOUT: Total test suite timeout is 5 minutes (allows Gazebo startup + motion tests). Individual motion tests should timeout at 30s (matches action_servers.yaml).</constraint>
+    <constraint id="C3">POSITION TOLERANCE: All position checks use 0.01m tolerance (NFR-002, action_servers.yaml).</constraint>
+    <constraint id="C4">PASS RATE: Must achieve ≥90% pass rate for Epic 2 to be considered complete. Document any expected failures.</constraint>
+    <constraint id="C5">RQT DOCUMENTATION: Include step-by-step instructions with GUI references. Screenshots or ASCII diagrams for visual guidance.</constraint>
+    <constraint id="C6">PERSPECTIVE FILE: Must be loadable by rqt without errors. Test by loading in fresh rqt session.</constraint>
+    <constraint id="C7">MANDATORY TESTING: Developer MUST personally run all tests and verify 90% pass rate before marking story complete.</constraint>
+  </constraints>
+
+  <tests>
+    <standards>
+      Use pytest framework with ROS2 fixtures. Follow existing test_controller_interface.py pattern. Tests should be runnable with simulation already running (not launch_testing integration). Results logged with pass/fail and execution time via pytest output.
+    </standards>
+    <locations>
+      <location>ros2_ws/src/manipulator_control/test/</location>
+    </locations>
+    <ideas>
+      <idea ac="AC1">Verify test file exists and is importable</idea>
+      <idea ac="AC2">Subscribe to all 18 switch topics, verify Bool messages received</idea>
+      <idea ac="AC2">Move base_main_frame_joint to 0.0, verify base_main_frame_min triggers</idea>
+      <idea ac="AC3">Send MoveJoint goal, wait for result, check success and final_position</idea>
+      <idea ac="AC4">Send MoveJointGroup with navigation group, verify both joints reach targets</idea>
+      <idea ac="AC5">Send container opening=0.15, verify left=-0.075 and right=+0.075</idea>
+      <idea ac="AC6">Publish to electromagnet/engaged, verify marker appears in MarkerArray</idea>
+      <idea ac="AC7">pytest -v output shows pass/fail and time per test</idea>
+      <idea ac="AC8">Count total tests, calculate pass percentage</idea>
+      <idea ac="AC9">Verify TESTING_WITH_RQT.md contains all required sections</idea>
+      <idea ac="AC10">Load perspective in rqt, verify plugins configured</idea>
+    </ideas>
+  </tests>
+
+  <implementationNotes>
+    <note id="N1">
+      <title>All 9 Joints for Testing</title>
+      <content>
+        1. base_main_frame_joint (X-axis rail)
+        2. main_frame_selector_frame_joint (Z-axis vertical)
+        3. selector_frame_gripper_joint (Y-axis gripper)
+        4. selector_frame_picker_frame_joint (Z-axis picker)
+        5. picker_frame_picker_rail_joint (Y-axis picker rail)
+        6. picker_rail_picker_base_joint (X-axis picker base)
+        7. picker_base_picker_jaw_joint (X-axis picker jaw)
+        8. selector_left_container_jaw_joint (Y-axis left jaw)
+        9. selector_right_container_jaw_joint (Y-axis right jaw)
+      </content>
+    </note>
+    <note id="N2">
+      <title>Representative Switch Tests</title>
+      <content>
+        Test at least these switches to cover different joint types:
+        - base_main_frame_min: Test at position 0.0 (trigger_tolerance: 0.01)
+        - picker_jaw_closed: Test at position 0.01 (trigger_tolerance: 0.005)
+        - gripper_left: Test at position 0.39 (trigger_tolerance: 0.01)
+
+        Full 18-switch verification can iterate through limit_switches.yaml.
+      </content>
+    </note>
+    <note id="N3">
+      <title>pytest Fixture Pattern</title>
+      <content>
+        @pytest.fixture(scope='module')
+        def ros2_context():
+            rclpy.init()
+            yield
+            rclpy.shutdown()
+
+        @pytest.fixture
+        def test_node(ros2_context):
+            node = Node('test_epic2')
+            yield node
+            node.destroy_node()
+
+        @pytest.fixture
+        def move_joint_client(test_node):
+            client = ActionClient(test_node, MoveJoint, 'move_joint')
+            assert client.wait_for_server(timeout_sec=10.0)
+            yield client
+      </content>
+    </note>
+    <note id="N4">
+      <title>RQt Documentation Sections</title>
+      <content>
+        Required sections in docs/TESTING_WITH_RQT.md:
+        1. Quick Start - Launch simulation + rqt + load perspective
+        2. Sending MoveJoint Goals - rqt_action step-by-step
+        3. Sending MoveJointGroup Goals - Named groups and explicit joints
+        4. Monitoring Limit Switches - rqt_topic setup
+        5. Viewing State Markers - RViz MarkerArray config
+        6. Monitoring Logs - rqt_console usage
+        7. Saving/Loading Perspectives - Workflow for developers
+      </content>
+    </note>
+    <note id="N5">
+      <title>Test Execution Commands</title>
+      <content>
+        # Terminal 1: Launch simulation
+        ros2 launch manipulator_control manipulator_simulation.launch.py
+
+        # Terminal 2: Run tests (wait for simulation to be ready)
+        cd ~/robo/ya_robot_manipulator/ros2_ws
+        source install/setup.bash
+        pytest src/manipulator_control/test/test_epic2_joint_control.py -v
+
+        # Run with timeout
+        pytest src/manipulator_control/test/test_epic2_joint_control.py -v --timeout=300
+
+        # Run specific test class
+        pytest src/manipulator_control/test/test_epic2_joint_control.py::TestMoveJoint -v
+      </content>
+    </note>
+  </implementationNotes>
+</story-context>

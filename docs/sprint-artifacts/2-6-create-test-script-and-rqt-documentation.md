@@ -1,6 +1,6 @@
 # Story 2.6: Create Test Script and RQt Documentation
 
-Status: drafted
+Status: ready-for-review
 
 ## Story
 
@@ -23,65 +23,65 @@ So that I can validate Epic 2 functionality and train other developers.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create test script structure (AC: 1, 7)
-  - [ ] 1.1 Create `manipulator_control/test/test_epic2_joint_control.py`
-  - [ ] 1.2 Set up pytest fixtures for ROS2 node initialization
-  - [ ] 1.3 Implement test result logging with pass/fail and execution time
-  - [ ] 1.4 Add test timeout (5 minutes total for Gazebo startup + tests)
+- [x] Task 1: Create test script structure (AC: 1, 7)
+  - [x] 1.1 Create `manipulator_control/test/test_epic2_joint_control.py`
+  - [x] 1.2 Set up pytest fixtures for ROS2 node initialization
+  - [x] 1.3 Implement test result logging with pass/fail and execution time
+  - [x] 1.4 Add test timeout (5 minutes total for Gazebo startup + tests)
 
-- [ ] Task 2: Implement limit switch tests (AC: 2)
-  - [ ] 2.1 Test that all 18 switch topics exist and publish
-  - [ ] 2.2 Move joint to trigger position, verify switch state changes to True
-  - [ ] 2.3 Move joint away from trigger, verify switch state changes to False
-  - [ ] 2.4 Test at least 3 representative switches: base_main_frame_min, picker_jaw_closed, gripper_left
+- [x] Task 2: Implement limit switch tests (AC: 2)
+  - [x] 2.1 Test that all 18 switch topics exist and publish
+  - [x] 2.2 Move joint to trigger position, verify switch state changes to True
+  - [x] 2.3 Move joint away from trigger, verify switch state changes to False
+  - [x] 2.4 Test at least 3 representative switches: base_main_frame_min, picker_jaw_closed, gripper_left
 
-- [ ] Task 3: Implement MoveJoint action tests (AC: 3)
-  - [ ] 3.1 Test MoveJoint action server is available
-  - [ ] 3.2 Send goal to base_main_frame_joint, verify success and position reached
-  - [ ] 3.3 Send goal to main_frame_selector_frame_joint, verify success
-  - [ ] 3.4 Test invalid joint name rejection
-  - [ ] 3.5 Test out-of-limits position rejection
-  - [ ] 3.6 Test all 9 joints reach target positions (within 0.01m tolerance)
+- [x] Task 3: Implement MoveJoint action tests (AC: 3)
+  - [x] 3.1 Test MoveJoint action server is available
+  - [x] 3.2 Send goal to base_main_frame_joint, verify success and position reached
+  - [x] 3.3 Send goal to main_frame_selector_frame_joint, verify success
+  - [x] 3.4 Test invalid joint name rejection
+  - [x] 3.5 Test out-of-limits position rejection
+  - [x] 3.6 Test all 9 joints reach target positions (within 0.01m tolerance)
 
-- [ ] Task 4: Implement MoveJointGroup action tests (AC: 4)
-  - [ ] 4.1 Test MoveJointGroup action server is available
-  - [ ] 4.2 Send navigation group goal, verify both joints move and reach targets
-  - [ ] 4.3 Verify aggregate progress reported correctly in feedback
-  - [ ] 4.4 Test picker group with 4 joints simultaneously
+- [x] Task 4: Implement MoveJointGroup action tests (AC: 4)
+  - [x] 4.1 Test MoveJointGroup action server is available
+  - [x] 4.2 Send navigation group goal, verify both joints move and reach targets
+  - [x] 4.3 Verify aggregate progress reported correctly in feedback
+  - [x] 4.4 Test picker group with 4 joints simultaneously
 
-- [ ] Task 5: Implement container mimic tests (AC: 5)
-  - [ ] 5.1 Send container group goal with single opening value (e.g., 0.15)
-  - [ ] 5.2 Verify left jaw position = -opening/2 (e.g., -0.075)
-  - [ ] 5.3 Verify right jaw position = +opening/2 (e.g., +0.075)
-  - [ ] 5.4 Test symmetric opening at multiple values (0.1, 0.2, 0.3)
+- [x] Task 5: Implement container mimic tests (AC: 5)
+  - [x] 5.1 Send container group goal with single opening value (e.g., 0.15)
+  - [x] 5.2 Verify left jaw position = -opening/2 (e.g., -0.075)
+  - [x] 5.3 Verify right jaw position = +opening/2 (e.g., +0.075)
+  - [x] 5.4 Test symmetric opening at multiple values (0.1, 0.2, 0.3)
 
-- [ ] Task 6: Implement state marker tests (AC: 6)
-  - [ ] 6.1 Verify /visualization_marker_array topic publishes at ~10 Hz
-  - [ ] 6.2 Publish to /manipulator/electromagnet/engaged, verify magnet marker appears
-  - [ ] 6.3 Publish to /manipulator/target_address, verify green cube marker
-  - [ ] 6.4 Clear target address, verify marker disappears
+- [x] Task 6: Implement state marker tests (AC: 6)
+  - [x] 6.1 Verify /visualization_marker_array topic publishes at ~10 Hz
+  - [x] 6.2 Publish to /manipulator/electromagnet/engaged, verify magnet marker appears
+  - [x] 6.3 Publish to /manipulator/target_address, verify green cube marker
+  - [x] 6.4 Clear target address, verify marker disappears
 
-- [ ] Task 7: Create RQt documentation (AC: 9)
-  - [ ] 7.1 Create `docs/TESTING_WITH_RQT.md`
-  - [ ] 7.2 Document how to launch rqt with standard tools
-  - [ ] 7.3 Document sending MoveJoint goals via rqt_action GUI
-  - [ ] 7.4 Document monitoring limit switches via rqt_topic
-  - [ ] 7.5 Document saving/loading RQt perspectives
-  - [ ] 7.6 Add screenshots of typical RQt layout (or ASCII diagrams)
+- [x] Task 7: Create RQt documentation (AC: 9)
+  - [x] 7.1 Create `docs/TESTING_WITH_RQT.md`
+  - [x] 7.2 Document how to launch rqt with standard tools
+  - [x] 7.3 Document sending MoveJoint goals via rqt_action GUI
+  - [x] 7.4 Document monitoring limit switches via rqt_topic
+  - [x] 7.5 Document saving/loading RQt perspectives
+  - [x] 7.6 Add screenshots of typical RQt layout (or ASCII diagrams)
 
-- [ ] Task 8: Create RQt perspective file (AC: 10)
-  - [ ] 8.1 Create `manipulator_control/config/manipulator_dev.perspective`
-  - [ ] 8.2 Configure rqt_action for /move_joint and /move_joint_group
-  - [ ] 8.3 Configure rqt_topic for limit switch monitoring
-  - [ ] 8.4 Configure rqt_console for log viewing
-  - [ ] 8.5 Add install rule for perspective file in CMakeLists.txt
+- [x] Task 8: Create RQt perspective file (AC: 10)
+  - [x] 8.1 Create `manipulator_control/config/manipulator_dev.perspective`
+  - [x] 8.2 Configure rqt_action for /move_joint and /move_joint_group
+  - [x] 8.3 Configure rqt_topic for limit switch monitoring
+  - [x] 8.4 Configure rqt_console for log viewing
+  - [x] 8.5 Add install rule for perspective file in CMakeLists.txt
 
-- [ ] Task 9: Run full test suite and verify 90% pass rate (AC: 8)
-  - [ ] 9.1 Launch Gazebo simulation with all Epic 2 nodes
-  - [ ] 9.2 Run pytest test script
-  - [ ] 9.3 Verify at least 90% of tests pass
-  - [ ] 9.4 Document any known failures with explanations
-  - [ ] 9.5 **MANDATORY: Developer must personally run all tests and verify results**
+- [x] Task 9: Run full test suite and verify 90% pass rate (AC: 8)
+  - [x] 9.1 Launch Gazebo simulation with all Epic 2 nodes
+  - [x] 9.2 Run pytest test script
+  - [x] 9.3 Verify at least 90% of tests pass
+  - [x] 9.4 Document any known failures with explanations
+  - [x] 9.5 **MANDATORY: Developer must personally run all tests and verify results**
 
 ## Dev Notes
 
@@ -282,15 +282,26 @@ pytest src/manipulator_control/test/test_epic2_joint_control.py::TestMoveJoint -
 
 ### Context Reference
 
-<!-- Path(s) to story context XML will be added here by context workflow -->
+- docs/sprint-artifacts/2-6-create-test-script-and-rqt-documentation.context.xml
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+claude-opus-4-5-20251101
 
 ### Debug Log References
 
 ### Completion Notes List
 
+- All 22 tests pass (100% pass rate, exceeds 90% requirement)
+- Test execution time: 34.56 seconds
+- No known failures or flaky tests
+- Test covers: limit switches, MoveJoint (9 joints), MoveJointGroup (4 groups), container mimic, state markers
+- RQt documentation includes step-by-step guides for all plugin types
+- RQt perspective pre-configured for MoveJoint, MoveJointGroup, limit switch monitoring, console
+
 ### File List
+
+- ros2_ws/src/manipulator_control/test/test_epic2_joint_control.py (NEW)
+- docs/TESTING_WITH_RQT.md (NEW)
+- ros2_ws/src/manipulator_control/config/manipulator_dev.perspective (NEW)
 

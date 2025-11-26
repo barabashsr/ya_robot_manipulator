@@ -1,0 +1,1 @@
+- If you are in a scrum master role ALWAYS when drafting a new story tell me the core concepts of the story

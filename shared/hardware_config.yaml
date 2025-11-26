@@ -1,0 +1,83 @@
+# Shared Hardware Configuration
+# Used by both ROS2 simulation and ESP32-S3 firmware
+# Single source of truth for hardware specifications
+
+# Joint Specifications (from ROS2 URDF/config)
+joints:
+  base_main_frame_joint:
+    type: prismatic
+    limits:
+      lower: 0.1
+      upper: 3.9
+    # TODO: Add motor specs, encoder resolution, pin mappings
+
+  main_frame_selector_frame_joint:
+    type: prismatic
+    limits:
+      lower: 0.05
+      upper: 1.45
+
+  selector_frame_gripper_joint:
+    type: prismatic
+    limits:
+      lower: -0.39
+      upper: 0.39
+
+  selector_frame_picker_frame_joint:
+    type: prismatic
+    limits:
+      lower: 0.005
+      upper: 0.29
+
+  picker_frame_picker_rail_joint:
+    type: prismatic
+    limits:
+      lower: -0.29
+      upper: 0.29
+
+  picker_rail_picker_base_joint:
+    type: prismatic
+    limits:
+      lower: 0.005
+      upper: 0.24
+
+  picker_base_picker_jaw_joint:
+    type: prismatic
+    limits:
+      lower: 0.005
+      upper: 0.19
+
+  selector_left_container_jaw_joint:
+    type: prismatic
+    limits:
+      lower: -0.19
+      upper: 0.19
+
+  selector_right_container_jaw_joint:
+    type: prismatic
+    limits:
+      lower: -0.19
+      upper: 0.19
+
+# Motor Specifications (TODO: Fill in actual hardware specs)
+motors:
+  # Example structure - fill in during firmware PRD
+  # motor_1:
+  #   type: stepper  # or dc_brushed, dc_brushless, servo
+  #   driver: TMC2209  # or A4988, DRV8825, etc.
+  #   steps_per_rev: 200
+  #   microstepping: 16
+  #   max_current_ma: 1500
+
+# ESP32-S3 Pin Mappings (TODO: Define during architecture)
+pin_mappings:
+  # Example structure
+  # motor_1_step: GPIO_NUM_1
+  # motor_1_dir: GPIO_NUM_2
+  # limit_switch_1: GPIO_NUM_3
+
+# Communication Protocol (TODO: Define during architecture)
+ros2_communication:
+  type: serial  # or wifi, can
+  baud_rate: 115200
+  # protocol: custom  # or micro-ros

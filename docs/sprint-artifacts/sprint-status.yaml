@@ -52,12 +52,12 @@ development_status:
   2-3-2-update-joy-control-for-trajectory-controllers: done
   2-4-implement-state-marker-publisher-for-visualization: done
   2-5-implement-movejointgroup-action-server: done
-  2-6-create-test-script-and-rqt-documentation: drafted
+  2-6-create-test-script-and-rqt-documentation: done
   epic-2-retrospective: optional
 
   # Epic 3: Address Navigation System (6 stories)
-  epic-3: backlog
-  3-1-implement-address-resolver-utility: backlog
+  epic-3: contexted
+  3-1-implement-address-resolver-utility: ready-for-dev
   3-2-implement-getaddresscoordinates-service: backlog
   3-3-implement-movejointgroup-with-joint-groups-configuration: backlog
   3-4-implement-navigatetoaddress-action-server: backlog

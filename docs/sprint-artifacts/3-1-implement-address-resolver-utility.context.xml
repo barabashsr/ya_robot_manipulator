@@ -1,0 +1,232 @@
+<story-context id="3-1-implement-address-resolver-utility" v="1.0">
+  <metadata>
+    <epicId>3</epicId>
+    <storyId>3.1</storyId>
+    <title>Implement Address Resolver Utility</title>
+    <status>ready-for-dev</status>
+    <generatedAt>2025-11-27</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/3-1-implement-address-resolver-utility.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>a utility to resolve warehouse addresses to (x, y, z) coordinates using TF frames</iWant>
+    <soThat>action servers can navigate without hardcoded address tables</soThat>
+    <tasks>
+      <task id="1" acs="7,8,10">Create AddressResolver class structure
+        <subtask>1.1 Create manipulator_control/manipulator_control/address_resolver.py</subtask>
+        <subtask>1.2 Implement __init__ with TF buffer and listener initialization</subtask>
+        <subtask>1.3 Load cabinet configurations from storage_params.yaml using ament_index</subtask>
+        <subtask>1.4 Store cabinet configs in dict</subtask>
+        <subtask>1.5 Add constructor parameter for optional mock TF buffer</subtask>
+      </task>
+      <task id="2" acs="2,3,4,5">Implement address validation
+        <subtask>2.1 Implement validate_address(side, cabinet, row, column) method</subtask>
+        <subtask>2.2 Validate side is "left" or "right"</subtask>
+        <subtask>2.3 Validate cabinet in range 1-4</subtask>
+        <subtask>2.4 Look up cabinet config and validate row within range</subtask>
+        <subtask>2.5 Validate column within cabinet's column count</subtask>
+        <subtask>2.6 Return (valid: bool, error_msg: str) tuple</subtask>
+      </task>
+      <task id="3" acs="1,2">Implement TF frame name construction
+        <subtask>3.1 Implement _construct_frame_name() private method</subtask>
+        <subtask>3.2 Map side to abbreviation: 'l' for "left", 'r' for "right"</subtask>
+        <subtask>3.3 Format: addr_{abbrev}_{cabinet}_{row}_{column}</subtask>
+        <subtask>3.4 Example: ("left", 1, 2, 3) -> "addr_l_1_2_3"</subtask>
+      </task>
+      <task id="4" acs="1,6,9">Implement coordinate resolution
+        <subtask>4.1 Implement get_address_coordinates() method</subtask>
+        <subtask>4.2 First call validate_address() - return error if invalid</subtask>
+        <subtask>4.3 Construct frame name using _construct_frame_name()</subtask>
+        <subtask>4.4 Use tf_buffer.lookup_transform with 1.0s timeout</subtask>
+        <subtask>4.5 Extract (x, y, z) from transform.transform.translation</subtask>
+        <subtask>4.6 Handle LookupException, ExtrapolationException</subtask>
+        <subtask>4.7 Return (x, y, z, success, error_msg) tuple</subtask>
+      </task>
+      <task id="5" acs="7,8">Implement cabinet config accessor
+        <subtask>5.1 Implement get_cabinet_config() method</subtask>
+        <subtask>5.2 Return dict with keys: columns, rows, departments</subtask>
+        <subtask>5.3 Return None for invalid cabinet</subtask>
+      </task>
+      <task id="6" acs="10">Create unit tests
+        <subtask>6.1 Create test/test_address_resolver.py</subtask>
+        <subtask>6.2 Test valid address frame name construction</subtask>
+        <subtask>6.3 Test invalid side rejection</subtask>
+        <subtask>6.4 Test invalid cabinet rejection (0, 5, negative)</subtask>
+        <subtask>6.5 Test row out of range for each cabinet type</subtask>
+        <subtask>6.6 Test column out of range for each cabinet type</subtask>
+        <subtask>6.7 Test TF lookup with mock buffer</subtask>
+        <subtask>6.8 Test TF lookup timeout handling</subtask>
+      </task>
+      <task id="7" acs="1,9">Integration verification
+        <subtask>7.1 Launch simulation with URDF loaded</subtask>
+        <subtask>7.2 Instantiate AddressResolver with live TF</subtask>
+        <subtask>7.3 Query addr_l_1_1_1, verify valid coordinates</subtask>
+        <subtask>7.4 Query addr_r_4_1_5, verify valid coordinates</subtask>
+        <subtask>7.5 Query non-existent frame, verify error handling</subtask>
+      </task>
+      <task id="8" acs="ALL" mandatory="true">MANDATORY Developer Validation
+        <subtask>8.1 Run colcon build --packages-select manipulator_control - must exit 0</subtask>
+        <subtask>8.2 Run pytest test/test_address_resolver.py -v - all tests must pass</subtask>
+        <subtask>8.3 Manually verify TF resolution in live simulation (3+ addresses)</subtask>
+        <subtask>8.4 Document test results in Dev Agent Record section</subtask>
+        <subtask>8.5 Story is NOT complete until all tests pass and results documented</subtask>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1">TF Frame Resolution: Given valid address (side, cabinet, row, column), construct frame name addr_{side}_{cabinet}_{row}_{column} and return (x, y, z) from TF lookup</criterion>
+    <criterion id="AC2">Side Abbreviation: "left" maps to 'l', "right" maps to 'r' in frame name</criterion>
+    <criterion id="AC3">Cabinet Validation: Invalid cabinet numbers (outside 1-4) return error "Cabinet {n} does not exist on {side} side"</criterion>
+    <criterion id="AC4">Row Validation: Row exceeding cabinet max returns error "Row {n} exceeds cabinet {c} max of {max} rows"</criterion>
+    <criterion id="AC5">Column Validation: Column exceeding cabinet max returns error "Column {n} exceeds cabinet {c} max of {max} columns"</criterion>
+    <criterion id="AC6">TF Lookup Timeout: Use 1.0 second timeout; timeout returns error "TF lookup failed for frame {frame_name}"</criterion>
+    <criterion id="AC7">API Methods: Provide get_address_coordinates(), validate_address(), get_cabinet_config() methods with specified signatures</criterion>
+    <criterion id="AC8">Config Loading: Cabinet configurations loaded from manipulator_description/config/storage_params.yaml on initialization</criterion>
+    <criterion id="AC9">World Frame Reference: All coordinates returned in "world" frame reference</criterion>
+    <criterion id="AC10">Unit Testable: Utility can be unit tested with mock TF buffer</criterion>
+    <criterion id="AC11">MANDATORY Test Verification: All unit tests pass, integration verified in live simulation, results documented before story marked done</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-3.md</path>
+        <title>Epic Technical Specification: Address Navigation System</title>
+        <section>Data Models and Contracts</section>
+        <snippet>Address frame naming: addr_{side_abbrev}_{cabinet}_{row}_{col}. Cabinet configs from storage_params.yaml. AddressResolver resolves via TF2 lookup.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture-ros2-control-v2-CORRECTIONS.md</path>
+        <title>ROS2 Control Architecture v2</title>
+        <section>Warehouse Addressing System</section>
+        <snippet>All addresses exist as TF frames in URDF with format addr_{side}_{cabinet}_{row}_{column}. Resolution via TF2 lookup eliminates coordinate duplication.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics.md</path>
+        <title>Epic Breakdown</title>
+        <section>Story 3.1: Implement Address Resolver Utility</section>
+        <snippet>Reference architecture lines 86-119 for address resolution. Use tf2_ros.Buffer and tf2_ros.TransformListener. NFR-003: Response time less than 100ms.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <file>
+        <path>ros2_ws/src/manipulator_description/config/storage_params.yaml</path>
+        <kind>config</kind>
+        <symbol>cabinet_rows</symbol>
+        <lines>17-38</lines>
+        <reason>Cabinet configurations (left: 4x10, 4x10, 4x6, 5x12; right: 5x12, 5x8, 6x14, 4x10) - source of truth for validation</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/test/test_epic2_joint_control.py</path>
+        <kind>test</kind>
+        <symbol>ros2_context fixture, test_node fixture</symbol>
+        <lines>77-99</lines>
+        <reason>Established pytest pattern with ROS2 context - follow same structure for test_address_resolver.py</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/package.xml</path>
+        <kind>manifest</kind>
+        <symbol>dependencies</symbol>
+        <lines>1-44</lines>
+        <reason>Package already has tf2, tf2_ros, tf2_geometry_msgs dependencies - no new deps needed</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/src/controller_interface.py</path>
+        <kind>utility</kind>
+        <symbol>ControllerInterface</symbol>
+        <lines>all</lines>
+        <reason>Example of utility class pattern with config loading from manipulator_params.yaml - follow similar structure</reason>
+      </file>
+    </code>
+    <dependencies>
+      <ecosystem name="ros2">
+        <package>rclpy</package>
+        <package>tf2_ros</package>
+        <package>tf2_geometry_msgs</package>
+        <package>ament_index_python</package>
+        <package>geometry_msgs</package>
+      </ecosystem>
+      <ecosystem name="python">
+        <package>pytest</package>
+        <package>pyyaml</package>
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="pattern">Use ament_index_python.packages.get_package_share_directory() to locate config files at runtime</constraint>
+    <constraint type="pattern">Accept optional mock TF buffer in constructor for testability</constraint>
+    <constraint type="pattern">Return tuples with success/error_msg for graceful error handling (no exceptions for validation errors)</constraint>
+    <constraint type="nfr">TF lookup timeout must be 1.0 second (AC6)</constraint>
+    <constraint type="nfr">All coordinates in "world" frame reference (AC9)</constraint>
+    <constraint type="nfr">Service response time less than 100ms (NFR-003, for GetAddressCoordinates service in Story 3.2)</constraint>
+    <constraint type="testing">Follow pytest fixture pattern from test_epic2_joint_control.py</constraint>
+    <constraint type="testing">MANDATORY: All tests must pass and be documented before story completion</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>AddressResolver.get_address_coordinates</name>
+      <kind>method</kind>
+      <signature>get_address_coordinates(side: str, cabinet: int, row: int, column: int) -> tuple[float, float, float, bool, str]</signature>
+      <path>ros2_ws/src/manipulator_control/manipulator_control/address_resolver.py</path>
+      <description>Returns (x, y, z, success, error_msg) tuple. Coordinates in world frame.</description>
+    </interface>
+    <interface>
+      <name>AddressResolver.validate_address</name>
+      <kind>method</kind>
+      <signature>validate_address(side: str, cabinet: int, row: int, column: int) -> tuple[bool, str]</signature>
+      <path>ros2_ws/src/manipulator_control/manipulator_control/address_resolver.py</path>
+      <description>Returns (valid, error_msg) tuple. No TF lookup, pure validation.</description>
+    </interface>
+    <interface>
+      <name>AddressResolver.get_cabinet_config</name>
+      <kind>method</kind>
+      <signature>get_cabinet_config(side: str, cabinet: int) -> dict | None</signature>
+      <path>ros2_ws/src/manipulator_control/manipulator_control/address_resolver.py</path>
+      <description>Returns dict with 'columns', 'rows', 'departments' keys or None for invalid.</description>
+    </interface>
+    <interface>
+      <name>tf2_ros.Buffer.lookup_transform</name>
+      <kind>ros2-api</kind>
+      <signature>lookup_transform(target_frame: str, source_frame: str, time: Time, timeout: Duration) -> TransformStamped</signature>
+      <path>tf2_ros (external)</path>
+      <description>ROS2 TF2 API for coordinate lookups. Raises LookupException, ExtrapolationException on failure.</description>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>Use pytest with ROS2 context fixture pattern. Module-scoped rclpy.init()/shutdown(). Function-scoped test nodes. Mock TF buffer for unit tests, live TF for integration tests. All tests must pass before story completion (AC11).</standards>
+    <locations>
+      <location>ros2_ws/src/manipulator_control/test/test_address_resolver.py</location>
+      <location>ros2_ws/src/manipulator_control/test/test_epic2_joint_control.py (reference pattern)</location>
+    </locations>
+    <ideas>
+      <idea ac="AC1,AC2">test_frame_name_construction: Verify ("left", 1, 2, 3) produces "addr_l_1_2_3"</idea>
+      <idea ac="AC3">test_invalid_cabinet: Verify cabinet 0, 5, -1 rejected with correct error message</idea>
+      <idea ac="AC4">test_row_out_of_range: For left cabinet 3 (6 rows), verify row 7 rejected</idea>
+      <idea ac="AC5">test_column_out_of_range: For left cabinet 1 (4 cols), verify column 5 rejected</idea>
+      <idea ac="AC6">test_tf_timeout: Mock buffer that raises timeout, verify error returned</idea>
+      <idea ac="AC7">test_api_signatures: Verify all three methods exist with correct return types</idea>
+      <idea ac="AC8">test_config_loaded: Verify cabinet configs loaded, check left-1 has 4 columns</idea>
+      <idea ac="AC9">test_world_frame: With mock TF, verify lookup uses "world" as target frame</idea>
+      <idea ac="AC10">test_with_mock_buffer: Instantiate with mock buffer, verify TF lookup uses mock</idea>
+      <idea ac="AC1,AC9">test_integration_live_tf: Launch sim, query addr_l_1_1_1, verify valid coordinates returned</idea>
+    </ideas>
+  </tests>
+
+  <cabinetReference>
+    <!-- Quick reference for cabinet configurations to avoid repeated lookups -->
+    <cabinet side="left" num="1" cols="4" rows="10" depts="10"/>
+    <cabinet side="left" num="2" cols="4" rows="10" depts="10"/>
+    <cabinet side="left" num="3" cols="4" rows="6" depts="10"/>
+    <cabinet side="left" num="4" cols="5" rows="12" depts="14"/>
+    <cabinet side="right" num="1" cols="5" rows="12" depts="14"/>
+    <cabinet side="right" num="2" cols="5" rows="8" depts="14"/>
+    <cabinet side="right" num="3" cols="6" rows="14" depts="16"/>
+    <cabinet side="right" num="4" cols="4" rows="10" depts="10"/>
+  </cabinetReference>
+</story-context>
