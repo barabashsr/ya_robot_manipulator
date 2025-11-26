@@ -24,6 +24,8 @@
   <depend>controller_manager</depend>
   <depend>controller_interface</depend>
   <depend>ros2_controllers</depend>
+  <depend>control_msgs</depend>
+  <depend>trajectory_msgs</depend>
   <depend>ros_gz_bridge</depend>
   <depend>ros_gz_interfaces</depend>
   <depend>ros_gz_sim</depend>

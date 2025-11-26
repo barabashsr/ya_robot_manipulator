@@ -43,11 +43,13 @@ development_status:
   1-3-define-service-and-message-interfaces: done
   epic-1-retrospective: optional
 
-  # Epic 2: Simulation Foundation & Joint Control (6 stories)
+  # Epic 2: Simulation Foundation & Joint Control (8 stories)
   epic-2: contexted
   2-1-implement-virtual-limit-switch-simulation: done
   2-2-create-controller-interface-utility: done
   2-3-implement-movejoint-action-server: done
+  2-3-1-migrate-motion-joints-to-trajectory-controller: done
+  2-3-2-update-joy-control-for-trajectory-controllers: in-progress
   2-4-implement-state-marker-publisher-for-visualization: backlog
   2-5-implement-movejointgroup-action-server: backlog
   2-6-create-test-script-and-rqt-documentation: backlog

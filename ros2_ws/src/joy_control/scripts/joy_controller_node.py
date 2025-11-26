@@ -1,443 +1,475 @@
 #!/usr/bin/env python3
 """
-Configurable Joystick Controller Node
+Configurable Joystick Controller Node with Trajectory Controller Support
 
-Reads configuration from YAML and maps joystick inputs to joint controllers.
-Supports axis mappings for movement and button mappings for actions/services.
+Supports hybrid controller architecture:
+- 7 motion joints: JointTrajectoryController (smooth interpolation via FollowJointTrajectory action)
+- 2 container jaws: ForwardCommandController (instant response via topic publishers)
+
+Joint limits loaded from manipulator_params.yaml (single source of truth).
 
 Author: Generated for ya_robot_manipulator
 License: MIT
 """
 
+import os
+import yaml
 import rclpy
 from rclpy.node import Node
+from rclpy.action import ActionClient
+from rclpy.callback_groups import ReentrantCallbackGroup
 from sensor_msgs.msg import Joy, JointState
 from std_msgs.msg import Float64MultiArray
-from rcl_interfaces.msg import ParameterDescriptor
-import yaml
+from control_msgs.action import FollowJointTrajectory
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from builtin_interfaces.msg import Duration
+from ament_index_python.packages import get_package_share_directory
+
+
+# Joint classification for dual-mode control
+TRAJECTORY_JOINTS = frozenset([
+    'base_main_frame_joint',
+    'main_frame_selector_frame_joint',
+    'selector_frame_gripper_joint',
+    'selector_frame_picker_frame_joint',
+    'picker_frame_picker_rail_joint',
+    'picker_rail_picker_base_joint',
+    'picker_base_picker_jaw_joint'
+])
+
+FORWARD_COMMAND_JOINTS = frozenset([
+    'selector_left_container_jaw_joint',
+    'selector_right_container_jaw_joint'
+])
 
 
 class ConfigurableJoyController(Node):
-    """Maps joystick inputs to robot joint controllers based on YAML configuration"""
+    """Maps joystick inputs to robot joint controllers with smooth trajectory control"""
 
     def __init__(self):
         super().__init__('joy_controller_node')
 
+        # Callback group for async action calls
+        self.callback_group = ReentrantCallbackGroup()
+
         # Declare parameters
         self.declare_parameter('update_rate', 20.0)
+        self.declare_parameter('trajectory_update_rate', 10.0)
+        self.declare_parameter('trajectory_duration_min', 0.05)
+        self.declare_parameter('trajectory_duration_max', 2.0)
         self.declare_parameter('scale_linear', 0.5)
-        self.declare_parameter('scale_angular', 0.3)
         self.declare_parameter('deadzone', 0.1)
         self.declare_parameter('enable_button', 4)
         self.declare_parameter('enable_turbo_button', 5)
 
         # Get parameters
         self.update_rate = self.get_parameter('update_rate').value
+        self.trajectory_update_rate = self.get_parameter('trajectory_update_rate').value
+        self.trajectory_duration_min = self.get_parameter('trajectory_duration_min').value
+        self.trajectory_duration_max = self.get_parameter('trajectory_duration_max').value
         self.scale_linear = self.get_parameter('scale_linear').value
-        self.scale_angular = self.get_parameter('scale_angular').value
         self.deadzone = self.get_parameter('deadzone').value
         self.enable_button = self.get_parameter('enable_button').value
         self.enable_turbo_button = self.get_parameter('enable_turbo_button').value
 
+        # Load joint limits from manipulator_params.yaml (SINGLE SOURCE OF TRUTH)
+        self.joint_limits = self._load_joint_limits_from_params()
+        self.get_logger().info(f'Loaded limits for {len(self.joint_limits)} joints from manipulator_params.yaml')
+
         # Control state
         self.enabled = False
         self.turbo_enabled = False
+        self.ever_enabled = False
+        self.joint_states_received = False
         self.last_joy = None
-        self.ever_enabled = False  # Track if control was ever enabled
-        self.joint_states_received = False  # Track if we got initial joint states
+        self.last_status_time = self.get_clock().now()
 
-        # Joint positions (current targets)
-        self.positions = {}
-        self.positions_initialized = {}  # Track which joints have been moved by user
+        # Joint positions and targets
+        self.joint_positions = {}  # Current positions from /joint_states
+        self.pending_targets = {}  # Accumulated targets from joystick input
+        self.last_sent_targets = {}  # Last targets sent to controllers
+        self.current_goal_handles = {}  # Active trajectory goal handles for preemption
+
+        # Axis and button mappings
         self.axis_mappings = {}
         self.button_actions = {}
-        self.joint_publishers_dict = {}
-        self.joint_name_to_mapping = {}  # Map joint names to our mapping names
-
-        # Load configuration
         self._load_axis_mappings()
         self._load_button_actions()
 
-        # Create publishers for each mapped controller
-        self._create_publishers()
+        # Create action clients for trajectory joints
+        self.trajectory_clients = {}
+        for joint in TRAJECTORY_JOINTS:
+            if joint in self.joint_limits:
+                action_name = f'/{joint}_controller/follow_joint_trajectory'
+                self.trajectory_clients[joint] = ActionClient(
+                    self, FollowJointTrajectory, action_name,
+                    callback_group=self.callback_group
+                )
+                self.get_logger().info(f'Created trajectory action client: {action_name}')
 
-        # Subscribe to joint states to get initial positions
+        # Create publishers for forward command joints (container jaws)
+        self.forward_publishers = {}
+        for joint in FORWARD_COMMAND_JOINTS:
+            if joint in self.joint_limits:
+                topic = f'/{joint}_controller/commands'
+                self.forward_publishers[joint] = self.create_publisher(
+                    Float64MultiArray, topic, 10
+                )
+                self.get_logger().info(f'Created forward command publisher: {topic}')
+
+        # Subscribe to joint states
         self.joint_state_sub = self.create_subscription(
-            JointState,
-            '/joint_states',
-            self.joint_state_callback,
-            10
+            JointState, '/joint_states', self._joint_state_cb, 10
         )
 
         # Subscribe to joystick
         self.joy_sub = self.create_subscription(
-            Joy,
-            'joy',
-            self.joy_callback,
-            10
+            Joy, 'joy', self._joy_callback, 10
         )
 
-        # Timer for publishing commands
-        timer_period = 1.0 / self.update_rate
-        self.timer = self.create_timer(timer_period, self.publish_commands)
+        # Trajectory timer (10Hz) for sending accumulated goals
+        self.trajectory_timer = self.create_timer(
+            1.0 / self.trajectory_update_rate,
+            self._send_trajectory_goals
+        )
 
-        # Status tracking
-        self.last_status_time = self.get_clock().now()
-        self.get_logger().info('Configurable Joy Controller started')
-        self.get_logger().info(f'Loaded {len(self.axis_mappings)} axis mappings')
-        self.get_logger().info(f'Loaded {len(self.button_actions)} button actions')
-        self.get_logger().info(f'Hold button {self.enable_button} (L1) to enable control')
+        self.get_logger().info('Joy Controller started with trajectory controller support')
+        self.get_logger().info(f'  Trajectory joints: {len(self.trajectory_clients)}')
+        self.get_logger().info(f'  Forward command joints: {len(self.forward_publishers)}')
+        self.get_logger().info(f'  Hold button {self.enable_button} (L1) to enable control')
+
+    def _load_joint_limits_from_params(self) -> dict:
+        """Load limits and velocities from manipulator_params.yaml (SINGLE SOURCE OF TRUTH)"""
+        try:
+            pkg_path = get_package_share_directory('manipulator_description')
+            params_file = os.path.join(pkg_path, 'config', 'manipulator_params.yaml')
+
+            with open(params_file, 'r') as f:
+                params = yaml.safe_load(f)
+
+            limits = {}
+            for assembly_name, assembly in params.items():
+                if not isinstance(assembly, dict):
+                    continue
+                for key, value in assembly.items():
+                    if isinstance(value, dict) and 'safety_controller' in value:
+                        sc = value['safety_controller']
+                        limits[key] = {
+                            'min': sc['soft_lower'],
+                            'max': sc['soft_upper'],
+                            'velocity': value.get('limits', {}).get('velocity', 1.0),
+                        }
+
+            self.get_logger().info(f'Loaded joint limits from {params_file}')
+            return limits
+
+        except Exception as e:
+            self.get_logger().error(f'Error loading joint limits: {e}')
+            return {}
 
     def _load_axis_mappings(self):
         """Load axis mappings from parameters"""
-        # Get all parameters under 'axis_mappings'
-        try:
-            # In ROS2, we need to declare parameters first
-            # For now, we'll use a simpler approach - load from node parameters
+        mapping_names = [
+            'base_main_frame',
+            'main_frame_selector_frame',
+            'selector_frame_gripper',
+            'selector_left_container_jaw',
+            'selector_right_container_jaw',
+            'selector_frame_picker_frame',
+            'picker_frame_picker_rail',
+            'picker_rail_picker_base',
+            'picker_base_picker_jaw'
+        ]
 
-            # Define known axis mappings (from YAML)
-            mapping_names = [
-                'base_main_frame',
-                'main_frame_selector_frame',
-                'selector_frame_gripper',
-                'selector_left_container_jaw',
-                'selector_right_container_jaw',
-                'selector_frame_picker_frame',
-                'picker_frame_picker_rail',
-                'picker_rail_picker_base',
-                'picker_base_picker_jaw'
-            ]
+        for name in mapping_names:
+            try:
+                # Declare parameters for this mapping
+                self.declare_parameter(f'axis_mappings.{name}.joint_name', '')
+                self.declare_parameter(f'axis_mappings.{name}.axis_index', -1)
+                self.declare_parameter(f'axis_mappings.{name}.axis_scale', 1.0)
+                self.declare_parameter(f'axis_mappings.{name}.velocity_scale', 0.5)
 
-            for name in mapping_names:
-                # Try to get parameters for this mapping
-                try:
-                    self.declare_parameter(f'axis_mappings.{name}.controller_topic', '')
-                    self.declare_parameter(f'axis_mappings.{name}.axis_index', -1)
-                    self.declare_parameter(f'axis_mappings.{name}.axis_scale', 1.0)
-                    self.declare_parameter(f'axis_mappings.{name}.velocity_scale', 0.5)
-                    self.declare_parameter(f'axis_mappings.{name}.limits', [0.0, 1.0])
-                    self.declare_parameter(f'axis_mappings.{name}.control_mode', 'velocity')
+                joint_name = self.get_parameter(f'axis_mappings.{name}.joint_name').value
+                axis_idx = self.get_parameter(f'axis_mappings.{name}.axis_index').value
 
-                    topic = self.get_parameter(f'axis_mappings.{name}.controller_topic').value
-                    axis_idx = self.get_parameter(f'axis_mappings.{name}.axis_index').value
+                if joint_name:
+                    self.axis_mappings[name] = {
+                        'joint_name': joint_name,
+                        'axis_index': axis_idx,
+                        'axis_scale': self.get_parameter(f'axis_mappings.{name}.axis_scale').value,
+                        'velocity_scale': self.get_parameter(f'axis_mappings.{name}.velocity_scale').value,
+                    }
+                    self.get_logger().info(f'Loaded axis mapping: {name} -> {joint_name} (axis {axis_idx})')
 
-                    if topic and axis_idx >= 0:
-                        self.axis_mappings[name] = {
-                            'topic': topic,
-                            'axis_index': axis_idx,
-                            'axis_scale': self.get_parameter(f'axis_mappings.{name}.axis_scale').value,
-                            'velocity_scale': self.get_parameter(f'axis_mappings.{name}.velocity_scale').value,
-                            'limits': self.get_parameter(f'axis_mappings.{name}.limits').value,
-                            'control_mode': self.get_parameter(f'axis_mappings.{name}.control_mode').value,
-                        }
-
-                        # Map joint name to our mapping name (extract joint name from topic)
-                        # Topic format: /{joint_name}_joint_controller/commands
-                        joint_name = topic.replace('/', '').replace('_joint_controller/commands', '')
-                        self.joint_name_to_mapping[joint_name] = name
-
-                        # Initialize position at safe default (will be overwritten by joint_states)
-                        limits = self.axis_mappings[name]['limits']
-                        # For vertical joints, start at a safe position above 0
-                        if name in ['main_frame_selector_frame', 'selector_frame_picker_frame']:
-                            self.positions[name] = 0.05  # Safe starting height
-                        else:
-                            self.positions[name] = limits[0] if limits[0] >= 0 else (limits[0] + limits[1]) / 2.0
-
-                        # Mark as not initialized - won't publish until user moves this axis
-                        self.positions_initialized[name] = False
-
-                        self.get_logger().info(f'Loaded axis mapping: {name} -> {topic} (axis {axis_idx})')
-
-                except Exception as e:
-                    self.get_logger().debug(f'Could not load mapping for {name}: {e}')
-                    continue
-
-        except Exception as e:
-            self.get_logger().error(f'Error loading axis mappings: {e}')
+            except Exception as e:
+                self.get_logger().debug(f'Could not load mapping for {name}: {e}')
+                continue
 
     def _load_button_actions(self):
         """Load button action mappings from parameters"""
-        try:
-            action_names = [
-                'picker_jaw_extend',
-                'picker_jaw_retract',
-                'container_jaws_open_left',
-                'container_jaws_open_right',
-                'container_jaws_close_left',
-                'container_jaws_close_right',
-                'home_all',
-                'emergency_stop',
-                'store_position'
-            ]
+        action_names = [
+            'picker_jaw_extend',
+            'picker_jaw_retract',
+            'container_jaws_open_left',
+            'container_jaws_open_right',
+            'container_jaws_close_left',
+            'container_jaws_close_right',
+            'home_all',
+            'emergency_stop',
+            'store_position'
+        ]
 
-            for name in action_names:
-                try:
-                    self.declare_parameter(f'button_actions.{name}.button_index', -1)
-                    self.declare_parameter(f'button_actions.{name}.action_type', 'press')
-                    self.declare_parameter(f'button_actions.{name}.joint', '')
-                    self.declare_parameter(f'button_actions.{name}.target_position', 0.0)
-                    self.declare_parameter(f'button_actions.{name}.enabled', True)
+        for name in action_names:
+            try:
+                self.declare_parameter(f'button_actions.{name}.button_index', -1)
+                self.declare_parameter(f'button_actions.{name}.action_type', 'press')
+                self.declare_parameter(f'button_actions.{name}.joint', '')
+                self.declare_parameter(f'button_actions.{name}.target_position', 0.0)
+                self.declare_parameter(f'button_actions.{name}.enabled', True)
 
-                    button_idx = self.get_parameter(f'button_actions.{name}.button_index').value
-                    enabled = self.get_parameter(f'button_actions.{name}.enabled').value
+                button_idx = self.get_parameter(f'button_actions.{name}.button_index').value
+                enabled = self.get_parameter(f'button_actions.{name}.enabled').value
 
-                    if button_idx >= 0 and enabled:
-                        self.button_actions[name] = {
-                            'button_index': button_idx,
-                            'action_type': self.get_parameter(f'button_actions.{name}.action_type').value,
-                            'joint': self.get_parameter(f'button_actions.{name}.joint').value,
-                            'target_position': self.get_parameter(f'button_actions.{name}.target_position').value,
-                            'last_state': False
-                        }
-                        self.get_logger().info(f'Loaded button action: {name} on button {button_idx}')
-                except Exception as e:
-                    self.get_logger().warn(f'Could not load button action {name}: {e}')
-                    continue
-
-        except Exception as e:
-            self.get_logger().error(f'Error loading button actions: {e}')
-
-    def _create_publishers(self):
-        """Create publishers for each mapped controller"""
-        for name, mapping in self.axis_mappings.items():
-            topic = mapping['topic']
-            self.joint_publishers_dict[name] = self.create_publisher(
-                Float64MultiArray,
-                topic,
-                10
-            )
-
-        # Add publishers for button-controlled joints (not in axis_mappings)
-        # Check button actions for joints that need publishers
-        for action_name, action in self.button_actions.items():
-            joint = action.get('joint', '')
-            if joint and joint not in self.joint_publishers_dict:
-                # Need to create publisher and position tracking for this joint
-                topic = f'/{joint}_joint_controller/commands'
-                self.joint_publishers_dict[joint] = self.create_publisher(
-                    Float64MultiArray,
-                    topic,
-                    10
-                )
-                # Initialize position based on joint type
-                if joint not in self.positions:
-                    # Container jaws start closed (-0.2), picker jaw starts at 0
-                    if 'container_jaw' in joint:
-                        self.positions[joint] = -0.2
-                        limits = [-0.2, 0.2]
-                    else:
-                        self.positions[joint] = 0.0
-                        limits = [0.0, 0.2]
-
-                    # Add to axis_mappings with limits for clamping
-                    self.axis_mappings[joint] = {
-                        'topic': topic,
-                        'axis_index': -1,
-                        'axis_scale': 1.0,
-                        'velocity_scale': 0.2,
-                        'limits': limits,
+                if button_idx >= 0 and enabled:
+                    self.button_actions[name] = {
+                        'button_index': button_idx,
+                        'action_type': self.get_parameter(f'button_actions.{name}.action_type').value,
+                        'joint': self.get_parameter(f'button_actions.{name}.joint').value,
+                        'target_position': self.get_parameter(f'button_actions.{name}.target_position').value,
+                        'last_state': False
                     }
-                    # Mark as not initialized
-                    self.positions_initialized[joint] = False
-                self.get_logger().info(f'Created publisher for button-controlled joint: {joint}')
+                    self.get_logger().info(f'Loaded button action: {name} on button {button_idx}')
+            except Exception as e:
+                self.get_logger().debug(f'Could not load button action {name}: {e}')
+                continue
 
-    def joint_state_callback(self, msg):
-        """Update positions from actual joint states"""
+    def _joint_state_cb(self, msg: JointState):
+        """Update joint positions from /joint_states"""
+        for i, name in enumerate(msg.name):
+            if i < len(msg.position):
+                self.joint_positions[name] = msg.position[i]
+
         if not self.joint_states_received:
-            # First time receiving joint states - initialize positions from actual robot state
-            for i, joint_name in enumerate(msg.name):
-                # joint_name comes as "main_frame_selector_frame_joint"
-                # our mapping names are "main_frame_selector_frame" (without _joint suffix)
-                mapping_name = joint_name.replace('_joint', '')
-
-                # Check if this is in our axis mappings
-                if mapping_name in self.axis_mappings:
-                    self.positions[mapping_name] = msg.position[i]
-                    self.get_logger().info(f'Initialized {mapping_name} from joint_states: {msg.position[i]:.3f}')
-
-                # Also check button-controlled joints (they use different naming)
-                # Button joints are stored like "selector_left_container_jaw" without "_joint"
-                for joint_key in self.positions.keys():
-                    if joint_name == f'{joint_key}_joint':
-                        self.positions[joint_key] = msg.position[i]
-                        self.get_logger().info(f'Initialized {joint_key} from joint_states: {msg.position[i]:.3f}')
-                        break
-
             self.joint_states_received = True
-            self.get_logger().info('Initial joint positions loaded from joint_states')
+            self.get_logger().info('Initial joint positions received')
 
-    def apply_deadzone(self, value, axis_index=-1):
+    def _apply_deadzone(self, value: float, axis_index: int) -> float:
         """Apply deadzone to axis value"""
-        # D-Pad axes (6, 7) are discrete - don't apply scaling
+        # D-Pad axes (6, 7) are discrete
         if axis_index in [6, 7]:
-            # D-Pad: just filter small noise
-            if abs(value) < 0.5:
-                return 0.0
-            return value
+            return value if abs(value) >= 0.5 else 0.0
 
-        # Normal analog sticks
         if abs(value) < self.deadzone:
             return 0.0
-        # Scale the remaining range
         sign = 1.0 if value > 0 else -1.0
         return sign * (abs(value) - self.deadzone) / (1.0 - self.deadzone)
 
-    def clamp(self, value, min_val, max_val):
-        """Clamp value between min and max"""
-        return max(min_val, min(max_val, value))
-
-    def joy_callback(self, msg):
-        """Process joystick input"""
+    def _joy_callback(self, msg: Joy):
+        """Process joystick input - accumulate target positions"""
         self.last_joy = msg
 
-        # Check enable button
+        # Check enable/turbo buttons
         if len(msg.buttons) > self.enable_button:
             self.enabled = msg.buttons[self.enable_button] == 1
             if self.enabled and not self.ever_enabled:
                 self.ever_enabled = True
-                self.get_logger().info('Control enabled for the first time - starting to publish commands')
+                self.get_logger().info('Control enabled')
 
-        # Check turbo button
         if len(msg.buttons) > self.enable_turbo_button:
             self.turbo_enabled = msg.buttons[self.enable_turbo_button] == 1
 
         if not self.enabled:
-            return  # Don't process if not enabled
+            return
 
-        # Calculate time step
         dt = 1.0 / self.update_rate
-
-        # Apply turbo multiplier
         turbo_mult = 2.0 if self.turbo_enabled else 1.0
 
         # Process axis mappings
-        for name, mapping in self.axis_mappings.items():
-            axis_idx = mapping['axis_index']
+        for mapping_name, mapping in self.axis_mappings.items():
+            axis_idx = mapping.get('axis_index', -1)
+            if axis_idx < 0 or axis_idx >= len(msg.axes):
+                continue
 
-            if axis_idx >= 0 and len(msg.axes) > axis_idx:
-                # Read axis value
-                raw_value = msg.axes[axis_idx]
-                axis_value = self.apply_deadzone(raw_value, axis_idx)
+            joint_name = mapping.get('joint_name')
+            if not joint_name or joint_name not in self.joint_limits:
+                continue
 
-                # Only process if user is actually moving this axis
-                if abs(axis_value) > 0.01:
-                    # Mark as initialized on first movement
-                    if not self.positions_initialized.get(name, False):
-                        self.positions_initialized[name] = True
-                        self.get_logger().info(f'Joint {name} activated by user input')
+            # Read and filter axis value
+            raw_value = msg.axes[axis_idx]
+            axis_value = self._apply_deadzone(raw_value, axis_idx)
 
-                    # Debug D-Pad and problem axes
-                    if axis_idx in [6, 7] and abs(raw_value) > 0.1:
-                        self.get_logger().info(f'{name}: axis[{axis_idx}] raw={raw_value:.2f} filtered={axis_value:.2f}')
+            if abs(axis_value) < 0.01:
+                continue
 
-                    # Check control mode
-                    control_mode = mapping.get('control_mode', 'velocity')
-                    limits = mapping['limits']
+            # Calculate velocity and target
+            axis_value *= mapping.get('axis_scale', 1.0)
+            velocity = axis_value * mapping.get('velocity_scale', 0.5) * self.scale_linear * turbo_mult
 
-                    if control_mode == 'position':
-                        # Position mode: axis value maps directly to position
-                        # For triggers (axis 2, 5): remap from [+1.0 rest, -1.0 pressed] to joint limits
-                        if axis_idx in [2, 5]:  # L2, R2 triggers
-                            # Trigger: +1.0 (released/closed) to -1.0 (pressed/open)
-                            # Apply scale first to handle direction
-                            scaled_value = axis_value * mapping['axis_scale']
-                            # Map [-scale, +scale] to [limits[0], limits[1]]
-                            # When axis*scale = +scale: position = limits[1]
-                            # When axis*scale = -scale: position = limits[0]
-                            normalized = (scaled_value + abs(mapping['axis_scale'])) / (2.0 * abs(mapping['axis_scale']))
-                            position_range = limits[1] - limits[0]
-                            self.positions[name] = limits[0] + normalized * position_range
-                        else:
-                            # Normal axis: map [-1, 1] to limits and apply scale
-                            self.positions[name] = axis_value * mapping['axis_scale']
-                        self.positions[name] = self.clamp(self.positions[name], limits[0], limits[1])
-                    else:
-                        # Velocity mode: axis value controls velocity
-                        axis_value *= mapping['axis_scale']
-                        # Velocity mode: axis value controls velocity
-                        velocity = axis_value * mapping['velocity_scale'] * self.scale_linear * turbo_mult
-                        self.positions[name] += velocity * dt
-                        self.positions[name] = self.clamp(self.positions[name], limits[0], limits[1])
+            current = self.joint_positions.get(joint_name, 0.0)
+            target = current + velocity * dt
+
+            # Clamp to limits from manipulator_params.yaml
+            limits = self.joint_limits[joint_name]
+            target = max(limits['min'], min(limits['max'], target))
+
+            # Accumulate target
+            self.pending_targets[joint_name] = target
 
         # Process button actions
+        self._process_button_actions(msg, dt, turbo_mult)
+
+    def _process_button_actions(self, msg: Joy, dt: float, turbo_mult: float):
+        """Process button actions for container jaws and picker jaw"""
         for action_name, action in self.button_actions.items():
             button_idx = action['button_index']
 
-            if button_idx >= 0 and len(msg.buttons) > button_idx:
-                button_pressed = msg.buttons[button_idx] == 1
-                action_type = action['action_type']
+            if button_idx < 0 or button_idx >= len(msg.buttons):
+                continue
 
-                # Debug button presses
-                if button_pressed and button_idx in [0, 2]:
-                    self.get_logger().info(f'Button action {action_name}: pressed={button_pressed}, type={action_type}, joint={action.get("joint", "none")}')
+            button_pressed = msg.buttons[button_idx] == 1
+            action_type = action['action_type']
 
-                # Handle different action types
-                if action_type == 'hold':
-                    # Continuous action while button held
-                    if button_pressed and action['joint']:
-                        joint_name = action['joint']
-                        target = action['target_position']
+            if action_type == 'hold' and button_pressed:
+                joint = action.get('joint', '')
+                target = action.get('target_position', 0.0)
 
-                        # Mark as initialized on first button press
-                        if not self.positions_initialized.get(joint_name, False):
-                            self.positions_initialized[joint_name] = True
-                            self.get_logger().info(f'Joint {joint_name} activated by button')
+                if not joint:
+                    continue
 
-                        # Move towards target
-                        if joint_name in self.positions:
-                            current = self.positions[joint_name]
-                            direction = 1.0 if target > current else -1.0
-                            velocity = direction * 0.3 * dt
-                            self.positions[joint_name] += velocity
+                # Map joint key to full joint name
+                joint_name = f'{joint}_joint' if not joint.endswith('_joint') else joint
 
-                            # Clamp
-                            if joint_name in self.axis_mappings:
-                                limits = self.axis_mappings[joint_name]['limits']
-                                self.positions[joint_name] = self.clamp(
-                                    self.positions[joint_name], limits[0], limits[1]
-                                )
+                if joint_name not in self.joint_limits:
+                    continue
 
-                elif action_type == 'press':
-                    # Single action on button press (not release)
-                    if button_pressed and not action['last_state']:
-                        # Button just pressed
-                        self.get_logger().info(f'Button action: {action_name}')
-                        # Future: call service or action here
+                # Move towards target
+                current = self.joint_positions.get(joint_name, 0.0)
+                direction = 1.0 if target > current else -1.0
 
-                # Update last state
-                action['last_state'] = button_pressed
+                # Get velocity from limits
+                max_velocity = self.joint_limits[joint_name].get('velocity', 1.0)
+                velocity = direction * max_velocity * 0.15 * turbo_mult
 
-    def publish_commands(self):
-        """Publish current target positions to all controllers"""
-        # Don't publish anything until we have initial joint states
-        if not self.joint_states_received:
-            return  # Wait for joint states first
+                new_target = current + velocity * dt
 
-        # Don't publish anything until control has been enabled at least once
-        if not self.ever_enabled:
-            return  # Wait for first enable
+                # Clamp to limits
+                limits = self.joint_limits[joint_name]
+                new_target = max(limits['min'], min(limits['max'], new_target))
 
-        if self.last_joy is None or not self.enabled:
-            return  # Wait for joystick and enable
+                # Also clamp to not overshoot target
+                if direction > 0:
+                    new_target = min(new_target, target)
+                else:
+                    new_target = max(new_target, target)
 
-        # Only publish commands for joints that have been explicitly moved by the user
-        for name, position in self.positions.items():
-            if name in self.joint_publishers_dict and self.positions_initialized.get(name, False):
-                msg = Float64MultiArray()
-                msg.data = [position]
-                self.joint_publishers_dict[name].publish(msg)
+                self.pending_targets[joint_name] = new_target
 
-                # Debug picker vertical publishing
-                if name == 'selector_frame_picker_frame':
-                    self.get_logger().info(f'Publishing {name}: {position:.3f}')
+            elif action_type == 'press':
+                if button_pressed and not action['last_state']:
+                    self.get_logger().info(f'Button action: {action_name}')
 
-        # Print status periodically
+            action['last_state'] = button_pressed
+
+    def _send_trajectory_goals(self):
+        """Send accumulated targets as trajectory goals (10Hz timer callback)"""
+        if not self.enabled or not self.ever_enabled or not self.joint_states_received:
+            return
+
+        for joint_name, target in list(self.pending_targets.items()):
+            # Skip if target hasn't changed significantly
+            last_sent = self.last_sent_targets.get(joint_name)
+            if last_sent is not None and abs(target - last_sent) < 0.001:
+                continue
+
+            if joint_name in TRAJECTORY_JOINTS:
+                self._send_trajectory_goal(joint_name, target)
+            elif joint_name in FORWARD_COMMAND_JOINTS:
+                self._send_forward_command(joint_name, target)
+
+            self.last_sent_targets[joint_name] = target
+
+        # Status update periodically
         now = self.get_clock().now()
-        if (now - self.last_status_time).nanoseconds / 1e9 > 2.0:  # Every 2 seconds
+        if (now - self.last_status_time).nanoseconds / 1e9 > 5.0:
             status = "TURBO" if self.turbo_enabled else "NORMAL"
-            self.get_logger().info(f'Status: {status} | Joints active: {len(self.positions)}')
+            active = len(self.pending_targets)
+            self.get_logger().info(f'Status: {status} | Active joints: {active}')
             self.last_status_time = now
+
+    def _send_trajectory_goal(self, joint_name: str, target: float):
+        """Send trajectory goal with calculated duration"""
+        client = self.trajectory_clients.get(joint_name)
+        if not client:
+            return
+
+        if not client.server_is_ready():
+            return
+
+        # Cancel previous goal (preemption for responsiveness)
+        if joint_name in self.current_goal_handles:
+            old_handle = self.current_goal_handles.get(joint_name)
+            if old_handle is not None:
+                try:
+                    old_handle.cancel_goal_async()
+                except Exception:
+                    pass
+
+        # Calculate duration from distance and max velocity
+        current = self.joint_positions.get(joint_name, target)
+        distance = abs(target - current)
+        max_velocity = self.joint_limits[joint_name].get('velocity', 1.0)
+
+        duration = distance / max_velocity if max_velocity > 0 else 0.5
+        duration = max(self.trajectory_duration_min, min(self.trajectory_duration_max, duration))
+
+        # Build and send trajectory goal
+        goal = self._build_trajectory_goal(joint_name, target, duration)
+        future = client.send_goal_async(goal)
+        future.add_done_callback(lambda f, jn=joint_name: self._on_goal_response(f, jn))
+
+    def _build_trajectory_goal(self, joint_name: str, target: float, duration: float):
+        """Build FollowJointTrajectory goal message"""
+        trajectory = JointTrajectory()
+        trajectory.joint_names = [joint_name]
+
+        # Start point at current position
+        current = self.joint_positions.get(joint_name, target)
+        start_point = JointTrajectoryPoint()
+        start_point.positions = [current]
+        start_point.velocities = [0.0]
+        start_point.time_from_start = Duration(sec=0, nanosec=0)
+
+        # End point at target
+        end_point = JointTrajectoryPoint()
+        end_point.positions = [target]
+        end_point.velocities = [0.0]
+        end_point.time_from_start = Duration(
+            sec=int(duration),
+            nanosec=int((duration % 1) * 1e9)
+        )
+
+        trajectory.points = [start_point, end_point]
+
+        goal = FollowJointTrajectory.Goal()
+        goal.trajectory = trajectory
+        return goal
+
+    def _on_goal_response(self, future, joint_name: str):
+        """Store goal handle for potential preemption"""
+        try:
+            goal_handle = future.result()
+            if goal_handle.accepted:
+                self.current_goal_handles[joint_name] = goal_handle
+        except Exception as e:
+            self.get_logger().debug(f'Goal response error for {joint_name}: {e}')
+
+    def _send_forward_command(self, joint_name: str, target: float):
+        """Send forward command for container jaws (instant response)"""
+        publisher = self.forward_publishers.get(joint_name)
+        if publisher:
+            msg = Float64MultiArray()
+            msg.data = [target]
+            publisher.publish(msg)
 
 
 def main(args=None):

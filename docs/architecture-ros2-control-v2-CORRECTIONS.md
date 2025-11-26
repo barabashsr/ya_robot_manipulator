@@ -1,35 +1,64 @@
 # ROS2 Control Architecture v2.0 - CORRECTED
 ## ya_robot_manipulator Level 3 Control System
 
-**Document Version:** 2.1
-**Date:** 2025-11-25
-**Corrections Applied:** Based on URDF analysis, detailed user feedback, and unified limits architecture
+**Document Version:** 2.2
+**Date:** 2025-11-26
+**Corrections Applied:** Based on URDF analysis, detailed user feedback, unified limits architecture, and JointTrajectoryController migration
 
 ---
 
 ## CRITICAL CORRECTIONS FROM V1.0
 
-### 1. ✅ Controller Architecture (Individual Position Controllers)
+### 1. ✅ Controller Architecture (Hybrid: Trajectory + Forward Controllers)
 
-**CORRECTED:** The system uses **individual ForwardCommandControllers** for each joint, NOT JointTrajectoryController.
+**UPDATED 2025-11-26:** The system uses a **hybrid controller architecture**:
+- **7 JointTrajectoryControllers** for motion joints (smooth trajectory interpolation, action-based)
+- **2 ForwardCommandControllers** for container jaw joints (simple position commands, topic-based)
 
 **From:** `/ros2_ws/src/manipulator_description/config/manipulator_controllers.yaml`
 
-Each of the 9 joints has its own position controller:
-- `base_main_frame_joint_controller`
-- `main_frame_selector_frame_joint_controller`
-- `selector_left_container_jaw_joint_controller`
-- `selector_right_container_jaw_joint_controller`
-- `selector_frame_gripper_joint_controller`
-- `selector_frame_picker_frame_joint_controller`
-- `picker_frame_picker_rail_joint_controller`
-- `picker_rail_picker_base_joint_controller`
-- `picker_base_picker_jaw_joint_controller`
+**Trajectory Controllers (7 motion joints):**
+| Controller | Joint | Interface | Benefits |
+|------------|-------|-----------|----------|
+| `base_main_frame_joint_controller` | base_main_frame_joint | Action: `follow_joint_trajectory` | Smooth interpolated X-axis motion |
+| `main_frame_selector_frame_joint_controller` | main_frame_selector_frame_joint | Action: `follow_joint_trajectory` | Smooth interpolated Z-axis motion |
+| `selector_frame_gripper_joint_controller` | selector_frame_gripper_joint | Action: `follow_joint_trajectory` | Smooth interpolated Y-axis motion |
+| `selector_frame_picker_frame_joint_controller` | selector_frame_picker_frame_joint | Action: `follow_joint_trajectory` | Smooth picker Z-axis motion |
+| `picker_frame_picker_rail_joint_controller` | picker_frame_picker_rail_joint | Action: `follow_joint_trajectory` | Smooth picker Y-axis motion |
+| `picker_rail_picker_base_joint_controller` | picker_rail_picker_base_joint | Action: `follow_joint_trajectory` | Smooth picker extension |
+| `picker_base_picker_jaw_joint_controller` | picker_base_picker_jaw_joint | Action: `follow_joint_trajectory` | Smooth jaw motion |
+
+**Forward Controllers (2 container jaws - simple open/close):**
+| Controller | Joint | Interface | Reason |
+|------------|-------|-----------|--------|
+| `selector_left_container_jaw_joint_controller` | selector_left_container_jaw_joint | Topic: `/commands` | Simple gripper, no trajectory needed |
+| `selector_right_container_jaw_joint_controller` | selector_right_container_jaw_joint | Topic: `/commands` | Simple gripper, mimic joint |
 
 **Implementation Strategy:**
-- **Primary:** Send individual position commands to each joint controller
-- **On-Demand Trajectories:** Can still use trajectory generation for coordinated motion, but execute by commanding individual controllers sequentially
-- **No need to change URDF** - existing controller configuration is perfect for this architecture
+- **Trajectory joints:** Use `FollowJointTrajectory` action for smooth interpolated motion with feedback
+- **Container jaws:** Continue using topic-based position commands (Float64MultiArray)
+- **ControllerInterface:** Unified API abstracts controller type - callers use same `command_joint()` method
+- **MoveIt2 ready:** Trajectory interface is MoveIt's native control method for future integration
+
+**Benefits of Trajectory Controllers:**
+| Benefit | Description |
+|---------|-------------|
+| Coordinated multi-joint motion | Action interface enables synchronized trajectories |
+| Smooth interpolated motion | Spline interpolation eliminates jerky position jumps |
+| MoveIt2 integration | `FollowJointTrajectory` is MoveIt's native interface |
+| Velocity/acceleration limits | Controller-level enforcement of motion constraints |
+| Goal monitoring | Built-in goal tolerance and timeout handling |
+| Feedback during motion | Progress updates via action feedback |
+
+**Interface Comparison:**
+| Aspect | ForwardCommand (jaws) | Trajectory (motion joints) |
+|--------|----------------------|---------------------------|
+| Interface Type | Topic | Action |
+| Topic/Action Name | `/{joint}_controller/commands` | `/{joint}_controller/follow_joint_trajectory` |
+| Message Type | `std_msgs/Float64MultiArray` | `control_msgs/action/FollowJointTrajectory` |
+| Motion Profile | Instant jump | Interpolated trajectory |
+| Feedback | None | Progress feedback during execution |
+| Result | None | Success/failure with error codes |
 
 ### 2. ✅ Warehouse Addressing System (CORRECTED)
 
@@ -247,6 +276,46 @@ States: IDLE → POSITION_Y → OPEN_JAW → LOWER_PICKER → CLOSE_JAW → LIFT
 ## Core Physical Workflows Reference
 
 This section provides the definitive reference for all manipulator workflows, describing the exact joints and axes involved in each operation. All action implementations MUST follow these workflows.
+
+**Controller Interface Note (Updated 2025-11-26):**
+
+All workflows now use `JointTrajectoryController` for motion joints, enabling:
+- Smooth trajectory interpolation between positions
+- Action-based interface with feedback and result
+- Coordinated multi-joint motion via trajectory composition
+
+Container jaw operations continue to use `ForwardCommandController` (topic-based).
+
+**Example: Commanding Joints via ControllerInterface**
+
+```python
+# ControllerInterface abstracts controller type - same API for all joints
+controller_interface = ControllerInterface(node)
+
+# Wait for trajectory action servers at startup
+controller_interface.wait_for_action_servers(timeout_sec=30.0)
+
+# Command trajectory joint (auto-calculates duration based on velocity limits)
+controller_interface.command_joint('base_main_frame_joint', 2.0)
+
+# Command trajectory joint with explicit duration
+controller_interface.command_joint('base_main_frame_joint', 2.0, duration_sec=5.0)
+
+# Command forward joint (container jaw) - same API, routed internally
+controller_interface.command_joint('selector_left_container_jaw_joint', 0.1)
+
+# Async trajectory with callbacks
+def on_result(success, error_msg):
+    if success:
+        print("Goal reached!")
+    else:
+        print(f"Failed: {error_msg}")
+
+controller_interface.command_trajectory_with_callback(
+    'base_main_frame_joint', 2.0, 3.0,
+    result_callback=on_result
+)
+```
 
 ### Physical Layout Summary
 
@@ -1360,6 +1429,184 @@ class ActionServerBase(Node):
 
         with open(full_path, 'r') as f:
             return yaml.safe_load(f)
+```
+
+### 9.1 ✅ Joystick Control Package (joy_control)
+
+**UPDATED 2025-11-26:** The `joy_control` package provides manual joystick control for testing and development with **smooth motion** via streaming trajectory goals.
+
+**Smooth Motion Architecture (Option C - Streaming Trajectory Goals):**
+
+The joystick controller uses a dual-timer architecture to provide smooth motion:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    SMOOTH JOYSTICK CONTROL                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  Joy Callback (20Hz)              Trajectory Timer (10Hz)           │
+│        │                                  │                         │
+│        ▼                                  ▼                         │
+│  Read joystick axes              Send accumulated targets           │
+│        │                         as trajectory goals                │
+│        ▼                                  │                         │
+│  Calculate velocity                       ▼                         │
+│  (axis × velocity_scale)         Trajectory controller              │
+│        │                         interpolates smoothly              │
+│        ▼                         (spline interpolation)             │
+│  Accumulate target position              │                         │
+│  (current + velocity × dt)               ▼                         │
+│        │                         Robot moves smoothly               │
+│        ▼                         (no jerky steps)                   │
+│  Clamp to limits                                                    │
+│  (from manipulator_params.yaml)                                     │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Why This Approach:**
+
+| Issue with ForwardCommand | Solution with Streaming Trajectories |
+|--------------------------|-------------------------------------|
+| Instant position jumps (jerky) | Trajectory controller interpolates smoothly |
+| 20Hz position updates create steps | 10Hz trajectory goals with spline interpolation |
+| No velocity profile | Duration calculated from joint max velocity |
+| Abrupt stops when releasing | Trajectory completes smoothly to last target |
+
+**Controller Interface Compatibility:**
+
+The joy_control package uses the hybrid controller architecture:
+- **7 motion joints:** `JointTrajectoryController` (action-based `FollowJointTrajectory`) - smooth motion
+- **2 container jaws:** `ForwardCommandController` (topic-based `Float64MultiArray`) - instant response
+
+**Joint Classification:**
+
+```python
+# Motion joints use trajectory controller (action clients) - SMOOTH
+TRAJECTORY_JOINTS = frozenset([
+    'base_main_frame_joint',
+    'main_frame_selector_frame_joint',
+    'selector_frame_gripper_joint',
+    'selector_frame_picker_frame_joint',
+    'picker_frame_picker_rail_joint',
+    'picker_rail_picker_base_joint',
+    'picker_base_picker_jaw_joint'
+])
+
+# Container jaws use forward command controller (topic publishers) - INSTANT
+FORWARD_COMMAND_JOINTS = frozenset([
+    'selector_left_container_jaw_joint',
+    'selector_right_container_jaw_joint'
+])
+```
+
+**Configuration (Single Source of Truth):**
+
+Joint limits AND velocities are loaded from `manipulator_params.yaml` at runtime - **NOT duplicated** in `manipulator_joy_config.yaml`:
+
+```yaml
+# manipulator_joy_config.yaml - CORRECT (no limits field)
+joy_controller_node:
+  ros__parameters:
+    # Timing parameters
+    update_rate: 20.0              # Joy callback rate (Hz)
+    trajectory_update_rate: 10.0   # Trajectory goal send rate (Hz)
+
+    # Trajectory duration bounds
+    trajectory_duration_min: 0.05  # Minimum duration (s)
+    trajectory_duration_max: 2.0   # Maximum duration (s)
+
+    # Axis mappings - NO LIMITS (loaded from manipulator_params.yaml)
+    axis_mappings.base_main_frame.joint_name: "base_main_frame_joint"
+    axis_mappings.base_main_frame.axis_index: 1
+    axis_mappings.base_main_frame.axis_scale: -1.0
+    axis_mappings.base_main_frame.velocity_scale: 0.5
+    # limits: LOADED FROM manipulator_params.yaml (safety_controller)
+    # velocity: LOADED FROM manipulator_params.yaml (limits.velocity)
+
+# WRONG - DO NOT duplicate limits like this:
+# axis_mappings.base_main_frame.limits: [0.0, 4.0]  # DUPLICATED!
+```
+
+**Joystick Mapping (PlayStation Controller):**
+
+| Control | Axis/Button | Joint | Range (from params) |
+|---------|-------------|-------|---------------------|
+| Left Stick Y | Axis 1 | base_main_frame_joint | 0.1-3.9m |
+| Right Stick Y | Axis 4 | main_frame_selector_frame_joint | 0.05-1.45m |
+| Right Stick X | Axis 3 | selector_frame_gripper_joint | -0.39-0.39m |
+| D-Pad Y | Axis 7 | selector_frame_picker_frame_joint | 0.005-0.29m |
+| D-Pad X | Axis 6 | picker_frame_picker_rail_joint | -0.29-0.29m |
+| Left Stick X | Axis 0 | picker_rail_picker_base_joint | 0.005-0.24m |
+| Triangle/Cross | Button 2/0 | picker_base_picker_jaw_joint | 0.005-0.19m |
+| L2/R2 | Button 6/7 | container jaws | -0.19-0.19m |
+| L1 | Button 4 | Enable control (hold) | - |
+| R1 | Button 5 | Turbo mode (hold) | - |
+
+**Streaming Trajectory Implementation:**
+
+```python
+def joy_callback(self, msg: Joy):
+    """Process joystick input - accumulate target positions (20Hz)"""
+    if not self.enabled:
+        return
+
+    dt = 1.0 / self.joy_update_rate
+
+    for joint_name, mapping in self.axis_mappings.items():
+        axis_value = self.get_axis_value(msg, mapping)
+        if abs(axis_value) < 0.01:
+            continue  # Deadzone
+
+        # Velocity mode: calculate target from current + velocity × dt
+        velocity = axis_value * mapping['velocity_scale'] * self.scale_linear
+        if self.turbo_enabled:
+            velocity *= 2.0
+
+        current = self.joint_positions.get(joint_name, 0.0)
+        target = current + velocity * dt
+
+        # Clamp to limits from manipulator_params.yaml
+        limits = self.joint_limits[joint_name]
+        target = max(limits['min'], min(limits['max'], target))
+
+        # Accumulate target (will be sent by trajectory timer)
+        self.pending_targets[joint_name] = target
+
+def send_trajectory_goals(self):
+    """Send accumulated targets as trajectory goals (10Hz)"""
+    for joint_name, target in self.pending_targets.items():
+        # Skip if target hasn't changed significantly
+        if abs(target - self.last_sent_targets.get(joint_name, 0)) < 0.001:
+            continue
+
+        if joint_name in self.TRAJECTORY_JOINTS:
+            # Cancel previous goal (preemption for responsiveness)
+            self._cancel_previous_goal(joint_name)
+
+            # Calculate duration from distance and max velocity
+            current = self.joint_positions.get(joint_name, target)
+            distance = abs(target - current)
+            max_velocity = self.joint_limits[joint_name]['velocity']
+            duration = max(0.05, min(2.0, distance / max_velocity))
+
+            # Send trajectory goal
+            self._send_trajectory_goal(joint_name, target, duration)
+        else:
+            # Container jaws: instant forward command
+            self._send_forward_command(joint_name, target)
+
+        self.last_sent_targets[joint_name] = target
+```
+
+**Launch Configuration:**
+
+```bash
+# Enable joystick control with simulation
+ros2 launch manipulator_control manipulator_simulation.launch.py enable_joy:=true
+
+# Joystick control requires holding L1 button to enable motion
+# Hold R1 for turbo mode (2× velocity)
 ```
 
 ### 10. ✅ GUI Approach (Standard RQt Tools First)
@@ -2660,43 +2907,69 @@ Phase 6 (Level 2 Bridge - Future)
 </gazebo>
 ```
 
-**Controller Configuration for Individual Position Controllers:**
+**Controller Configuration (Hybrid Architecture):**
 
 ```yaml
 controller_manager:
   ros__parameters:
     update_rate: 100  # Hz
 
-    # Individual ForwardCommandController for each joint
+    # JointTrajectoryController for 7 motion joints (smooth interpolation)
     base_main_frame_joint_controller:
-      type: position_controllers/JointGroupPositionController
+      type: joint_trajectory_controller/JointTrajectoryController
+    main_frame_selector_frame_joint_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+    # ... repeat for 5 more motion joints
 
-    # ... repeat for all 9 joints
+    # ForwardCommandController for 2 container jaws (instant response)
+    selector_left_container_jaw_joint_controller:
+      type: forward_command_controller/ForwardCommandController
+    selector_right_container_jaw_joint_controller:
+      type: forward_command_controller/ForwardCommandController
 
+# Trajectory controller parameters
 base_main_frame_joint_controller:
   ros__parameters:
-    joints:
-      - base_main_frame_joint
+    joints: [base_main_frame_joint]
+    command_interfaces: [position]
+    state_interfaces: [position, velocity]
+    interpolation_method: splines
 ```
 
-**Reference:** [Position Controllers Documentation - Jazzy](https://control.ros.org/jazzy/doc/ros2_controllers/position_controllers/doc/userdoc.html)
+**Reference:** [JointTrajectoryController Documentation - Jazzy](https://control.ros.org/jazzy/doc/ros2_controllers/joint_trajectory_controller/doc/userdoc.html)
 
-**Publishing Position Commands (Python - ROS2 Jazzy):**
+**Dual-Mode Controller Interface (Python - ROS2 Jazzy):**
 
 ```python
-from std_msgs.msg import Float64
+from rclpy.action import ActionClient
+from control_msgs.action import FollowJointTrajectory
+from std_msgs.msg import Float64MultiArray
 import yaml
 from ament_index_python.packages import get_package_share_directory
 import os
 
 class ControllerInterface:
     """
-    Utility for commanding individual ForwardCommandControllers.
+    Utility for commanding both JointTrajectoryController and ForwardCommandController.
     NOT a ROS2 node - requires parent node reference.
 
+    - 7 motion joints: FollowJointTrajectory action (smooth interpolation)
+    - 2 container jaws: Float64MultiArray topic (instant response)
+
     Loads soft limits from manipulator_params.yaml (single source of truth)
-    and validates commands before publishing.
+    and validates commands before sending.
     """
+
+    TRAJECTORY_JOINTS = frozenset([
+        'base_main_frame_joint', 'main_frame_selector_frame_joint',
+        'selector_frame_gripper_joint', 'selector_frame_picker_frame_joint',
+        'picker_frame_picker_rail_joint', 'picker_rail_picker_base_joint',
+        'picker_base_picker_jaw_joint'
+    ])
+
+    FORWARD_COMMAND_JOINTS = frozenset([
+        'selector_left_container_jaw_joint', 'selector_right_container_jaw_joint'
+    ])
 
     def __init__(self, node):
         self.node = node
@@ -2705,12 +2978,21 @@ class ControllerInterface:
         # Load soft limits from manipulator_params.yaml (single source of truth)
         self.joint_limits = self._load_joint_limits_from_params()
 
-        # Create publisher for each controller (topic pattern: /{joint_name}_controller/commands)
-        # NOTE: ForwardCommandController uses /commands (plural) with Float64MultiArray
-        self.publishers = {}
-        for joint_name in self.joint_limits.keys():
+        # Create action clients for trajectory joints
+        self.trajectory_clients = {}
+        for joint_name in self.TRAJECTORY_JOINTS:
+            action_name = f'/{joint_name}_controller/follow_joint_trajectory'
+            self.trajectory_clients[joint_name] = ActionClient(
+                node, FollowJointTrajectory, action_name
+            )
+
+        # Create publishers for forward command joints (container jaws)
+        self.forward_publishers = {}
+        for joint_name in self.FORWARD_COMMAND_JOINTS:
             topic = f'/{joint_name}_controller/commands'
-            self.publishers[joint_name] = node.create_publisher(Float64MultiArray, topic, 10)
+            self.forward_publishers[joint_name] = node.create_publisher(
+                Float64MultiArray, topic, 10
+            )
 
     def _load_joint_limits_from_params(self):
         """Load soft limits from manipulator_params.yaml"""
@@ -3257,7 +3539,7 @@ sudo apt install ros-jazzy-gz-ros2-control
 
 ### Controllers and Joint Limits
 - `/ros2_ws/src/manipulator_description/config/manipulator_params.yaml` - **SINGLE SOURCE** for joint limits (hard + soft)
-- `/ros2_ws/src/manipulator_description/config/manipulator_controllers.yaml` - Individual position controllers
+- `/ros2_ws/src/manipulator_description/config/manipulator_controllers.yaml` - Hybrid controllers (7 trajectory + 2 forward)
 - `/ros2_ws/src/manipulator_description/urdf/manipulator/ros2_control.xacro` - Hardware interface (loads limits from manipulator_params.yaml)
 
 ### Gazebo Simulation
@@ -3272,7 +3554,7 @@ sudo apt install ros-jazzy-gz-ros2-control
 
 ### Core Corrections from v1.0
 
-✅ **Controllers:** Individual ForwardCommandControllers, not JointTrajectoryController
+✅ **Controllers:** Hybrid architecture - 7 JointTrajectoryControllers (motion joints) + 2 ForwardCommandControllers (container jaws)
 ✅ **Addressing:** (side, cabinet, row, column, department) - resolved via TF frames
 ✅ **No Address Storage:** Use TF lookups to existing URDF frames
 ✅ **Picker:** State machine with limit switches (all axes have 2 switches = 18 total)
@@ -3324,7 +3606,7 @@ sudo apt install ros-jazzy-gz-ros2-control
 - **YZTrajectoryGenerator** - Safe insertion/extraction path planning
 - **AddressResolver** - TF frame lookup for coordinates
 - **AddressValidator** - Empty check + width compatibility
-- **ControllerInterface** - Individual joint command sending
+- **ControllerInterface** - Dual-mode joint command (trajectory actions + forward topics)
 - **VirtualLimitSwitches** - Simulation of 18 end switches
 
 ### Configuration Files

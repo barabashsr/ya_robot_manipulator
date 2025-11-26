@@ -13,7 +13,7 @@ Usage:
 
 import os
 from launch import LaunchDescription
-from launch.actions import SetEnvironmentVariable
+from launch.actions import SetEnvironmentVariable, TimerAction
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, RegisterEventHandler
 from launch.conditions import IfCondition, UnlessCondition
 from launch.event_handlers import OnProcessExit, OnProcessStart
@@ -185,17 +185,38 @@ def generate_launch_description():
     # ============================================================
 
     # RViz2
+    # Delayed start to ensure Gazebo clock is bridged first
+    # This prevents "jump back in time" warnings when switching from
+    # system time to simulation time
     rviz_config = PathJoinSubstitution([
         pkg_share, 'rviz', 'manipulator_control.rviz'
     ])
 
-    rviz2 = Node(
+    rviz2_node = Node(
         package='rviz2',
         executable='rviz2',
         name='rviz2',
         arguments=['-d', rviz_config],
         parameters=[{'use_sim_time': use_sim}],
         output='screen'
+    )
+
+    # Delay rviz2 for simulation to allow clock bridge to start first
+    rviz2 = TimerAction(
+        period=2.0,  # Wait 2 seconds for Gazebo clock to be bridged
+        actions=[rviz2_node],
+        condition=IfCondition(use_sim)
+    )
+
+    # For mock hardware, start rviz2 immediately
+    rviz2_mock = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        arguments=['-d', rviz_config],
+        parameters=[{'use_sim_time': use_sim}],
+        output='screen',
+        condition=UnlessCondition(use_sim)
     )
 
     # ============================================================
@@ -247,8 +268,9 @@ def generate_launch_description():
         spawn_controllers_after_gazebo,
         spawn_controllers_after_mock,
 
-        # Visualization
-        rviz2
+        # Visualization (delayed for sim, immediate for mock)
+        rviz2,
+        rviz2_mock
     ]
 
     return LaunchDescription(nodes)

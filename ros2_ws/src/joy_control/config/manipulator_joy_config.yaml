@@ -1,26 +1,41 @@
 # Joystick Control Configuration for Manipulator
 # ================================================
+# Updated for Trajectory Controller Support
+#
+# Architecture:
+# - 7 motion joints: JointTrajectoryController (smooth interpolation)
+# - 2 container jaws: ForwardCommandController (instant response)
+#
+# Joint limits are loaded from manipulator_params.yaml (single source of truth).
+# DO NOT add limits here - they will be ignored.
 
 joy_controller_node:
   ros__parameters:
     # ============================================
     # Global Settings
     # ============================================
-    update_rate: 20.0
-    scale_linear: 0.5
-    scale_angular: 0.3
+    update_rate: 20.0                # Joy callback rate (Hz)
+    trajectory_update_rate: 10.0     # Trajectory goal send rate (Hz)
+    scale_linear: 4.0
     deadzone: 0.1
-    enable_button: 4
-    enable_turbo_button: 5
+    enable_button: 4                 # L1 - hold to enable
+    enable_turbo_button: 5           # R1 - hold for turbo
+
+    # Trajectory duration bounds (seconds)
+    trajectory_duration_min: 0.05    # Prevents micro-movements
+    trajectory_duration_max: 2.0     # Caps long motions
 
     # ============================================
     # Axis Mappings
     # ============================================
-    # Each joint controller can be mapped to a joystick axis
-    # axis_index: Which joystick axis (see comments below)
-    # axis_scale: Multiplier for axis value (-1.0 to invert)
-    # velocity_scale: Max velocity for this joint
-    # limits: [min, max] joint position limits
+    # NOTE: limits field REMOVED - loaded from manipulator_params.yaml
+    # NOTE: controller_topic field REMOVED - derived from joint_name
+    #
+    # Each mapping requires:
+    #   joint_name: Full joint name (e.g., "base_main_frame_joint")
+    #   axis_index: Which joystick axis (-1 for button-controlled)
+    #   axis_scale: Multiplier for axis value (-1.0 to invert)
+    #   velocity_scale: Max velocity for this joint
 
     # PlayStation Controller Axis Indices:
     #   0 = Left Stick X
@@ -32,60 +47,59 @@ joy_controller_node:
     #   6 = D-Pad X
     #   7 = D-Pad Y
 
-    # Base Railway (X-axis: 0.0 to 4.0 m) - Left Stick Y
-    axis_mappings.base_main_frame.controller_topic: "/base_main_frame_joint_controller/commands"
+    # Base Railway (X-axis) - Left Stick Y
+    axis_mappings.base_main_frame.joint_name: "base_main_frame_joint"
     axis_mappings.base_main_frame.axis_index: 1
     axis_mappings.base_main_frame.axis_scale: -1.0
     axis_mappings.base_main_frame.velocity_scale: 0.5
-    axis_mappings.base_main_frame.limits: [0.0, 4.0]
 
-    # Selector Vertical (Z-axis: 0.0 to 1.5 m) - Right Stick Y
-    axis_mappings.main_frame_selector_frame.controller_topic: "/main_frame_selector_frame_joint_controller/commands"
+    # Selector Vertical (Z-axis) - Right Stick Y
+    axis_mappings.main_frame_selector_frame.joint_name: "main_frame_selector_frame_joint"
     axis_mappings.main_frame_selector_frame.axis_index: 4
     axis_mappings.main_frame_selector_frame.axis_scale: -1.0
     axis_mappings.main_frame_selector_frame.velocity_scale: 0.3
-    axis_mappings.main_frame_selector_frame.limits: [0.0, 1.5]
 
-    # Gripper Y-axis (-0.4 to 0.4 m) - Right Stick X
-    axis_mappings.selector_frame_gripper.controller_topic: "/selector_frame_gripper_joint_controller/commands"
+    # Gripper Y-axis - Right Stick X
+    axis_mappings.selector_frame_gripper.joint_name: "selector_frame_gripper_joint"
     axis_mappings.selector_frame_gripper.axis_index: 3
     axis_mappings.selector_frame_gripper.axis_scale: -1.0
     axis_mappings.selector_frame_gripper.velocity_scale: 0.3
-    axis_mappings.selector_frame_gripper.limits: [-0.4, 0.4]
 
-    # Container Jaws - controlled by buttons (not axes)
-    # Note: Removed from axis_mappings, now controlled by button actions below
-
-    # Picker Vertical (Z-axis: 0.0 to 0.3 m) - D-Pad Y
-    axis_mappings.selector_frame_picker_frame.controller_topic: "/selector_frame_picker_frame_joint_controller/commands"
+    # Picker Vertical (Z-axis) - D-Pad Y
+    axis_mappings.selector_frame_picker_frame.joint_name: "selector_frame_picker_frame_joint"
     axis_mappings.selector_frame_picker_frame.axis_index: 7
     axis_mappings.selector_frame_picker_frame.axis_scale: 1.0
     axis_mappings.selector_frame_picker_frame.velocity_scale: 0.2
-    axis_mappings.selector_frame_picker_frame.limits: [0.0, 0.3]
 
-    # Picker Y-axis (-0.3 to 0.3 m) - D-Pad X
-    axis_mappings.picker_frame_picker_rail.controller_topic: "/picker_frame_picker_rail_joint_controller/commands"
+    # Picker Y-axis - D-Pad X
+    axis_mappings.picker_frame_picker_rail.joint_name: "picker_frame_picker_rail_joint"
     axis_mappings.picker_frame_picker_rail.axis_index: 6
     axis_mappings.picker_frame_picker_rail.axis_scale: -1.0
     axis_mappings.picker_frame_picker_rail.velocity_scale: 0.25
-    axis_mappings.picker_frame_picker_rail.limits: [-0.3, 0.3]
 
-    # Picker X-axis slider (0.0 to 0.25 m) - Left Stick X
-    axis_mappings.picker_rail_picker_base.controller_topic: "/picker_rail_picker_base_joint_controller/commands"
+    # Picker X-axis slider - Left Stick X
+    axis_mappings.picker_rail_picker_base.joint_name: "picker_rail_picker_base_joint"
     axis_mappings.picker_rail_picker_base.axis_index: 0
     axis_mappings.picker_rail_picker_base.axis_scale: -1.0
     axis_mappings.picker_rail_picker_base.velocity_scale: 0.25
-    axis_mappings.picker_rail_picker_base.limits: [0.0, 0.25]
 
-    # Picker Jaw (0.0 to 0.2 m) - Controlled by buttons
-    axis_mappings.picker_base_picker_jaw.controller_topic: "/picker_base_picker_jaw_joint_controller/commands"
+    # Picker Jaw - Button controlled (axis_index: -1)
+    axis_mappings.picker_base_picker_jaw.joint_name: "picker_base_picker_jaw_joint"
     axis_mappings.picker_base_picker_jaw.axis_index: -1
     axis_mappings.picker_base_picker_jaw.axis_scale: 1.0
     axis_mappings.picker_base_picker_jaw.velocity_scale: 0.2
-    axis_mappings.picker_base_picker_jaw.limits: [0.0, 0.2]
+
+    # Container Jaws - Button controlled, ForwardCommand (instant response)
+    axis_mappings.selector_left_container_jaw.joint_name: "selector_left_container_jaw_joint"
+    axis_mappings.selector_left_container_jaw.axis_index: -1
+    axis_mappings.selector_left_container_jaw.velocity_scale: 0.3
+
+    axis_mappings.selector_right_container_jaw.joint_name: "selector_right_container_jaw_joint"
+    axis_mappings.selector_right_container_jaw.axis_index: -1
+    axis_mappings.selector_right_container_jaw.velocity_scale: 0.3
 
     # ============================================
-    # Button Actions (Reserved for Commands)
+    # Button Actions
     # ============================================
     # PlayStation Controller Button Indices:
     #   0 = Cross (X)
@@ -94,47 +108,49 @@ joy_controller_node:
     #   3 = Square
     #   4 = L1
     #   5 = R1
+    #   6 = L2 button (digital)
+    #   7 = R2 button (digital)
     #   8 = Share
     #   9 = Options
 
-    # Triangle - Picker jaw extend
+    # Triangle - Picker jaw extend (trajectory controller - smooth)
     button_actions.picker_jaw_extend.button_index: 2
     button_actions.picker_jaw_extend.action_type: "hold"
     button_actions.picker_jaw_extend.joint: "picker_base_picker_jaw"
-    button_actions.picker_jaw_extend.target_position: 0.2
+    button_actions.picker_jaw_extend.target_position: 0.19
     button_actions.picker_jaw_extend.enabled: true
 
-    # Cross - Picker jaw retract
+    # Cross - Picker jaw retract (trajectory controller - smooth)
     button_actions.picker_jaw_retract.button_index: 0
     button_actions.picker_jaw_retract.action_type: "hold"
     button_actions.picker_jaw_retract.joint: "picker_base_picker_jaw"
-    button_actions.picker_jaw_retract.target_position: 0.0
+    button_actions.picker_jaw_retract.target_position: 0.005
     button_actions.picker_jaw_retract.enabled: true
 
-    # L2 button - Container jaws open (both jaws)
+    # L2 button - Container jaws open (forward command - instant)
     button_actions.container_jaws_open_left.button_index: 6
     button_actions.container_jaws_open_left.action_type: "hold"
     button_actions.container_jaws_open_left.joint: "selector_left_container_jaw"
-    button_actions.container_jaws_open_left.target_position: 0.2
+    button_actions.container_jaws_open_left.target_position: 0.19
     button_actions.container_jaws_open_left.enabled: true
 
     button_actions.container_jaws_open_right.button_index: 6
     button_actions.container_jaws_open_right.action_type: "hold"
     button_actions.container_jaws_open_right.joint: "selector_right_container_jaw"
-    button_actions.container_jaws_open_right.target_position: 0.2
+    button_actions.container_jaws_open_right.target_position: 0.19
     button_actions.container_jaws_open_right.enabled: true
 
-    # R2 button - Container jaws close (both jaws)
+    # R2 button - Container jaws close (forward command - instant)
     button_actions.container_jaws_close_left.button_index: 7
     button_actions.container_jaws_close_left.action_type: "hold"
     button_actions.container_jaws_close_left.joint: "selector_left_container_jaw"
-    button_actions.container_jaws_close_left.target_position: -0.2
+    button_actions.container_jaws_close_left.target_position: -0.19
     button_actions.container_jaws_close_left.enabled: true
 
     button_actions.container_jaws_close_right.button_index: 7
     button_actions.container_jaws_close_right.action_type: "hold"
     button_actions.container_jaws_close_right.joint: "selector_right_container_jaw"
-    button_actions.container_jaws_close_right.target_position: -0.2
+    button_actions.container_jaws_close_right.target_position: -0.19
     button_actions.container_jaws_close_right.enabled: true
 
     # Square - Home all (future)

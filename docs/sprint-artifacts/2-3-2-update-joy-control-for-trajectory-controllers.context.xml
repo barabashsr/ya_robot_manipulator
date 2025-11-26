@@ -1,0 +1,355 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<story-context story-id="2.3.2" title="Update joy_control Package for Trajectory Controllers">
+  <metadata>
+    <created>2025-11-26</created>
+    <epic>Epic 2: Simulation Foundation &amp; Joint Control</epic>
+    <prerequisites>
+      <story id="2.3.1" status="done">Migrate Motion Joints to JointTrajectoryController</story>
+    </prerequisites>
+  </metadata>
+
+  <summary>
+    Update joy_control package to use JointTrajectoryController for 7 motion joints (smooth motion)
+    and ForwardCommandController for 2 container jaws (instant response). Remove duplicated limits
+    from config and load from manipulator_params.yaml (single source of truth).
+  </summary>
+
+  <joint-classification>
+    <trajectory-joints count="7" interface="FollowJointTrajectory action">
+      <joint name="base_main_frame_joint" soft-limits="0.1-3.9" velocity="2.0"/>
+      <joint name="main_frame_selector_frame_joint" soft-limits="0.05-1.45" velocity="2.0"/>
+      <joint name="selector_frame_gripper_joint" soft-limits="-0.39-0.39" velocity="2.0"/>
+      <joint name="selector_frame_picker_frame_joint" soft-limits="0.005-0.29" velocity="2.0"/>
+      <joint name="picker_frame_picker_rail_joint" soft-limits="-0.29-0.29" velocity="2.0"/>
+      <joint name="picker_rail_picker_base_joint" soft-limits="0.005-0.24" velocity="2.0"/>
+      <joint name="picker_base_picker_jaw_joint" soft-limits="0.005-0.19" velocity="2.0"/>
+    </trajectory-joints>
+    <forward-command-joints count="2" interface="Float64MultiArray topic">
+      <joint name="selector_left_container_jaw_joint" soft-limits="-0.19-0.19" velocity="2.0"/>
+      <joint name="selector_right_container_jaw_joint" soft-limits="-0.19-0.19" velocity="2.0"/>
+    </forward-command-joints>
+  </joint-classification>
+
+  <files-to-modify>
+    <file path="ros2_ws/src/joy_control/scripts/joy_controller_node.py" change="major">
+      <description>Full rewrite for trajectory controller support with dual-timer architecture</description>
+      <current-content><![CDATA[
+#!/usr/bin/env python3
+"""
+Configurable Joystick Controller Node
+
+Reads configuration from YAML and maps joystick inputs to joint controllers.
+Supports axis mappings for movement and button mappings for actions/services.
+
+Author: Generated for ya_robot_manipulator
+License: MIT
+"""
+
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Joy, JointState
+from std_msgs.msg import Float64MultiArray
+from rcl_interfaces.msg import ParameterDescriptor
+import yaml
+
+
+class ConfigurableJoyController(Node):
+    """Maps joystick inputs to robot joint controllers based on YAML configuration"""
+
+    def __init__(self):
+        super().__init__('joy_controller_node')
+
+        # Declare parameters
+        self.declare_parameter('update_rate', 20.0)
+        self.declare_parameter('scale_linear', 0.5)
+        self.declare_parameter('scale_angular', 0.3)
+        self.declare_parameter('deadzone', 0.1)
+        self.declare_parameter('enable_button', 4)
+        self.declare_parameter('enable_turbo_button', 5)
+
+        # Get parameters
+        self.update_rate = self.get_parameter('update_rate').value
+        self.scale_linear = self.get_parameter('scale_linear').value
+        self.scale_angular = self.get_parameter('scale_angular').value
+        self.deadzone = self.get_parameter('deadzone').value
+        self.enable_button = self.get_parameter('enable_button').value
+        self.enable_turbo_button = self.get_parameter('enable_turbo_button').value
+
+        # Control state
+        self.enabled = False
+        self.turbo_enabled = False
+        self.last_joy = None
+        self.ever_enabled = False
+        self.joint_states_received = False
+
+        # Joint positions (current targets)
+        self.positions = {}
+        self.positions_initialized = {}
+        self.axis_mappings = {}
+        self.button_actions = {}
+        self.joint_publishers_dict = {}
+        self.joint_name_to_mapping = {}
+
+        # Load configuration
+        self._load_axis_mappings()
+        self._load_button_actions()
+
+        # Create publishers for each mapped controller
+        self._create_publishers()
+
+        # Subscribe to joint states
+        self.joint_state_sub = self.create_subscription(
+            JointState, '/joint_states', self.joint_state_callback, 10
+        )
+
+        # Subscribe to joystick
+        self.joy_sub = self.create_subscription(
+            Joy, 'joy', self.joy_callback, 10
+        )
+
+        # Timer for publishing commands
+        timer_period = 1.0 / self.update_rate
+        self.timer = self.create_timer(timer_period, self.publish_commands)
+
+        self.get_logger().info('Configurable Joy Controller started')
+]]></current-content>
+      <required-changes>
+        <change>Add TRAJECTORY_JOINTS and FORWARD_COMMAND_JOINTS constants</change>
+        <change>Add _load_joint_limits_from_params() to load from manipulator_params.yaml</change>
+        <change>Create ActionClients for 7 trajectory joints</change>
+        <change>Create Publishers only for 2 forward command joints</change>
+        <change>Add trajectory_timer (10Hz) separate from joy callback</change>
+        <change>Implement pending_targets accumulation in joy_callback</change>
+        <change>Implement _send_trajectory_goals() timer callback</change>
+        <change>Implement _send_trajectory_goal() with duration calculation</change>
+        <change>Implement _build_trajectory_goal() helper</change>
+        <change>Implement goal preemption (cancel previous goal)</change>
+        <change>Update button actions to route to correct controller type</change>
+      </required-changes>
+      <new-imports><![CDATA[
+import os
+from rclpy.action import ActionClient
+from control_msgs.action import FollowJointTrajectory
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from builtin_interfaces.msg import Duration
+from ament_index_python.packages import get_package_share_directory
+]]></new-imports>
+      <new-constants><![CDATA[
+# Joint classification for dual-mode control
+TRAJECTORY_JOINTS = frozenset([
+    'base_main_frame_joint',
+    'main_frame_selector_frame_joint',
+    'selector_frame_gripper_joint',
+    'selector_frame_picker_frame_joint',
+    'picker_frame_picker_rail_joint',
+    'picker_rail_picker_base_joint',
+    'picker_base_picker_jaw_joint'
+])
+
+FORWARD_COMMAND_JOINTS = frozenset([
+    'selector_left_container_jaw_joint',
+    'selector_right_container_jaw_joint'
+])
+]]></new-constants>
+    </file>
+
+    <file path="ros2_ws/src/joy_control/config/manipulator_joy_config.yaml" change="moderate">
+      <description>Remove duplicated limits, add trajectory parameters, use joint_name field</description>
+      <current-content><![CDATA[
+joy_controller_node:
+  ros__parameters:
+    update_rate: 20.0
+    scale_linear: 0.5
+    scale_angular: 0.3
+    deadzone: 0.1
+    enable_button: 4
+    enable_turbo_button: 5
+
+    # Base Railway - Left Stick Y
+    axis_mappings.base_main_frame.controller_topic: "/base_main_frame_joint_controller/commands"
+    axis_mappings.base_main_frame.axis_index: 1
+    axis_mappings.base_main_frame.axis_scale: -1.0
+    axis_mappings.base_main_frame.velocity_scale: 0.5
+    axis_mappings.base_main_frame.limits: [0.0, 4.0]
+
+    # Selector Vertical - Right Stick Y
+    axis_mappings.main_frame_selector_frame.controller_topic: "/main_frame_selector_frame_joint_controller/commands"
+    axis_mappings.main_frame_selector_frame.axis_index: 4
+    axis_mappings.main_frame_selector_frame.axis_scale: -1.0
+    axis_mappings.main_frame_selector_frame.velocity_scale: 0.3
+    axis_mappings.main_frame_selector_frame.limits: [0.0, 1.5]
+
+    # ... (other joints with duplicated limits)
+]]></current-content>
+      <target-content><![CDATA[
+joy_controller_node:
+  ros__parameters:
+    # Global Settings
+    update_rate: 20.0                # Joy callback rate (Hz)
+    trajectory_update_rate: 10.0     # Trajectory goal send rate (Hz)
+    scale_linear: 0.5
+    deadzone: 0.1
+    enable_button: 4                 # L1 - hold to enable
+    enable_turbo_button: 5           # R1 - hold for turbo
+
+    # Trajectory duration bounds (seconds)
+    trajectory_duration_min: 0.05    # Prevents micro-movements
+    trajectory_duration_max: 2.0     # Caps long motions
+
+    # Axis Mappings - NO LIMITS (loaded from manipulator_params.yaml)
+    # Base Railway - Left Stick Y
+    axis_mappings.base_main_frame.joint_name: "base_main_frame_joint"
+    axis_mappings.base_main_frame.axis_index: 1
+    axis_mappings.base_main_frame.axis_scale: -1.0
+    axis_mappings.base_main_frame.velocity_scale: 0.5
+
+    # Selector Vertical - Right Stick Y
+    axis_mappings.main_frame_selector_frame.joint_name: "main_frame_selector_frame_joint"
+    axis_mappings.main_frame_selector_frame.axis_index: 4
+    axis_mappings.main_frame_selector_frame.axis_scale: -1.0
+    axis_mappings.main_frame_selector_frame.velocity_scale: 0.3
+
+    # Gripper Y-axis - Right Stick X
+    axis_mappings.selector_frame_gripper.joint_name: "selector_frame_gripper_joint"
+    axis_mappings.selector_frame_gripper.axis_index: 3
+    axis_mappings.selector_frame_gripper.axis_scale: -1.0
+    axis_mappings.selector_frame_gripper.velocity_scale: 0.3
+
+    # Picker Vertical - D-Pad Y
+    axis_mappings.selector_frame_picker_frame.joint_name: "selector_frame_picker_frame_joint"
+    axis_mappings.selector_frame_picker_frame.axis_index: 7
+    axis_mappings.selector_frame_picker_frame.axis_scale: 1.0
+    axis_mappings.selector_frame_picker_frame.velocity_scale: 0.2
+
+    # Picker Y-axis - D-Pad X
+    axis_mappings.picker_frame_picker_rail.joint_name: "picker_frame_picker_rail_joint"
+    axis_mappings.picker_frame_picker_rail.axis_index: 6
+    axis_mappings.picker_frame_picker_rail.axis_scale: -1.0
+    axis_mappings.picker_frame_picker_rail.velocity_scale: 0.25
+
+    # Picker X-axis slider - Left Stick X
+    axis_mappings.picker_rail_picker_base.joint_name: "picker_rail_picker_base_joint"
+    axis_mappings.picker_rail_picker_base.axis_index: 0
+    axis_mappings.picker_rail_picker_base.axis_scale: -1.0
+    axis_mappings.picker_rail_picker_base.velocity_scale: 0.25
+
+    # Picker Jaw - Button controlled
+    axis_mappings.picker_base_picker_jaw.joint_name: "picker_base_picker_jaw_joint"
+    axis_mappings.picker_base_picker_jaw.axis_index: -1
+    axis_mappings.picker_base_picker_jaw.velocity_scale: 0.2
+
+    # Container Jaws - Button controlled, ForwardCommand
+    axis_mappings.selector_left_container_jaw.joint_name: "selector_left_container_jaw_joint"
+    axis_mappings.selector_left_container_jaw.axis_index: -1
+    axis_mappings.selector_left_container_jaw.velocity_scale: 0.3
+
+    axis_mappings.selector_right_container_jaw.joint_name: "selector_right_container_jaw_joint"
+    axis_mappings.selector_right_container_jaw.axis_index: -1
+    axis_mappings.selector_right_container_jaw.velocity_scale: 0.3
+
+    # Button Actions (unchanged)
+    # ...
+]]></target-content>
+      <changes-summary>
+        <removed>limits field from all axis_mappings</removed>
+        <removed>controller_topic field (derived from joint_name)</removed>
+        <added>joint_name field to each mapping</added>
+        <added>trajectory_update_rate parameter</added>
+        <added>trajectory_duration_min parameter</added>
+        <added>trajectory_duration_max parameter</added>
+      </changes-summary>
+    </file>
+
+    <file path="ros2_ws/src/joy_control/package.xml" change="minor">
+      <description>Add control_msgs dependency for FollowJointTrajectory action</description>
+      <add-dependency>control_msgs</add-dependency>
+    </file>
+
+    <file path="ros2_ws/src/joy_control/README.md" change="moderate">
+      <description>Document trajectory controller architecture, single source of truth, new parameters</description>
+      <required-sections>
+        <section name="Architecture">Document hybrid controller architecture with diagram</section>
+        <section name="Controller Types">Table showing trajectory vs forward command joints</section>
+        <section name="Single Source of Truth">Explain limits loaded from manipulator_params.yaml</section>
+        <section name="New Parameters">Document trajectory_update_rate, duration_min/max</section>
+        <section name="Troubleshooting">Add trajectory-specific issues</section>
+      </required-sections>
+    </file>
+  </files-to-modify>
+
+  <reference-documents>
+    <document path="docs/architecture-ros2-control-v2-CORRECTIONS.md" section="9.1" purpose="Joy control architecture"/>
+    <document path="docs/epics.md" section="Story 2.3.2" purpose="Acceptance criteria"/>
+    <document path="docs/sprint-artifacts/2-3-1-migrate-motion-joints-to-trajectory-controller.md" purpose="Trajectory migration reference"/>
+    <document path="ros2_ws/src/manipulator_description/config/manipulator_params.yaml" purpose="Single source of truth for limits"/>
+  </reference-documents>
+
+  <limits-reference source="manipulator_params.yaml">
+    <joint name="base_main_frame_joint" min="0.1" max="3.9" velocity="2.0"/>
+    <joint name="main_frame_selector_frame_joint" min="0.05" max="1.45" velocity="2.0"/>
+    <joint name="selector_frame_gripper_joint" min="-0.39" max="0.39" velocity="2.0"/>
+    <joint name="selector_frame_picker_frame_joint" min="0.005" max="0.29" velocity="2.0"/>
+    <joint name="picker_frame_picker_rail_joint" min="-0.29" max="0.29" velocity="2.0"/>
+    <joint name="picker_rail_picker_base_joint" min="0.005" max="0.24" velocity="2.0"/>
+    <joint name="picker_base_picker_jaw_joint" min="0.005" max="0.19" velocity="2.0"/>
+    <joint name="selector_left_container_jaw_joint" min="-0.19" max="0.19" velocity="2.0"/>
+    <joint name="selector_right_container_jaw_joint" min="-0.19" max="0.19" velocity="2.0"/>
+  </limits-reference>
+
+  <test-requirements>
+    <phase id="1" name="Build Verification">
+      <command>colcon build --packages-select joy_control</command>
+      <expected>Exit code 0</expected>
+    </phase>
+    <phase id="2" name="Action Client Verification">
+      <command>ros2 node info /joy_controller_node | grep "Action Clients"</command>
+      <expected>7 trajectory action clients</expected>
+    </phase>
+    <phase id="3" name="Trajectory Joint Motion Tests">
+      <description>Test all 7 trajectory joints for smooth motion</description>
+      <joints>
+        <joint name="base_main_frame_joint" control="Left Stick Y"/>
+        <joint name="main_frame_selector_frame_joint" control="Right Stick Y"/>
+        <joint name="selector_frame_gripper_joint" control="Right Stick X"/>
+        <joint name="selector_frame_picker_frame_joint" control="D-Pad Y"/>
+        <joint name="picker_frame_picker_rail_joint" control="D-Pad X"/>
+        <joint name="picker_rail_picker_base_joint" control="Left Stick X"/>
+        <joint name="picker_base_picker_jaw_joint" control="Triangle/Cross"/>
+      </joints>
+    </phase>
+    <phase id="4" name="Forward Command Joint Tests">
+      <description>Test both container jaws for instant response</description>
+      <joints>
+        <joint name="selector_left_container_jaw_joint" control="L2"/>
+        <joint name="selector_right_container_jaw_joint" control="L2"/>
+      </joints>
+    </phase>
+    <phase id="5" name="Visual Verification">
+      <description>Verify smooth motion in Gazebo</description>
+    </phase>
+    <phase id="6" name="Limits Verification">
+      <description>Verify limits match manipulator_params.yaml</description>
+    </phase>
+    <phase id="7" name="Button Actions Test">
+      <description>Test Triangle, Cross, L2, R2 buttons</description>
+    </phase>
+    <phase id="8" name="Comprehensive Script">
+      <description>Run automated verification script</description>
+    </phase>
+  </test-requirements>
+
+  <acceptance-criteria>
+    <criterion id="AC-1">7 motion joints use FollowJointTrajectory action clients</criterion>
+    <criterion id="AC-2">2 container jaws use /commands topic publishers</criterion>
+    <criterion id="AC-3">Limits loaded from manipulator_params.yaml at runtime</criterion>
+    <criterion id="AC-4">Velocities loaded from manipulator_params.yaml for duration calculation</criterion>
+    <criterion id="AC-5">Dual-timer architecture: Joy callback (20Hz) + Trajectory timer (10Hz)</criterion>
+    <criterion id="AC-6">Streaming trajectory goals provide smooth motion</criterion>
+    <criterion id="AC-7">Previous trajectory goal preempted when new goal sent</criterion>
+    <criterion id="AC-8">All 9 joints remain controllable via joystick</criterion>
+    <criterion id="AC-9">Container jaws respond instantly</criterion>
+    <criterion id="AC-10">Config file updated: limits removed, trajectory params added</criterion>
+    <criterion id="AC-11">README.md updated with architecture documentation</criterion>
+    <criterion id="AC-12">All tests pass for all 9 joints</criterion>
+  </acceptance-criteria>
+</story-context>

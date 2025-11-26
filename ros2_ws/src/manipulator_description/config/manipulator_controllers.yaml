@@ -1,5 +1,5 @@
 # ROS2 Control Configuration for Manipulator
-# Individual position controllers for each joint
+# Hybrid: JointTrajectoryController (7 motion) + ForwardCommandController (2 jaws)
 
 controller_manager:
   ros__parameters:
@@ -10,20 +10,40 @@ controller_manager:
       type: joint_state_broadcaster/JointStateBroadcaster
 
     # ============================================================
-    # BASE ASSEMBLY CONTROLLERS
+    # TRAJECTORY CONTROLLERS (7 motion joints)
     # ============================================================
 
     # X-axis railway controller
     base_main_frame_joint_controller:
-      type: forward_command_controller/ForwardCommandController
-
-    # ============================================================
-    # SELECTOR ASSEMBLY CONTROLLERS
-    # ============================================================
+      type: joint_trajectory_controller/JointTrajectoryController
 
     # Z-axis vertical controller
     main_frame_selector_frame_joint_controller:
-      type: forward_command_controller/ForwardCommandController
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    # Gripper Y-axis controller
+    selector_frame_gripper_joint_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    # Picker Z-axis vertical controller
+    selector_frame_picker_frame_joint_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    # Picker Y-axis rail controller
+    picker_frame_picker_rail_joint_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    # Picker X-axis base controller
+    picker_rail_picker_base_joint_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    # Picker X-axis jaw extension controller
+    picker_base_picker_jaw_joint_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    # ============================================================
+    # FORWARD COMMAND CONTROLLERS (2 container jaws)
+    # ============================================================
 
     # Left container jaw controller
     selector_left_container_jaw_joint_controller:
@@ -31,30 +51,6 @@ controller_manager:
 
     # Right container jaw controller (was mimic, but dartsim doesn't support it)
     selector_right_container_jaw_joint_controller:
-      type: forward_command_controller/ForwardCommandController
-
-    # Gripper Y-axis controller
-    selector_frame_gripper_joint_controller:
-      type: forward_command_controller/ForwardCommandController
-
-    # ============================================================
-    # PICKER ASSEMBLY CONTROLLERS
-    # ============================================================
-
-    # Picker Z-axis vertical controller
-    selector_frame_picker_frame_joint_controller:
-      type: forward_command_controller/ForwardCommandController
-
-    # Picker Y-axis rail controller
-    picker_frame_picker_rail_joint_controller:
-      type: forward_command_controller/ForwardCommandController
-
-    # Picker X-axis base controller
-    picker_rail_picker_base_joint_controller:
-      type: forward_command_controller/ForwardCommandController
-
-    # Picker X-axis jaw extension controller
-    picker_base_picker_jaw_joint_controller:
       type: forward_command_controller/ForwardCommandController
 
 # ============================================================
@@ -68,27 +64,161 @@ joint_state_broadcaster:
       - base_main_frame_joint
       - main_frame_selector_frame_joint
       - selector_left_container_jaw_joint
-      - selector_right_container_jaw_joint  # Mimic joint, state only
+      - selector_right_container_jaw_joint
       - selector_frame_gripper_joint
       - selector_frame_picker_frame_joint
       - picker_frame_picker_rail_joint
       - picker_rail_picker_base_joint
       - picker_base_picker_jaw_joint
 
-# Base Assembly Controllers
+# ============================================================
+# TRAJECTORY CONTROLLER CONFIGURATIONS (7 motion joints)
+# ============================================================
+
 base_main_frame_joint_controller:
   ros__parameters:
     joints:
       - base_main_frame_joint
-    interface_name: position
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    action_monitor_rate: 20.0
+    allow_partial_joints_goal: false
+    allow_nonzero_velocity_at_trajectory_end: true
+    interpolation_method: splines
+    constraints:
+      stopped_velocity_tolerance: 0.0  # Disable velocity check
+      goal_time: 0.0
+      base_main_frame_joint:
+        trajectory: 0.0  # Disable path tolerance checking
+        goal: 0.0  # Disable goal tolerance checking
 
 main_frame_selector_frame_joint_controller:
   ros__parameters:
     joints:
       - main_frame_selector_frame_joint
-    interface_name: position
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    action_monitor_rate: 20.0
+    allow_partial_joints_goal: false
+    allow_nonzero_velocity_at_trajectory_end: true
+    interpolation_method: splines
+    constraints:
+      stopped_velocity_tolerance: 0.0
+      goal_time: 0.0
+      main_frame_selector_frame_joint:
+        trajectory: 0.0
+        goal: 0.0
 
-# Selector Assembly Controllers
+selector_frame_gripper_joint_controller:
+  ros__parameters:
+    joints:
+      - selector_frame_gripper_joint
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    action_monitor_rate: 20.0
+    allow_partial_joints_goal: false
+    allow_nonzero_velocity_at_trajectory_end: true
+    interpolation_method: splines
+    constraints:
+      stopped_velocity_tolerance: 0.0
+      goal_time: 0.0
+      selector_frame_gripper_joint:
+        trajectory: 0.0
+        goal: 0.0
+
+selector_frame_picker_frame_joint_controller:
+  ros__parameters:
+    joints:
+      - selector_frame_picker_frame_joint
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    action_monitor_rate: 20.0
+    allow_partial_joints_goal: false
+    allow_nonzero_velocity_at_trajectory_end: true
+    interpolation_method: splines
+    constraints:
+      stopped_velocity_tolerance: 0.0
+      goal_time: 0.0
+      selector_frame_picker_frame_joint:
+        trajectory: 0.0
+        goal: 0.0
+
+picker_frame_picker_rail_joint_controller:
+  ros__parameters:
+    joints:
+      - picker_frame_picker_rail_joint
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    action_monitor_rate: 20.0
+    allow_partial_joints_goal: false
+    allow_nonzero_velocity_at_trajectory_end: true
+    interpolation_method: splines
+    constraints:
+      stopped_velocity_tolerance: 0.0
+      goal_time: 0.0
+      picker_frame_picker_rail_joint:
+        trajectory: 0.0
+        goal: 0.0
+
+picker_rail_picker_base_joint_controller:
+  ros__parameters:
+    joints:
+      - picker_rail_picker_base_joint
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    action_monitor_rate: 20.0
+    allow_partial_joints_goal: false
+    allow_nonzero_velocity_at_trajectory_end: true
+    interpolation_method: splines
+    constraints:
+      stopped_velocity_tolerance: 0.0
+      goal_time: 0.0
+      picker_rail_picker_base_joint:
+        trajectory: 0.0
+        goal: 0.0
+
+picker_base_picker_jaw_joint_controller:
+  ros__parameters:
+    joints:
+      - picker_base_picker_jaw_joint
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    action_monitor_rate: 20.0
+    allow_partial_joints_goal: false
+    allow_nonzero_velocity_at_trajectory_end: true
+    interpolation_method: splines
+    constraints:
+      stopped_velocity_tolerance: 0.0
+      goal_time: 0.0
+      picker_base_picker_jaw_joint:
+        trajectory: 0.0
+        goal: 0.0
+
+# ============================================================
+# FORWARD COMMAND CONTROLLER CONFIGURATIONS (2 container jaws)
+# ============================================================
+
 selector_left_container_jaw_joint_controller:
   ros__parameters:
     joints:
@@ -100,40 +230,3 @@ selector_right_container_jaw_joint_controller:
     joints:
       - selector_right_container_jaw_joint
     interface_name: position
-
-selector_frame_gripper_joint_controller:
-  ros__parameters:
-    joints:
-      - selector_frame_gripper_joint
-    interface_name: position
-
-# Picker Assembly Controllers
-selector_frame_picker_frame_joint_controller:
-  ros__parameters:
-    joints:
-      - selector_frame_picker_frame_joint
-    interface_name: position
-
-picker_frame_picker_rail_joint_controller:
-  ros__parameters:
-    joints:
-      - picker_frame_picker_rail_joint
-    interface_name: position
-
-picker_rail_picker_base_joint_controller:
-  ros__parameters:
-    joints:
-      - picker_rail_picker_base_joint
-    interface_name: position
-
-picker_base_picker_jaw_joint_controller:
-  ros__parameters:
-    joints:
-      - picker_base_picker_jaw_joint
-    interface_name: position
-
-# ============================================================
-# INITIAL POSITIONS (adjustable)
-# ============================================================
-# Note: Initial positions are set in ros2_control.xacro hardware interface
-# These values are for reference only

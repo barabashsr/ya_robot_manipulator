@@ -214,14 +214,14 @@ Before marking any story as `done`, verify:
 ## Epics Summary
 
 **Epic 1:** Package Setup & Interface Definitions (3 stories) - Foundation
-**Epic 2:** Simulation Foundation & Joint Control (6 stories) - Basic control + observability
+**Epic 2:** Simulation Foundation & Joint Control (8 stories) - Basic control + observability + trajectory controllers
 **Epic 3:** Address Navigation System (6 stories) - Navigate to any warehouse address
 **Epic 4A:** Box Extraction Core (5 stories) - Extract and return boxes from storage
 **Epic 4B:** Advanced Box Operations (4 stories) - Box relocation and loading stations
 **Epic 5:** Item Picking & Department Frames (8 stories) - Pick items from departments within boxes
 **Epic 6:** High-Level Workflows & System Integration (8 stories) - Complete autonomous operation + validation
 
-**Total: 7 epics, 40 stories**
+**Total: 7 epics, 42 stories**
 
 ---
 
@@ -451,6 +451,458 @@ So that I can test joint control and build higher-level coordinated motions.
 - **CREATE:** `config/action_servers.yaml` - NEW file for action-specific parameters only:
   - `timeout_sec`, `position_tolerance`, `feedback_rate` - these are action server parameters, NOT hardware config
 - **DO NOT DUPLICATE:** Joint limits in action_servers.yaml - get from ControllerInterface
+
+---
+
+### Story 2.3.1: Migrate Motion Joints to JointTrajectoryController
+
+As a developer,
+I want motion joints to use JointTrajectoryController with action-based interface,
+So that we have smooth trajectory interpolation, feedback during motion, and MoveIt2 compatibility.
+
+**Acceptance Criteria:**
+
+**Given** the current implementation uses ForwardCommandController for all 9 joints
+**When** I complete this migration story
+**Then** the system uses a hybrid controller architecture:
+
+**Controller Configuration:**
+- 7 motion joints use `JointTrajectoryController` (action-based: `FollowJointTrajectory`)
+- 2 container jaw joints remain `ForwardCommandController` (topic-based: `Float64MultiArray`)
+
+**Trajectory Controllers (7 joints):**
+- `base_main_frame_joint_controller`
+- `main_frame_selector_frame_joint_controller`
+- `selector_frame_gripper_joint_controller`
+- `selector_frame_picker_frame_joint_controller`
+- `picker_frame_picker_rail_joint_controller`
+- `picker_rail_picker_base_joint_controller`
+- `picker_base_picker_jaw_joint_controller`
+
+**Forward Controllers (2 jaws - unchanged):**
+- `selector_left_container_jaw_joint_controller`
+- `selector_right_container_jaw_joint_controller`
+
+**And** ControllerInterface utility supports dual-mode operation:
+- Automatically routes to appropriate controller type based on joint name
+- Same `command_joint()` API for all joints (abstraction preserved)
+- New `command_trajectory_with_callback()` method for async trajectory goals
+- New `wait_for_action_servers()` method for startup synchronization
+- New `cancel_trajectory()` method for preemption
+
+**And** MoveJoint action server continues to work unchanged (uses ControllerInterface abstraction)
+**And** `ros2 control list_controllers` shows correct controller types
+**And** all existing tests pass with new controller architecture
+
+**Prerequisites:** Story 2.2 (ControllerInterface), Story 2.3 (MoveJoint action server)
+
+**Technical Notes:**
+- Reference migration plan: `docs/migration-forward-to-trajectory-controllers.md`
+- Reference updated architecture: Section 1 "Controller Architecture (Hybrid: Trajectory + Forward Controllers)"
+- Controller YAML: `manipulator_description/config/manipulator_controllers.yaml` - full replacement
+- ControllerInterface: `manipulator_control/src/controller_interface.py` - major rewrite for dual-mode
+- Launch file: No changes needed (controller names unchanged, only types changed in YAML)
+
+**JointTrajectoryController Parameters (per joint):**
+```yaml
+{joint}_controller:
+  ros__parameters:
+    joints: [{joint_name}]
+    command_interfaces: [position]
+    state_interfaces: [position, velocity]
+    action_monitor_rate: 20.0
+    allow_partial_joints_goal: false
+    allow_nonzero_velocity_at_trajectory_end: false
+    interpolation_method: splines
+    constraints:
+      stopped_velocity_tolerance: 0.01
+      goal_time: 0.0
+      {joint_name}:
+        trajectory: 0.1  # Path tolerance (m)
+        goal: 0.01       # Goal tolerance (m) - matches NFR-002
+```
+
+**New ROS2 Actions (7):**
+```
+/base_main_frame_joint_controller/follow_joint_trajectory
+/main_frame_selector_frame_joint_controller/follow_joint_trajectory
+/selector_frame_gripper_joint_controller/follow_joint_trajectory
+/selector_frame_picker_frame_joint_controller/follow_joint_trajectory
+/picker_frame_picker_rail_joint_controller/follow_joint_trajectory
+/picker_rail_picker_base_joint_controller/follow_joint_trajectory
+/picker_base_picker_jaw_joint_controller/follow_joint_trajectory
+```
+
+**Removed Topics (7):**
+```
+/base_main_frame_joint_controller/commands
+/main_frame_selector_frame_joint_controller/commands
+/selector_frame_gripper_joint_controller/commands
+/selector_frame_picker_frame_joint_controller/commands
+/picker_frame_picker_rail_joint_controller/commands
+/picker_rail_picker_base_joint_controller/commands
+/picker_base_picker_jaw_joint_controller/commands
+```
+
+**Unchanged Topics (2):**
+```
+/selector_left_container_jaw_joint_controller/commands
+/selector_right_container_jaw_joint_controller/commands
+```
+
+**Benefits Delivered:**
+| Benefit | Description |
+|---------|-------------|
+| Smooth motion | Spline interpolation eliminates jerky position jumps |
+| Motion feedback | Progress updates during trajectory execution |
+| Goal monitoring | Built-in tolerance and timeout handling |
+| Preemption support | Cancel trajectories mid-execution |
+| MoveIt2 ready | `FollowJointTrajectory` is MoveIt's native interface |
+
+**Testing Verification:**
+1. `ros2 control list_controllers` - verify 7 trajectory + 2 forward types
+2. `ros2 action list` - verify 7 trajectory actions available
+3. Send trajectory goal via CLI and verify smooth motion
+4. Send forward command to container jaws and verify operation
+5. Run existing MoveJoint tests - all must pass
+
+**Rollback Plan:**
+```bash
+# Quick rollback (YAML only)
+git checkout HEAD -- ros2_ws/src/manipulator_description/config/manipulator_controllers.yaml
+colcon build --packages-select manipulator_description
+```
+
+---
+
+### Story 2.3.2: Update joy_control Package for Trajectory Controllers
+
+As a developer,
+I want the joy_control package to use JointTrajectoryController for motion joints and load limits from manipulator_params.yaml,
+So that joystick control provides smooth motion compatible with the new architecture and follows the single-source-of-truth principle.
+
+**Acceptance Criteria:**
+
+**Given** joy_control currently uses ForwardCommandController topics (jerky motion) and hardcoded limits
+**When** I complete this migration story
+**Then** the joy_control package provides smooth joystick control via trajectory interpolation
+
+**1. Smooth Motion via Streaming Trajectory Goals:**
+- Joystick axis → velocity calculation (preserves current feel)
+- Velocity → position target accumulation
+- Position targets → trajectory goals at controlled rate (10Hz)
+- Trajectory controller provides smooth interpolation between goals
+- Previous goal preempted when new goal sent
+
+**2. Dual Timer Architecture:**
+```
+Joy Callback (20Hz)              Trajectory Timer (10Hz)
+      │                                  │
+      ▼                                  ▼
+Read joystick axes              Send accumulated targets
+      │                         as trajectory goals
+      ▼                                  │
+Calculate velocity                       ▼
+      │                         Trajectory controller
+      ▼                         interpolates smoothly
+Accumulate target position              │
+in pending_targets dict                  ▼
+      │                         Robot moves smoothly
+      ▼
+Clamp to limits (from manipulator_params.yaml)
+```
+
+**3. Controller Interface per Joint Type:**
+- 7 motion joints: `FollowJointTrajectory` action clients (smooth interpolation)
+- 2 container jaw joints: `/commands` topic publishers (instant response)
+
+**Motion Joints (Trajectory - smooth):**
+- `base_main_frame_joint` → action client
+- `main_frame_selector_frame_joint` → action client
+- `selector_frame_gripper_joint` → action client
+- `selector_frame_picker_frame_joint` → action client
+- `picker_frame_picker_rail_joint` → action client
+- `picker_rail_picker_base_joint` → action client
+- `picker_base_picker_jaw_joint` → action client
+
+**Container Jaws (ForwardCommand - instant):**
+- `selector_left_container_jaw_joint` → topic publisher
+- `selector_right_container_jaw_joint` → topic publisher
+
+**4. Loads Joint Limits and Velocities from manipulator_params.yaml:**
+- Remove hardcoded `limits: [min, max]` from `manipulator_joy_config.yaml`
+- Load `safety_controller.soft_lower` and `safety_controller.soft_upper` for position limits
+- Load `limits.velocity` for trajectory duration calculation
+- Use `ament_index_python` to locate config file at runtime
+
+**Current Duplicated Limits (TO REMOVE):**
+```yaml
+# These are WRONG - duplicated and don't match safety_controller values
+axis_mappings.base_main_frame.limits: [0.0, 4.0]  # Should be [0.1, 3.9]
+axis_mappings.main_frame_selector_frame.limits: [0.0, 1.5]  # Should be [0.05, 1.45]
+axis_mappings.selector_frame_gripper.limits: [-0.4, 0.4]  # Should be [-0.39, 0.39]
+# ... etc
+```
+
+**And** joystick control feels responsive (velocity-based input preserved)
+**And** motion is smooth (no jerky steps)
+**And** joint velocity limits are respected (from manipulator_params.yaml)
+**And** all 9 joints remain controllable via joystick
+**And** container jaws still respond instantly (ForwardCommand behavior unchanged)
+
+**Prerequisites:** Story 2.3.1 (Trajectory controllers deployed)
+
+**Technical Notes:**
+- Reference migration plan: `docs/migration-forward-to-trajectory-controllers.md`
+- Reference architecture: Section 9.1 "Joystick Control Package"
+- Trajectory goals sent at 10Hz (configurable) for smooth streaming
+- Duration calculated from distance and max velocity from manipulator_params.yaml
+- Use `send_goal_async` with goal preemption for responsive control
+- Minimum trajectory duration prevents micro-movements
+
+**Implementation - Core Classes:**
+
+```python
+class JoyControllerNode(Node):
+    """Joystick controller with streaming trajectory goals for smooth motion"""
+
+    # Joint classification
+    TRAJECTORY_JOINTS = frozenset([
+        'base_main_frame_joint',
+        'main_frame_selector_frame_joint',
+        'selector_frame_gripper_joint',
+        'selector_frame_picker_frame_joint',
+        'picker_frame_picker_rail_joint',
+        'picker_rail_picker_base_joint',
+        'picker_base_picker_jaw_joint'
+    ])
+
+    FORWARD_COMMAND_JOINTS = frozenset([
+        'selector_left_container_jaw_joint',
+        'selector_right_container_jaw_joint'
+    ])
+
+    def __init__(self):
+        super().__init__('joy_controller_node')
+
+        # Load joint limits from manipulator_params.yaml (single source of truth)
+        self.joint_limits = self._load_joint_limits_from_params()
+
+        # Trajectory control state
+        self.pending_targets = {}      # Accumulated target positions
+        self.last_sent_targets = {}    # Last sent to prevent duplicate goals
+        self.current_goal_handles = {} # For preemption
+
+        # Create action clients for trajectory joints
+        self.trajectory_clients = {}
+        for joint in self.TRAJECTORY_JOINTS:
+            action_name = f'/{joint}_controller/follow_joint_trajectory'
+            self.trajectory_clients[joint] = ActionClient(
+                self, FollowJointTrajectory, action_name
+            )
+
+        # Create publishers for forward command joints
+        self.forward_publishers = {}
+        for joint in self.FORWARD_COMMAND_JOINTS:
+            topic = f'/{joint}_controller/commands'
+            self.forward_publishers[joint] = self.create_publisher(
+                Float64MultiArray, topic, 10
+            )
+
+        # Dual timer architecture
+        self.joy_update_rate = 20.0  # Hz - joy callback rate
+        self.trajectory_update_rate = 10.0  # Hz - trajectory goal rate
+
+        # Joy callback processes input at 20Hz
+        self.joy_sub = self.create_subscription(Joy, 'joy', self.joy_callback, 10)
+
+        # Trajectory timer sends goals at 10Hz
+        self.trajectory_timer = self.create_timer(
+            1.0 / self.trajectory_update_rate,
+            self.send_trajectory_goals
+        )
+
+    def _load_joint_limits_from_params(self) -> dict:
+        """Load limits and velocities from manipulator_params.yaml"""
+        pkg_path = get_package_share_directory('manipulator_description')
+        params_file = os.path.join(pkg_path, 'config', 'manipulator_params.yaml')
+
+        with open(params_file, 'r') as f:
+            params = yaml.safe_load(f)
+
+        limits = {}
+        for assembly_name, assembly in params.items():
+            if not isinstance(assembly, dict):
+                continue
+            for key, value in assembly.items():
+                if isinstance(value, dict) and 'safety_controller' in value:
+                    sc = value['safety_controller']
+                    limits[key] = {
+                        'min': sc['soft_lower'],
+                        'max': sc['soft_upper'],
+                        'velocity': value.get('limits', {}).get('velocity', 1.0),
+                    }
+        return limits
+
+    def joy_callback(self, msg: Joy):
+        """Process joystick input - accumulate target positions"""
+        if not self.enabled:
+            return
+
+        dt = 1.0 / self.joy_update_rate
+
+        for joint_name, mapping in self.axis_mappings.items():
+            axis_value = self.get_axis_value(msg, mapping)
+            if abs(axis_value) < 0.01:
+                continue  # Deadzone
+
+            # Velocity mode: calculate target from current + velocity * dt
+            velocity = axis_value * mapping['velocity_scale'] * self.scale_linear
+            if self.turbo_enabled:
+                velocity *= 2.0
+
+            current = self.joint_positions.get(joint_name, 0.0)
+            target = current + velocity * dt
+
+            # Clamp to limits from manipulator_params.yaml
+            limits = self.joint_limits.get(joint_name, {'min': -1.0, 'max': 1.0})
+            target = max(limits['min'], min(limits['max'], target))
+
+            # Accumulate target
+            self.pending_targets[joint_name] = target
+
+    def send_trajectory_goals(self):
+        """Send accumulated targets as trajectory goals (10Hz)"""
+        if not self.enabled or not self.ever_enabled:
+            return
+
+        for joint_name, target in list(self.pending_targets.items()):
+            # Skip if target hasn't changed significantly
+            last_sent = self.last_sent_targets.get(joint_name, None)
+            if last_sent is not None and abs(target - last_sent) < 0.001:
+                continue
+
+            if joint_name in self.TRAJECTORY_JOINTS:
+                self._send_trajectory_goal(joint_name, target)
+            elif joint_name in self.FORWARD_COMMAND_JOINTS:
+                self._send_forward_command(joint_name, target)
+
+            self.last_sent_targets[joint_name] = target
+
+    def _send_trajectory_goal(self, joint_name: str, target: float):
+        """Send trajectory goal with calculated duration"""
+        client = self.trajectory_clients.get(joint_name)
+        if not client or not client.server_is_ready():
+            return
+
+        # Cancel previous goal for this joint (preemption)
+        if joint_name in self.current_goal_handles:
+            old_handle = self.current_goal_handles[joint_name]
+            if old_handle is not None:
+                old_handle.cancel_goal_async()
+
+        # Calculate duration from distance and max velocity
+        current = self.joint_positions.get(joint_name, target)
+        distance = abs(target - current)
+        max_velocity = self.joint_limits[joint_name]['velocity']
+
+        duration = distance / max_velocity if max_velocity > 0 else 0.5
+        duration = max(0.05, min(2.0, duration))  # Clamp to [0.05, 2.0] seconds
+
+        # Build trajectory
+        trajectory = JointTrajectory()
+        trajectory.joint_names = [joint_name]
+
+        point = JointTrajectoryPoint()
+        point.positions = [target]
+        point.velocities = [0.0]
+        point.time_from_start = Duration(
+            sec=int(duration),
+            nanosec=int((duration % 1) * 1e9)
+        )
+        trajectory.points = [point]
+
+        goal = FollowJointTrajectory.Goal()
+        goal.trajectory = trajectory
+
+        # Send goal async
+        future = client.send_goal_async(goal)
+        future.add_done_callback(
+            lambda f, jn=joint_name: self._on_goal_response(f, jn)
+        )
+
+    def _on_goal_response(self, future, joint_name: str):
+        """Store goal handle for potential preemption"""
+        goal_handle = future.result()
+        if goal_handle.accepted:
+            self.current_goal_handles[joint_name] = goal_handle
+
+    def _send_forward_command(self, joint_name: str, target: float):
+        """Send forward command for container jaws (instant)"""
+        publisher = self.forward_publishers.get(joint_name)
+        if publisher:
+            msg = Float64MultiArray()
+            msg.data = [target]
+            publisher.publish(msg)
+```
+
+**Updated Config Format (manipulator_joy_config.yaml):**
+```yaml
+joy_controller_node:
+  ros__parameters:
+    # Global settings
+    update_rate: 20.0              # Joy callback rate (Hz)
+    trajectory_update_rate: 10.0   # Trajectory goal send rate (Hz)
+    scale_linear: 0.5
+    deadzone: 0.1
+    enable_button: 4               # L1
+    enable_turbo_button: 5         # R1
+
+    # Trajectory duration bounds
+    trajectory_duration_min: 0.05  # Minimum duration (s) - prevents micro-movements
+    trajectory_duration_max: 2.0   # Maximum duration (s)
+
+    # Axis mappings - NO LIMITS (loaded from manipulator_params.yaml)
+    axis_mappings.base_main_frame.joint_name: "base_main_frame_joint"
+    axis_mappings.base_main_frame.axis_index: 1
+    axis_mappings.base_main_frame.axis_scale: -1.0
+    axis_mappings.base_main_frame.velocity_scale: 0.5
+
+    axis_mappings.main_frame_selector_frame.joint_name: "main_frame_selector_frame_joint"
+    axis_mappings.main_frame_selector_frame.axis_index: 4
+    axis_mappings.main_frame_selector_frame.axis_scale: -1.0
+    axis_mappings.main_frame_selector_frame.velocity_scale: 0.3
+
+    # ... etc for all joints
+    # NOTE: limits field REMOVED - loaded from manipulator_params.yaml
+    # NOTE: controller_topic field REMOVED - derived from joint_name
+```
+
+**Testing Verification:**
+1. Launch simulation with trajectory controllers
+2. Enable joystick control (hold L1)
+3. Move base joint slowly - verify smooth motion (no steps)
+4. Move base joint quickly with turbo (R1) - verify still smooth
+5. Release joystick - verify smooth deceleration to stop
+6. Verify container jaws respond instantly (no interpolation delay)
+7. Verify joint limits match `manipulator_params.yaml` safety_controller values
+8. Verify velocity respects `manipulator_params.yaml` limits.velocity values
+
+**Files Modified:**
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `joy_control/scripts/joy_controller_node.py` | Major | Streaming trajectory goals, dual timer, load limits from params |
+| `joy_control/config/manipulator_joy_config.yaml` | Moderate | Remove limits, add trajectory params |
+| `joy_control/package.xml` | Minor | Add dependency on `control_msgs`, `rclpy.action` |
+
+**Why This Approach (Option C) Provides Smooth Motion:**
+
+| Issue with Current | Solution in Option C |
+|-------------------|---------------------|
+| ForwardCommand jumps to position instantly | Trajectory controller interpolates smoothly |
+| 20Hz position updates create steps | 10Hz trajectory goals with spline interpolation |
+| No velocity profile | Duration calculated from max velocity |
+| Abrupt stops when releasing joystick | Trajectory completes smoothly to last target |
 
 ---
 

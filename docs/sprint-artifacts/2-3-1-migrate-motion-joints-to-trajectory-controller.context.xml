@@ -1,0 +1,597 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<story-context story-id="2.3.1" title="Migrate Motion Joints to JointTrajectoryController">
+  <metadata>
+    <created>2025-11-26</created>
+    <epic>Epic 2: Simulation Foundation &amp; Joint Control</epic>
+    <prerequisites>
+      <story id="2.2" status="done">Create Controller Interface Utility</story>
+      <story id="2.3" status="done">Implement MoveJoint Action Server</story>
+    </prerequisites>
+  </metadata>
+
+  <summary>
+    Migrate 7 motion joints from ForwardCommandController to JointTrajectoryController
+    for smooth trajectory interpolation. Container jaws (2 joints) remain on ForwardCommandController.
+    ControllerInterface must support dual-mode operation.
+  </summary>
+
+  <joint-classification>
+    <trajectory-joints count="7" controller="joint_trajectory_controller/JointTrajectoryController">
+      <joint name="base_main_frame_joint" axis="X" range="0.1-3.9m"/>
+      <joint name="main_frame_selector_frame_joint" axis="Z" range="0.05-1.45m"/>
+      <joint name="selector_frame_gripper_joint" axis="Y" range="-0.39-0.39m"/>
+      <joint name="selector_frame_picker_frame_joint" axis="Z" range="0.005-0.29m"/>
+      <joint name="picker_frame_picker_rail_joint" axis="Y" range="-0.29-0.29m"/>
+      <joint name="picker_rail_picker_base_joint" axis="X" range="0.005-0.24m"/>
+      <joint name="picker_base_picker_jaw_joint" axis="X" range="0.005-0.19m"/>
+    </trajectory-joints>
+    <forward-command-joints count="2" controller="forward_command_controller/ForwardCommandController">
+      <joint name="selector_left_container_jaw_joint" axis="Y" range="-0.19-0.19m"/>
+      <joint name="selector_right_container_jaw_joint" axis="Y" range="-0.19-0.19m"/>
+    </forward-command-joints>
+  </joint-classification>
+
+  <files-to-modify>
+    <file path="ros2_ws/src/manipulator_description/config/manipulator_controllers.yaml" change="major">
+      <description>Change controller types from ForwardCommandController to JointTrajectoryController for 7 motion joints</description>
+      <current-content><![CDATA[
+# ROS2 Control Configuration for Manipulator
+# Individual position controllers for each joint
+
+controller_manager:
+  ros__parameters:
+    update_rate: 100  # Hz
+
+    # Joint State Broadcaster (publishes /joint_states)
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    # ============================================================
+    # BASE ASSEMBLY CONTROLLERS
+    # ============================================================
+
+    # X-axis railway controller
+    base_main_frame_joint_controller:
+      type: forward_command_controller/ForwardCommandController
+
+    # ============================================================
+    # SELECTOR ASSEMBLY CONTROLLERS
+    # ============================================================
+
+    # Z-axis vertical controller
+    main_frame_selector_frame_joint_controller:
+      type: forward_command_controller/ForwardCommandController
+
+    # Left container jaw controller
+    selector_left_container_jaw_joint_controller:
+      type: forward_command_controller/ForwardCommandController
+
+    # Right container jaw controller (was mimic, but dartsim doesn't support it)
+    selector_right_container_jaw_joint_controller:
+      type: forward_command_controller/ForwardCommandController
+
+    # Gripper Y-axis controller
+    selector_frame_gripper_joint_controller:
+      type: forward_command_controller/ForwardCommandController
+
+    # ============================================================
+    # PICKER ASSEMBLY CONTROLLERS
+    # ============================================================
+
+    # Picker Z-axis vertical controller
+    selector_frame_picker_frame_joint_controller:
+      type: forward_command_controller/ForwardCommandController
+
+    # Picker Y-axis rail controller
+    picker_frame_picker_rail_joint_controller:
+      type: forward_command_controller/ForwardCommandController
+
+    # Picker X-axis base controller
+    picker_rail_picker_base_joint_controller:
+      type: forward_command_controller/ForwardCommandController
+
+    # Picker X-axis jaw extension controller
+    picker_base_picker_jaw_joint_controller:
+      type: forward_command_controller/ForwardCommandController
+
+# ============================================================
+# CONTROLLER CONFIGURATIONS
+# ============================================================
+
+# Joint State Broadcaster
+joint_state_broadcaster:
+  ros__parameters:
+    joints:
+      - base_main_frame_joint
+      - main_frame_selector_frame_joint
+      - selector_left_container_jaw_joint
+      - selector_right_container_jaw_joint
+      - selector_frame_gripper_joint
+      - selector_frame_picker_frame_joint
+      - picker_frame_picker_rail_joint
+      - picker_rail_picker_base_joint
+      - picker_base_picker_jaw_joint
+
+# Base Assembly Controllers
+base_main_frame_joint_controller:
+  ros__parameters:
+    joints:
+      - base_main_frame_joint
+    interface_name: position
+
+main_frame_selector_frame_joint_controller:
+  ros__parameters:
+    joints:
+      - main_frame_selector_frame_joint
+    interface_name: position
+
+# Selector Assembly Controllers
+selector_left_container_jaw_joint_controller:
+  ros__parameters:
+    joints:
+      - selector_left_container_jaw_joint
+    interface_name: position
+
+selector_right_container_jaw_joint_controller:
+  ros__parameters:
+    joints:
+      - selector_right_container_jaw_joint
+    interface_name: position
+
+selector_frame_gripper_joint_controller:
+  ros__parameters:
+    joints:
+      - selector_frame_gripper_joint
+    interface_name: position
+
+# Picker Assembly Controllers
+selector_frame_picker_frame_joint_controller:
+  ros__parameters:
+    joints:
+      - selector_frame_picker_frame_joint
+    interface_name: position
+
+picker_frame_picker_rail_joint_controller:
+  ros__parameters:
+    joints:
+      - picker_frame_picker_rail_joint
+    interface_name: position
+
+picker_rail_picker_base_joint_controller:
+  ros__parameters:
+    joints:
+      - picker_rail_picker_base_joint
+    interface_name: position
+
+picker_base_picker_jaw_joint_controller:
+  ros__parameters:
+    joints:
+      - picker_base_picker_jaw_joint
+    interface_name: position
+]]></current-content>
+      <target-structure><![CDATA[
+# ROS2 Control Configuration for Manipulator
+# Hybrid: JointTrajectoryController (7 motion) + ForwardCommandController (2 jaws)
+
+controller_manager:
+  ros__parameters:
+    update_rate: 100  # Hz
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    # TRAJECTORY CONTROLLERS (7 motion joints)
+    base_main_frame_joint_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    main_frame_selector_frame_joint_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    selector_frame_gripper_joint_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    selector_frame_picker_frame_joint_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    picker_frame_picker_rail_joint_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    picker_rail_picker_base_joint_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    picker_base_picker_jaw_joint_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    # FORWARD COMMAND CONTROLLERS (2 container jaws)
+    selector_left_container_jaw_joint_controller:
+      type: forward_command_controller/ForwardCommandController
+
+    selector_right_container_jaw_joint_controller:
+      type: forward_command_controller/ForwardCommandController
+
+# TRAJECTORY CONTROLLER CONFIGURATION TEMPLATE
+# Apply to each of the 7 trajectory joints
+base_main_frame_joint_controller:
+  ros__parameters:
+    joints:
+      - base_main_frame_joint
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    action_monitor_rate: 20.0
+    allow_partial_joints_goal: false
+    allow_nonzero_velocity_at_trajectory_end: false
+    interpolation_method: splines
+    constraints:
+      stopped_velocity_tolerance: 0.01
+      goal_time: 0.0
+      base_main_frame_joint:
+        trajectory: 0.1
+        goal: 0.01
+
+# ... (repeat for other 6 trajectory joints)
+
+# FORWARD COMMAND CONTROLLER CONFIGURATION (unchanged)
+selector_left_container_jaw_joint_controller:
+  ros__parameters:
+    joints:
+      - selector_left_container_jaw_joint
+    interface_name: position
+
+selector_right_container_jaw_joint_controller:
+  ros__parameters:
+    joints:
+      - selector_right_container_jaw_joint
+    interface_name: position
+]]></target-structure>
+    </file>
+
+    <file path="ros2_ws/src/manipulator_control/src/controller_interface.py" change="major">
+      <description>Add dual-mode support: ActionClient for trajectory joints, Publisher for forward command joints</description>
+      <current-content><![CDATA[
+#!/usr/bin/env python3
+"""
+Controller Interface Utility
+
+Utility class for commanding individual ForwardCommandControllers.
+NOT a ROS2 node - requires parent node reference for publishers/subscribers.
+
+Single Source of Truth: Joint soft limits loaded from manipulator_params.yaml
+Topic Pattern: /{joint_name}_controller/command (std_msgs/Float64)
+"""
+
+from typing import Dict, List, Optional, Tuple
+import os
+import yaml
+
+from rclpy.node import Node
+from std_msgs.msg import Float64MultiArray
+from sensor_msgs.msg import JointState
+from ament_index_python.packages import get_package_share_directory
+
+
+class ControllerInterface:
+    """
+    Utility for commanding individual ForwardCommandControllers.
+
+    This class is NOT a ROS2 node - it requires a parent node to be passed
+    during initialization. This allows action servers to share this utility
+    without creating separate node instances.
+
+    Usage:
+        class MyActionServer(Node):
+            def __init__(self):
+                super().__init__('my_action_server')
+                self.controller = ControllerInterface(self)
+
+                # Command a joint
+                success = self.controller.command_joint('base_main_frame_joint', 1.5)
+    """
+
+    def __init__(self, node: Node):
+        """
+        Initialize ControllerInterface with reference to parent ROS2 node.
+
+        Args:
+            node: ROS2 node instance for creating publishers/subscribers
+        """
+        self.node = node
+        self.logger = node.get_logger()
+
+        # Load joint limits from manipulator_params.yaml (single source of truth)
+        self.joint_limits = self._load_joint_limits_from_params()
+
+        if not self.joint_limits:
+            self.logger.error('No joint limits loaded - ControllerInterface not functional')
+            return
+
+        self.logger.info(f'Loaded limits for {len(self.joint_limits)} joints')
+
+        # Create publishers for each controller (topic pattern: /{joint_name}_controller/commands)
+        # ForwardCommandController uses Float64MultiArray on /commands topic
+        self.publishers: Dict[str, any] = {}
+        for joint_name in self.joint_limits.keys():
+            topic = f'/{joint_name}_controller/commands'
+            self.publishers[joint_name] = node.create_publisher(Float64MultiArray, topic, 10)
+            self.logger.debug(f'Created publisher for {topic}')
+
+        # Subscribe to joint states for position feedback
+        self.joint_positions: Dict[str, float] = {}
+        self._joint_state_sub = node.create_subscription(
+            JointState,
+            '/joint_states',
+            self._joint_state_cb,
+            10
+        )
+
+    def _load_joint_limits_from_params(self) -> Dict[str, Dict[str, float]]:
+        """
+        Load soft limits from manipulator_params.yaml (single source of truth).
+
+        Returns:
+            Dict mapping joint_name -> {'min': float, 'max': float, 'velocity': float}
+        """
+        try:
+            pkg_path = get_package_share_directory('manipulator_description')
+            params_file = os.path.join(pkg_path, 'config', 'manipulator_params.yaml')
+
+            with open(params_file, 'r') as f:
+                params = yaml.safe_load(f)
+
+            limits = {}
+            # Search through all assemblies for joint definitions
+            for assembly_name, assembly in params.items():
+                if not isinstance(assembly, dict):
+                    continue
+                for key, value in assembly.items():
+                    # Joint entries have 'safety_controller' with soft limits
+                    if isinstance(value, dict) and 'safety_controller' in value:
+                        joint_name = key
+                        sc = value['safety_controller']
+                        limits[joint_name] = {
+                            'min': sc['soft_lower'],
+                            'max': sc['soft_upper'],
+                            'velocity': value.get('limits', {}).get('velocity', 1.0),
+                        }
+
+            self.logger.info(f'Loaded joint limits from {params_file}')
+            return limits
+
+        except FileNotFoundError as e:
+            self.logger.error(f'manipulator_params.yaml not found: {e}')
+            return {}
+        except Exception as e:
+            self.logger.error(f'Error loading joint limits: {e}')
+            return {}
+
+    def _joint_state_cb(self, msg: JointState) -> None:
+        """
+        Update position cache from /joint_states topic.
+
+        Args:
+            msg: JointState message containing joint positions
+        """
+        for i, name in enumerate(msg.name):
+            if i < len(msg.position):
+                self.joint_positions[name] = msg.position[i]
+
+    def command_joint(self, joint_name: str, position: float) -> bool:
+        """
+        Command a single joint to target position.
+
+        Args:
+            joint_name: Name of joint to command
+            position: Target position (validated against soft limits)
+
+        Returns:
+            True if command sent successfully, False if validation failed
+        """
+        # Validate joint exists
+        if joint_name not in self.joint_limits:
+            self.logger.warning(f'Unknown joint: {joint_name}')
+            return False
+
+        # Validate position against soft limits
+        limits = self.joint_limits[joint_name]
+        if not (limits['min'] <= position <= limits['max']):
+            self.logger.warning(
+                f"Position {position} outside soft limits "
+                f"[{limits['min']}, {limits['max']}] for {joint_name}"
+            )
+            return False
+
+        # Publish command (Float64MultiArray with single element)
+        msg = Float64MultiArray()
+        msg.data = [float(position)]
+        self.publishers[joint_name].publish(msg)
+        return True
+
+    def command_joint_group(self, joint_names: List[str], positions: List[float]) -> bool:
+        """
+        Command multiple joints simultaneously.
+
+        All commands sent in rapid succession. Returns False if ANY joint
+        fails validation (no partial commands sent).
+
+        Args:
+            joint_names: List of joint names to command
+            positions: List of target positions (same order as joint_names)
+
+        Returns:
+            True if all commands sent, False if any validation failed
+        """
+        if len(joint_names) != len(positions):
+            self.logger.warning(
+                f'Mismatched lengths: {len(joint_names)} joints, {len(positions)} positions'
+            )
+            return False
+
+        # Validate all joints first (fail fast, no partial commands)
+        for joint_name, position in zip(joint_names, positions):
+            if joint_name not in self.joint_limits:
+                self.logger.warning(f'Unknown joint in group: {joint_name}')
+                return False
+
+            limits = self.joint_limits[joint_name]
+            if not (limits['min'] <= position <= limits['max']):
+                self.logger.warning(
+                    f"Position {position} outside soft limits "
+                    f"[{limits['min']}, {limits['max']}] for {joint_name}"
+                )
+                return False
+
+        # All validated - send commands (Float64MultiArray with single element each)
+        for joint_name, position in zip(joint_names, positions):
+            msg = Float64MultiArray()
+            msg.data = [float(position)]
+            self.publishers[joint_name].publish(msg)
+
+        return True
+
+    def get_joint_position(self, joint_name: str) -> Optional[float]:
+        """
+        Get current joint position from /joint_states cache.
+
+        Args:
+            joint_name: Name of joint to query
+
+        Returns:
+            Current position, or None if joint not found or no data received
+        """
+        return self.joint_positions.get(joint_name)
+
+    def get_joint_limits(self, joint_name: str) -> Optional[Tuple[float, float]]:
+        """
+        Get soft limits for a joint.
+
+        Args:
+            joint_name: Name of joint to query
+
+        Returns:
+            Tuple (min_limit, max_limit), or None if joint unknown
+        """
+        if joint_name not in self.joint_limits:
+            return None
+        limits = self.joint_limits[joint_name]
+        return (limits['min'], limits['max'])
+
+    def get_all_joint_names(self) -> List[str]:
+        """
+        Get list of all known joint names.
+
+        Returns:
+            List of joint names with configured limits
+        """
+        return list(self.joint_limits.keys())
+]]></current-content>
+      <required-changes>
+        <change>Add TRAJECTORY_JOINTS and FORWARD_COMMAND_JOINTS constants</change>
+        <change>Create ActionClients for 7 trajectory joints in __init__()</change>
+        <change>Keep Publishers only for 2 forward command joints</change>
+        <change>Update command_joint() to route based on joint type</change>
+        <change>Add wait_for_action_servers() method</change>
+        <change>Add cancel_trajectory() method</change>
+        <change>Add command_trajectory_with_callback() method</change>
+        <change>Add _calculate_duration() helper</change>
+        <change>Add _build_trajectory_goal() helper</change>
+      </required-changes>
+      <new-imports><![CDATA[
+from rclpy.action import ActionClient
+from control_msgs.action import FollowJointTrajectory
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from builtin_interfaces.msg import Duration
+]]></new-imports>
+      <new-constants><![CDATA[
+# Joint classification for dual-mode control
+TRAJECTORY_JOINTS = frozenset([
+    'base_main_frame_joint',
+    'main_frame_selector_frame_joint',
+    'selector_frame_gripper_joint',
+    'selector_frame_picker_frame_joint',
+    'picker_frame_picker_rail_joint',
+    'picker_rail_picker_base_joint',
+    'picker_base_picker_jaw_joint'
+])
+
+FORWARD_COMMAND_JOINTS = frozenset([
+    'selector_left_container_jaw_joint',
+    'selector_right_container_jaw_joint'
+])
+]]></new-constants>
+    </file>
+
+    <file path="ros2_ws/src/manipulator_control/package.xml" change="minor">
+      <description>Add control_msgs dependency</description>
+      <add-dependency>control_msgs</add-dependency>
+    </file>
+  </files-to-modify>
+
+  <reference-documents>
+    <document path="docs/migration-forward-to-trajectory-controllers.md" purpose="Complete migration plan with code examples"/>
+    <document path="docs/architecture-ros2-control-v2-CORRECTIONS.md" section="1" purpose="Hybrid controller architecture"/>
+    <document path="docs/epics.md" section="Story 2.3.1" purpose="Acceptance criteria"/>
+    <document path="docs/sprint-artifacts/2-2-create-controller-interface-utility.md" purpose="Current ControllerInterface API"/>
+    <document path="docs/sprint-artifacts/2-3-implement-movejoint-action-server.md" purpose="MoveJoint implementation for regression testing"/>
+  </reference-documents>
+
+  <test-requirements>
+    <phase id="1" name="Build Verification">
+      <command>colcon build --packages-select manipulator_description manipulator_control</command>
+      <expected>Exit code 0, no errors</expected>
+    </phase>
+    <phase id="2" name="Controller Type Verification">
+      <command>ros2 control list_controllers</command>
+      <expected>7 JointTrajectoryController, 2 ForwardCommandController</expected>
+    </phase>
+    <phase id="3" name="Action Interface Verification">
+      <command>ros2 action list | grep follow_joint_trajectory</command>
+      <expected>7 trajectory actions</expected>
+    </phase>
+    <phase id="4" name="Topic Verification">
+      <command>ros2 topic list | grep "_controller/commands"</command>
+      <expected>Only 2 topics (container jaws)</expected>
+    </phase>
+    <phase id="5" name="Trajectory Joint Motion Tests">
+      <description>Test all 7 trajectory joints with action goals</description>
+      <test-joints>
+        <joint name="base_main_frame_joint" target="2.0" duration="3"/>
+        <joint name="main_frame_selector_frame_joint" target="0.8" duration="2"/>
+        <joint name="selector_frame_gripper_joint" target="0.2" duration="1"/>
+        <joint name="selector_frame_picker_frame_joint" target="0.15" duration="1"/>
+        <joint name="picker_frame_picker_rail_joint" target="0.15" duration="1"/>
+        <joint name="picker_rail_picker_base_joint" target="0.12" duration="1"/>
+        <joint name="picker_base_picker_jaw_joint" target="0.1" duration="1"/>
+      </test-joints>
+    </phase>
+    <phase id="6" name="Forward Command Joint Tests">
+      <description>Test both container jaws with topic commands</description>
+      <test-joints>
+        <joint name="selector_left_container_jaw_joint" target="0.1"/>
+        <joint name="selector_right_container_jaw_joint" target="0.1"/>
+      </test-joints>
+    </phase>
+    <phase id="7" name="MoveJoint Regression">
+      <description>Test all 9 joints via MoveJoint action server</description>
+      <critical>true</critical>
+    </phase>
+    <phase id="8" name="Visual Verification">
+      <description>Verify smooth motion in Gazebo</description>
+    </phase>
+  </test-requirements>
+
+  <acceptance-criteria>
+    <criterion id="AC-1">7 motion joints use JointTrajectoryController (action-based)</criterion>
+    <criterion id="AC-2">2 container jaw joints remain ForwardCommandController (topic-based)</criterion>
+    <criterion id="AC-3">manipulator_controllers.yaml updated with new controller types and parameters</criterion>
+    <criterion id="AC-4">ControllerInterface supports dual-mode operation (action + topic routing)</criterion>
+    <criterion id="AC-5">Same command_joint() API works for all joints (abstraction preserved)</criterion>
+    <criterion id="AC-6">New wait_for_action_servers() method for startup synchronization</criterion>
+    <criterion id="AC-7">New cancel_trajectory() method for preemption support</criterion>
+    <criterion id="AC-8">ros2 control list_controllers shows correct controller types</criterion>
+    <criterion id="AC-9">All 7 trajectory actions available via ros2 action list</criterion>
+    <criterion id="AC-10">MoveJoint action server continues to work unchanged (regression test)</criterion>
+    <criterion id="AC-11">All existing Story 2.3 tests pass with new controller architecture</criterion>
+  </acceptance-criteria>
+</story-context>
