@@ -26,6 +26,10 @@ find_package(ros_gz_interfaces REQUIRED)
 find_package(ros_gz_sim REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
+# Install Python package for importable modules (AC10 - testability)
+# Uses different package name to avoid conflict with rosidl_generator_py
+ament_python_install_package(manipulator_utils)
+
 # Interface generation
 rosidl_generate_interfaces(${PROJECT_NAME}
   "action/MoveJoint.action"

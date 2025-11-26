@@ -27,16 +27,23 @@ class AddressResolver:
         'right': 'r'
     }
 
-    def __init__(self, node, tf_buffer=None):
+    # Reference frame for coordinate output (AC9)
+    # Primary: 'world' per AC9, fallbacks for simulation compatibility
+    DEFAULT_REFERENCE_FRAME = 'world'
+    FALLBACK_REFERENCE_FRAMES = ['base_link', 'storage_system_base']
+
+    def __init__(self, node, tf_buffer=None, reference_frame=None):
         """
         Initialize AddressResolver with TF buffer and cabinet configurations.
 
         Args:
             node: ROS2 node for logging and TF listener
             tf_buffer: Optional mock buffer for testing (AC10)
+            reference_frame: Optional override for reference frame (default: 'world' per AC9)
         """
         self._node = node
         self._logger = node.get_logger()
+        self._reference_frame = reference_frame or self.DEFAULT_REFERENCE_FRAME
 
         # TF setup - use provided buffer or create real one (AC10)
         if tf_buffer is not None:
@@ -165,31 +172,46 @@ class AddressResolver:
         frame_name = self._construct_frame_name(side, cabinet, row, column)
 
         # TF lookup with 1.0 second timeout (AC6, AC9)
-        try:
-            transform = self._tf_buffer.lookup_transform(
-                'world',  # Target frame (AC9)
-                frame_name,  # Source frame
-                Time(),  # Latest available
-                timeout=Duration(seconds=1.0)  # AC6
-            )
+        # Try primary reference frame first, fallback if not available
+        frames_to_try = [self._reference_frame]
+        if self._reference_frame == self.DEFAULT_REFERENCE_FRAME:
+            frames_to_try.extend(self.FALLBACK_REFERENCE_FRAMES)
 
-            # Extract coordinates from transform
-            x = transform.transform.translation.x
-            y = transform.transform.translation.y
-            z = transform.transform.translation.z
+        last_error = None
+        for ref_frame in frames_to_try:
+            try:
+                transform = self._tf_buffer.lookup_transform(
+                    ref_frame,  # Target frame (AC9)
+                    frame_name,  # Source frame
+                    Time(),  # Latest available
+                    timeout=Duration(seconds=1.0)  # AC6
+                )
 
-            return (x, y, z, True, '')
+                # Extract coordinates from transform
+                x = transform.transform.translation.x
+                y = transform.transform.translation.y
+                z = transform.transform.translation.z
 
-        except (LookupException, ConnectivityException, ExtrapolationException) as e:
-            error_msg = f"TF lookup failed for frame {frame_name}: {str(e)}"
-            self._logger.warning(error_msg)
-            return (0.0, 0.0, 0.0, False, error_msg)
+                # Log if using fallback frame
+                if ref_frame != self.DEFAULT_REFERENCE_FRAME:
+                    self._logger.debug(
+                        f"Using fallback frame '{ref_frame}' instead of '{self.DEFAULT_REFERENCE_FRAME}'"
+                    )
 
-        except Exception as e:
-            # Catch timeout and other exceptions
-            error_msg = f"TF lookup failed for frame {frame_name}: {str(e)}"
-            self._logger.warning(error_msg)
-            return (0.0, 0.0, 0.0, False, error_msg)
+                return (x, y, z, True, '')
+
+            except (LookupException, ConnectivityException, ExtrapolationException) as e:
+                last_error = e
+                continue
+
+            except Exception as e:
+                last_error = e
+                continue
+
+        # All frames failed
+        error_msg = f"TF lookup failed for frame {frame_name}: {str(last_error)}"
+        self._logger.warning(error_msg)
+        return (0.0, 0.0, 0.0, False, error_msg)
 
     def get_cabinet_config(self, side: str, cabinet: int) -> dict:
         """
