@@ -29,6 +29,7 @@
   <depend>ros_gz_bridge</depend>
   <depend>ros_gz_interfaces</depend>
   <depend>ros_gz_sim</depend>
+  <depend>visualization_msgs</depend>
 
   <exec_depend>rosidl_default_runtime</exec_depend>
 

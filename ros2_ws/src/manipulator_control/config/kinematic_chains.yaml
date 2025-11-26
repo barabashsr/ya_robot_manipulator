@@ -1,0 +1,43 @@
+# config/kinematic_chains.yaml
+# Joint group definitions for MoveJointGroup action server (Story 2.5)
+#
+# DO NOT add joint limits here - ControllerInterface loads from manipulator_params.yaml
+#
+# Groups support two modes:
+#   - Named group: goal.joint_group = "navigation" (uses joints defined here)
+#   - Explicit joints: goal.joint_names = ["joint1", "joint2"]
+#
+# Container group uses mimic_mode: accept single "opening" value,
+# calculate left = -opening/2, right = +opening/2
+
+joint_groups:
+  navigation:
+    joints:
+      - base_main_frame_joint
+      - main_frame_selector_frame_joint
+    description: "X-Z positioning for address navigation"
+    default_velocity: 0.5
+
+  gripper:
+    joints:
+      - selector_frame_gripper_joint
+      - main_frame_selector_frame_joint
+    description: "Gripper Y-axis with Z adjustment"
+    default_velocity: 0.3
+
+  picker:
+    joints:
+      - selector_frame_picker_frame_joint
+      - picker_frame_picker_rail_joint
+      - picker_rail_picker_base_joint
+      - picker_base_picker_jaw_joint
+    description: "All picker joints for item picking"
+    default_velocity: 0.2
+
+  container:
+    joints:
+      - selector_left_container_jaw_joint
+      - selector_right_container_jaw_joint
+    description: "Container jaws (synchronized mimic)"
+    default_velocity: 0.1
+    mimic_mode: true  # Single opening value -> symmetric positions (left=-val/2, right=+val/2)

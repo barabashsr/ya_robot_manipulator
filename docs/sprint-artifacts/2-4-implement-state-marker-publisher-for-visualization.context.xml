@@ -1,0 +1,214 @@
+<story-context id="2-4-state-marker-publisher" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>4</storyId>
+    <title>Implement State Marker Publisher for Visualization</title>
+    <status>ready-for-dev</status>
+    <generatedAt>2025-11-26</generatedAt>
+    <generator>BMAD Story Context Workflow (SM Agent)</generator>
+    <sourceStoryPath>docs/sprint-artifacts/2-4-implement-state-marker-publisher-for-visualization.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>visual markers in RViz showing system state (magnet engaged, target address, extracted addresses)</iWant>
+    <soThat>I can observe system behavior during testing and debugging</soThat>
+    <tasks>
+      <task id="1">Create state_markers.yaml configuration file</task>
+      <task id="2">Implement StateMarkerPublisher node</task>
+      <task id="3">Implement Magnet Engaged Marker (red sphere)</task>
+      <task id="4">Implement Target Address Marker (green cube)</task>
+      <task id="5">Implement Extracted Address Markers (red cubes)</task>
+      <task id="6">Update launch file (manipulator_simulation.launch.py)</task>
+      <task id="7">Create entry point and package updates</task>
+      <task id="8">Manual testing and verification - DEVELOPER MUST VERIFY IN RVIZ</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1">Node publishes MarkerArray messages to /visualization_marker_array at 10 Hz</criterion>
+    <criterion id="AC2">Red sphere (0.05m diameter, 80% opacity) attached to left_gripper_magnet frame, visible only when /manipulator/electromagnet/engaged is TRUE</criterion>
+    <criterion id="AC3">Green semi-transparent cube (50% opacity) at target address TF frame, size matches box dimensions from storage_params.yaml, visible when navigation/extraction active</criterion>
+    <criterion id="AC4">Red semi-transparent cubes (50% opacity) at addresses with extracted boxes, persist until ReturnBox/PutBox completes</criterion>
+    <criterion id="AC5">Marker namespace is "manipulator_state" for filtering in RViz</criterion>
+    <criterion id="AC6">Markers are visible in RViz Displays → MarkerArray</criterion>
+    <criterion id="AC7">Node subscribes to /manipulator/state topic for system state updates</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics.md</path>
+        <title>Epic Breakdown</title>
+        <section>Story 2.4: Implement State Marker Publisher for Visualization</section>
+        <snippet>As a developer, I want visual markers in RViz showing system state (magnet engaged, target address, extracted addresses). Reference architecture lines 880-1007 for marker implementation details.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-2.md</path>
+        <title>Epic 2 Technical Specification</title>
+        <section>Detailed Design - StateMarkerPublisher</section>
+        <snippet>StateMarkerPublisher at src/state_marker_publisher.py provides RViz marker visualization. Common node (no condition - runs in both sim and hardware). Uses 3s delayed start.</snippet>
+      </doc>
+      <doc>
+        <path>docs/prd.md</path>
+        <title>Product Requirements Document</title>
+        <section>FR-012: Visual State Markers (RViz Visualization)</section>
+        <snippet>The system shall publish RViz markers indicating current system state. Magnet Engaged: Red sphere on gripper magnet link. Target Address: Green box marker. Extracted Address: Red box marker.</snippet>
+      </doc>
+    </docs>
+
+    <code>
+      <file>
+        <path>ros2_ws/src/manipulator_control/src/virtual_limit_switches.py</path>
+        <kind>reference-node</kind>
+        <symbol>VirtualLimitSwitchNode</symbol>
+        <reason>Example node pattern: config loading, timer-based publishing, subscription handling. Follow this pattern for StateMarkerPublisher.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/launch/manipulator_simulation.launch.py</path>
+        <kind>launch-file</kind>
+        <symbol>generate_launch_description</symbol>
+        <reason>MODIFY: Add state_marker_publisher node with 3s TimerAction delay. Follow existing pattern for virtual_limit_switches_node.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/config/limit_switches.yaml</path>
+        <kind>config-reference</kind>
+        <reason>Example config pattern for new state_markers.yaml file structure.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_description/config/storage_params.yaml</path>
+        <kind>config-source</kind>
+        <symbol>box_configurations, cabinet_dimensions</symbol>
+        <reason>LOAD: Box dimensions for cube marker sizes. DO NOT duplicate - load at runtime.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/srv/ToggleElectromagnet.srv</path>
+        <kind>service-interface</kind>
+        <reason>Reference for electromagnet state. Magnet marker visibility tied to magnet_engaged state.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_description/urdf/manipulator/manipulator_selector.urdf.xacro</path>
+        <kind>urdf-reference</kind>
+        <symbol>left_gripper_magnet, right_gripper_magnet</symbol>
+        <lines>308-335</lines>
+        <reason>TF frame names for magnet marker attachment: left_gripper_magnet or right_gripper_magnet (choose one).</reason>
+      </file>
+    </code>
+
+    <dependencies>
+      <ros2>
+        <package>rclpy</package>
+        <package>std_msgs</package>
+        <package>visualization_msgs</package>
+        <package>geometry_msgs</package>
+        <package>tf2_ros</package>
+      </ros2>
+      <internal>
+        <package>manipulator_description</package>
+        <package>manipulator_control</package>
+      </internal>
+    </dependencies>
+  </artifacts>
+
+  <interfaces>
+    <interface>
+      <name>State Marker Publisher Topics</name>
+      <kind>ROS2 Topics</kind>
+      <signature>
+        PUBLISH:
+          /visualization_marker_array (visualization_msgs/MarkerArray) @ 10Hz
+
+        SUBSCRIBE:
+          /manipulator/electromagnet/engaged (std_msgs/Bool) - magnet state
+          /manipulator/target_address (std_msgs/String) - target address frame ID
+          /manipulator/extracted_addresses (std_msgs/String) - comma-separated or JSON array
+      </signature>
+      <path>ros2_ws/src/manipulator_control/src/state_marker_publisher.py</path>
+    </interface>
+    <interface>
+      <name>Marker Message Structure</name>
+      <kind>ROS2 Message</kind>
+      <signature>
+        visualization_msgs/Marker:
+          header.frame_id: str (TF frame, e.g., "left_gripper_magnet" or "addr_l_1_2_3")
+          ns: "manipulator_state"
+          id: int (unique per marker)
+          type: Marker.SPHERE (magnet) or Marker.CUBE (addresses)
+          action: Marker.ADD or Marker.DELETE
+          scale: geometry_msgs/Vector3 (size)
+          color: std_msgs/ColorRGBA (r, g, b, a)
+      </signature>
+    </interface>
+    <interface>
+      <name>TF Address Frame Convention</name>
+      <kind>TF Frame Naming</kind>
+      <signature>
+        Address frames: addr_{side}_{cabinet}_{row}_{col}
+        Examples: addr_l_1_2_3 (left, cabinet 1, row 2, col 3)
+                  addr_r_2_5_4 (right, cabinet 2, row 5, col 4)
+
+        Magnet frames: left_gripper_magnet, right_gripper_magnet
+      </signature>
+    </interface>
+  </interfaces>
+
+  <constraints>
+    <constraint id="C1">SUBSCRIPTION-BASED INTERFACE: Node reacts to state topics, does not accept service calls for marker control. Action servers publish state changes, marker node visualizes.</constraint>
+    <constraint id="C2">CONFIG REUSE: Load box dimensions from storage_params.yaml at runtime. DO NOT hardcode or duplicate dimensions.</constraint>
+    <constraint id="C3">COMMON NODE: No IfCondition - runs in both simulation and hardware modes.</constraint>
+    <constraint id="C4">10 Hz PUBLISH RATE: MarkerArray published at consistent 10 Hz using timer.</constraint>
+    <constraint id="C5">PROJECT-RELATIVE PATHS: Use ament_index_python to locate config files at runtime.</constraint>
+    <constraint id="C6">FOLLOW EXISTING PATTERNS: Match VirtualLimitSwitchNode structure for config loading, logging, error handling.</constraint>
+    <constraint id="C7">MANDATORY TESTING: Developer MUST personally verify all markers visible in RViz before marking story complete.</constraint>
+  </constraints>
+
+  <tests>
+    <standards>
+      Manual testing with RViz is primary validation method for this story. Automated tests can verify node startup, topic publication rate, and message structure. Integration tests should verify marker appearance/disappearance in response to state changes. All tests should use ros2 launch_testing framework where applicable.
+    </standards>
+    <locations>
+      <location>ros2_ws/src/manipulator_control/test/</location>
+      <location>ros2_ws/src/manipulator_control/scripts/ (manual test scripts)</location>
+    </locations>
+    <ideas>
+      <idea ac="AC1">Verify /visualization_marker_array topic exists and publishes at ~10 Hz using ros2 topic hz</idea>
+      <idea ac="AC2">Publish True to /manipulator/electromagnet/engaged, verify red sphere appears at left_gripper_magnet in RViz</idea>
+      <idea ac="AC3">Publish "addr_l_1_2_3" to /manipulator/target_address, verify green cube appears at that TF frame</idea>
+      <idea ac="AC4">Publish "addr_l_1_2_3,addr_r_2_3_4" to /manipulator/extracted_addresses, verify red cubes at both frames</idea>
+      <idea ac="AC5">Filter RViz MarkerArray by namespace "manipulator_state" - should show all markers</idea>
+      <idea ac="AC6">Visual inspection in RViz with MarkerArray display added</idea>
+      <idea ac="AC7">Verify node logs subscription to state topics on startup</idea>
+    </ideas>
+  </tests>
+
+  <implementationNotes>
+    <note id="N1">
+      <title>Magnet Frame Selection</title>
+      <content>Use "left_gripper_magnet" as the frame_id for the magnet marker. This is a fixed frame child of "gripper" link defined in manipulator_selector.urdf.xacro lines 308-324.</content>
+    </note>
+    <note id="N2">
+      <title>Box Dimension Calculation</title>
+      <content>For cube markers, load storage_params.yaml and calculate dimensions from box_configurations. Example: columns_4 has width 0.06m. Cross-reference with rows_* for height. Depth from department_configurations.</content>
+    </note>
+    <note id="N3">
+      <title>State Topic Design (Hybrid Approach)</title>
+      <content>
+        Marker publisher is DUMB - subscribes to state topics, converts to markers.
+        Action servers are SMART - publish state changes to topics.
+
+        Initial implementation: Create placeholder state topics that can be manually tested.
+        Future: Action servers (NavigateToAddress, ExtractBox, ReturnBox) will publish to these topics.
+      </content>
+    </note>
+    <note id="N4">
+      <title>Entry Point Pattern</title>
+      <content>
+        In CMakeLists.txt or setup.py (depending on package type):
+        - Add executable entry point for state_marker_publisher
+        - Install config/state_markers.yaml to share directory
+
+        Package is ament_python based - use setup.py entry_points.
+      </content>
+    </note>
+  </implementationNotes>
+</story-context>

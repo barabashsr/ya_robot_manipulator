@@ -69,6 +69,22 @@ install(
   RENAME move_joint_server
 )
 
+# Install State Marker Publisher (Story 2.4)
+install(
+  PROGRAMS
+    src/state_marker_publisher.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME state_marker_publisher
+)
+
+# Install MoveJointGroup action server (Story 2.5)
+install(
+  PROGRAMS
+    src/move_joint_group_server.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME move_joint_group_server
+)
+
 # Install Python modules (utility classes)
 install(
   PROGRAMS

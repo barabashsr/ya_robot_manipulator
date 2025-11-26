@@ -49,10 +49,10 @@ development_status:
   2-2-create-controller-interface-utility: done
   2-3-implement-movejoint-action-server: done
   2-3-1-migrate-motion-joints-to-trajectory-controller: done
-  2-3-2-update-joy-control-for-trajectory-controllers: in-progress
-  2-4-implement-state-marker-publisher-for-visualization: backlog
-  2-5-implement-movejointgroup-action-server: backlog
-  2-6-create-test-script-and-rqt-documentation: backlog
+  2-3-2-update-joy-control-for-trajectory-controllers: done
+  2-4-implement-state-marker-publisher-for-visualization: done
+  2-5-implement-movejointgroup-action-server: done
+  2-6-create-test-script-and-rqt-documentation: drafted
   epic-2-retrospective: optional
 
   # Epic 3: Address Navigation System (6 stories)

@@ -92,6 +92,37 @@ def generate_launch_description():
         ]
     )
 
+    # State marker publisher (Story 2.4)
+    # Common node - runs in both sim and hardware modes
+    # 3 second delay to allow Gazebo to initialize
+    state_marker_publisher_node = TimerAction(
+        period=3.0,
+        actions=[
+            Node(
+                package='manipulator_control',
+                executable='state_marker_publisher',
+                name='state_marker_publisher',
+                output='screen',
+                parameters=[{'use_sim_time': True}]
+            )
+        ]
+    )
+
+    # MoveJointGroup action server (Story 2.5)
+    # Common node - runs in both sim and hardware modes
+    # 3 second delay to allow controllers to initialize
+    move_joint_group_server_node = TimerAction(
+        period=3.0,
+        actions=[
+            Node(
+                package='manipulator_control',
+                executable='move_joint_group_server',
+                name='move_joint_group_server',
+                output='screen'
+            )
+        ]
+    )
+
     # Joystick control launch (optional)
     joy_control_launch = TimerAction(
         period=3.0,  # Wait for controllers to be ready
@@ -122,6 +153,12 @@ def generate_launch_description():
 
         # Start MoveJoint action server (delayed) - Story 2.3
         move_joint_server_node,
+
+        # Start state marker publisher (delayed) - Story 2.4
+        state_marker_publisher_node,
+
+        # Start MoveJointGroup action server (delayed) - Story 2.5
+        move_joint_group_server_node,
 
         # Start joystick control (optional, delayed)
         joy_control_launch
