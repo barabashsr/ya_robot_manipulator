@@ -97,6 +97,14 @@ install(
   RENAME address_service_node
 )
 
+# Install NavigateToAddress action server (Story 3.4)
+install(
+  PROGRAMS
+    src/navigate_to_address_server.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME navigate_to_address_server
+)
+
 # Install Python modules (utility classes)
 install(
   PROGRAMS

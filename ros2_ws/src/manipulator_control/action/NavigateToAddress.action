@@ -3,15 +3,17 @@ string side                 # Cabinet side: "left" or "right"
 uint8 cabinet_num           # Cabinet number (1-4)
 uint8 row                   # Row within cabinet (1-N, configured per cabinet)
 uint8 column                # Column within cabinet (1-N, configured per cabinet)
+float64 approach_distance   # Offset from cabinet face in meters (default 0.0 = at exact address)
 
 ---
 # Result: Final state after navigation completes
-bool success                # True if manipulator reached address coordinates
-geometry_msgs/Pose final_pose  # Actual final pose achieved (base_link frame)
-float64 execution_time      # Total time taken (seconds)
-string message              # Human-readable result message (success/error details)
+bool success                    # True if manipulator reached address within tolerance
+geometry_msgs/Point final_position  # Actual end effector position [x, y, z] in world frame from TF
+float64 positioning_error       # Euclidean distance from target in meters
+string message                  # Human-readable result message (success/error details)
 
 ---
 # Feedback: Published periodically during execution
-string current_phase        # Current phase: "navigating_x", "navigating_z", "positioning"
-float64 progress_percent    # Completion percentage (0.0 to 100.0)
+geometry_msgs/Point current_position  # Current end effector position [x, y, z] in world frame from TF
+float64 distance_to_target      # Current distance from target in meters
+uint8 progress_percent          # Completion percentage (0-100)

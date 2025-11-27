@@ -14,3 +14,9 @@ move_joint_group:
   timeout_sec: 30.0           # Max time to reach all target positions
   position_tolerance: 0.01    # Success threshold for each joint (meters)
   feedback_rate: 10.0         # Feedback publish rate (Hz)
+
+navigate_to_address:
+  service_timeout: 5.0        # Timeout for GetAddressCoordinates service (seconds)
+  action_timeout: 30.0        # Timeout for MoveJointGroup action (seconds)
+  position_tolerance: 0.02    # NFR-002: 2cm positioning accuracy requirement
+  feedback_rate: 5.0          # Feedback publish rate (Hz)

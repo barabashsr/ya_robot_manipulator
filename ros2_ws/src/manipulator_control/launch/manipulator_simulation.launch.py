@@ -138,6 +138,21 @@ def generate_launch_description():
         ]
     )
 
+    # NavigateToAddress action server (Story 3.4)
+    # High-level navigation action that orchestrates address resolution and joint motion
+    # 4 second delay to allow dependencies (address service, move_joint_group) to start
+    navigate_to_address_server_node = TimerAction(
+        period=4.0,
+        actions=[
+            Node(
+                package='manipulator_control',
+                executable='navigate_to_address_server',
+                name='navigate_to_address_server',
+                output='screen'
+            )
+        ]
+    )
+
     # Joystick control launch (optional)
     joy_control_launch = TimerAction(
         period=3.0,  # Wait for controllers to be ready
@@ -177,6 +192,9 @@ def generate_launch_description():
 
         # Start Address Service Node (delayed) - Story 3.2
         address_service_node,
+
+        # Start NavigateToAddress action server (delayed) - Story 3.4
+        navigate_to_address_server_node,
 
         # Start joystick control (optional, delayed)
         joy_control_launch

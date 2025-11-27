@@ -149,7 +149,9 @@ class MoveJointGroupServer(Node):
             target_positions: List of target positions
 
         Returns:
-            Tuple (resolved_joint_names, resolved_positions, is_mimic_mode) or (None, None, False) on error
+            Tuple (resolved_joint_names, resolved_positions, is_mimic_mode, default_velocity)
+            or (None, None, False, None) on error.
+            default_velocity is None for explicit joints (use joint limits).
         """
         # Check if this is a named group (single name that matches a group)
         if len(joint_names) == 1 and joint_names[0] in self.joint_groups:
@@ -157,26 +159,32 @@ class MoveJointGroupServer(Node):
             group = self.joint_groups[group_name]
             resolved_joints = group['joints']
             is_mimic = group.get('mimic_mode', False)
+            default_velocity = group.get('default_velocity', None)
 
             # Container mimic mode (AC-9): single value -> symmetric positions
+            # NOTE: Left jaw axis is -Y, right jaw axis is +Y (opposite directions)
+            # So BOTH joints need the SAME position value to move in opposite directions
+            # Opening value = how far each jaw moves from center
             if is_mimic:
                 if len(target_positions) != 1:
                     self.get_logger().warning(
                         f'Mimic group "{group_name}" requires single opening value, '
                         f'got {len(target_positions)}'
                     )
-                    return None, None, False
+                    return None, None, False, None
 
                 opening = target_positions[0]
-                left_target = -opening / 2.0
-                right_target = opening / 2.0
+                # Both jaws get the same value - opposite axes create symmetric opening
+                half_opening = opening / 2.0
+                left_target = half_opening   # -Y axis: positive value moves jaw in -Y (outward)
+                right_target = half_opening  # +Y axis: positive value moves jaw in +Y (outward)
                 resolved_positions = [left_target, right_target]
 
                 self.get_logger().info(
                     f'Mimic mode: opening={opening:.4f} -> '
-                    f'left={left_target:.4f}, right={right_target:.4f}'
+                    f'left={left_target:.4f}, right={right_target:.4f} (symmetric)'
                 )
-                return resolved_joints, resolved_positions, True
+                return resolved_joints, resolved_positions, True, default_velocity
             else:
                 # Non-mimic named group - positions must match joint count
                 if len(target_positions) != len(resolved_joints):
@@ -184,17 +192,29 @@ class MoveJointGroupServer(Node):
                         f'Group "{group_name}" has {len(resolved_joints)} joints, '
                         f'got {len(target_positions)} positions'
                     )
-                    return None, None, False
-                return resolved_joints, list(target_positions), False
+                    return None, None, False, None
+                return resolved_joints, list(target_positions), False, default_velocity
+
+        # Check for invalid group name (AC-5: list valid groups in error)
+        if len(joint_names) == 1 and joint_names[0] not in self.joint_groups:
+            # Could be a single explicit joint - check if it exists
+            all_joints = self.controller.get_all_joint_names() if hasattr(self, 'controller') else []
+            if joint_names[0] not in all_joints:
+                valid_groups = list(self.joint_groups.keys())
+                self.get_logger().warning(
+                    f'Invalid group or joint name: "{joint_names[0]}". '
+                    f'Valid groups: {valid_groups}'
+                )
+                return None, None, False, None
 
         # Explicit joint names - validate count matches
         if len(joint_names) != len(target_positions):
             self.get_logger().warning(
                 f'Joint count ({len(joint_names)}) != position count ({len(target_positions)})'
             )
-            return None, None, False
+            return None, None, False, None
 
-        return list(joint_names), list(target_positions), False
+        return list(joint_names), list(target_positions), False, None
 
     def goal_callback(self, goal_request):
         """
@@ -209,7 +229,7 @@ class MoveJointGroupServer(Node):
         target_positions = list(goal_request.target_positions)
 
         # Resolve group names and mimic mode
-        resolved_joints, resolved_positions, is_mimic = self._resolve_joint_group(
+        resolved_joints, resolved_positions, is_mimic, _ = self._resolve_joint_group(
             joint_names, target_positions
         )
 
@@ -259,14 +279,27 @@ class MoveJointGroupServer(Node):
         """
         joint_names = list(goal_handle.request.joint_names)
         target_positions = list(goal_handle.request.target_positions)
+        goal_max_velocity = goal_handle.request.max_velocity
 
         # Resolve joints and positions
-        resolved_joints, resolved_positions, is_mimic = self._resolve_joint_group(
+        resolved_joints, resolved_positions, is_mimic, default_velocity = self._resolve_joint_group(
             joint_names, target_positions
         )
 
+        # AC-3: Determine velocity - use goal velocity if specified, else default from config
+        if goal_max_velocity > 0.0:
+            effective_velocity = goal_max_velocity
+            velocity_source = 'goal'
+        elif default_velocity is not None and default_velocity > 0.0:
+            effective_velocity = default_velocity
+            velocity_source = 'config default'
+        else:
+            effective_velocity = None  # Will use joint-specific limits
+            velocity_source = 'joint limits'
+
         self.get_logger().info(
-            f'Executing: {resolved_joints} -> {[f"{p:.3f}" for p in resolved_positions]}'
+            f'Executing: {resolved_joints} -> {[f"{p:.3f}" for p in resolved_positions]} '
+            f'(velocity: {effective_velocity if effective_velocity else "per-joint"} m/s [{velocity_source}])'
         )
 
         # Get start positions (AC-5)
@@ -288,16 +321,47 @@ class MoveJointGroupServer(Node):
         self.get_logger().info(f'Start positions: {[f"{p:.4f}" for p in start_positions]}')
 
         # Command all joints simultaneously (AC-4)
-        if not self.controller.command_joint_group(resolved_joints, resolved_positions):
-            self.get_logger().error('Command rejected by ControllerInterface')
-            goal_handle.abort()
-            return MoveJointGroup.Result(
-                success=False,
-                final_positions=start_positions,
-                position_error=0.0,
-                execution_time=0.0,
-                message='Command rejected by ControllerInterface'
+        # Calculate duration based on effective_velocity for coordinated motion
+        if effective_velocity is not None:
+            # Calculate duration from max distance and velocity for synchronized arrival
+            max_distance = max(
+                abs(target - start)
+                for start, target in zip(start_positions, resolved_positions)
             )
+            # Minimum 1.0s for physics stability, clamp to reasonable range
+            duration_sec = max(1.0, min(30.0, max_distance / effective_velocity))
+            self.get_logger().info(
+                f'Calculated trajectory duration: {duration_sec:.2f}s '
+                f'(max_distance={max_distance:.4f}m, velocity={effective_velocity:.2f}m/s)'
+            )
+            # Command each joint with the same duration for coordinated arrival
+            all_success = True
+            for joint_name, target_pos in zip(resolved_joints, resolved_positions):
+                if not self.controller.command_joint(joint_name, target_pos, duration_sec):
+                    all_success = False
+                    break
+            if not all_success:
+                self.get_logger().error('Command rejected by ControllerInterface')
+                goal_handle.abort()
+                return MoveJointGroup.Result(
+                    success=False,
+                    final_positions=start_positions,
+                    position_error=0.0,
+                    execution_time=0.0,
+                    message='Command rejected by ControllerInterface'
+                )
+        else:
+            # No effective velocity - use command_joint_group (per-joint velocity from limits)
+            if not self.controller.command_joint_group(resolved_joints, resolved_positions):
+                self.get_logger().error('Command rejected by ControllerInterface')
+                goal_handle.abort()
+                return MoveJointGroup.Result(
+                    success=False,
+                    final_positions=start_positions,
+                    position_error=0.0,
+                    execution_time=0.0,
+                    message='Command rejected by ControllerInterface'
+                )
 
         # Monitor until complete (AC-5, AC-6, AC-7, AC-10)
         start_time = self.get_clock().now()

@@ -17,6 +17,30 @@ joint_groups:
       - main_frame_selector_frame_joint
     description: "X-Z positioning for address navigation"
     default_velocity: 0.5
+    default_acceleration: 0.25  # m/s^2 - smooth acceleration for navigation
+
+    # End effector configuration for NavigateToAddress (Story 3.4)
+    # TF frame to align with target address coordinates
+    end_effector_frame: "selector_frame"
+    # Optional offset from frame origin [x, y, z] in meters
+    # Note: This is subtracted from world coordinates to adjust for end effector position
+    end_effector_offset: [0.0, 0.0, 0.0]
+
+    # World-to-joint coordinate mapping
+    # For each joint: which world axis it controls and the offset from world origin
+    # Formula: joint_position = world_coordinate[axis] - offset
+    #
+    # Calibration notes (robot base at xyz="-1.0 0 0.09"):
+    # - selector_frame has a fixed X offset from joint position due to mechanical structure
+    # - X offset accounts for: base_x(-1.0) + structural_offset(~0.55) = -0.45
+    # - Z offset: base_z(0.09) + structural height
+    coordinate_mapping:
+      base_main_frame_joint:
+        axis: "x"       # This joint controls world X position
+        offset: -0.462  # Calibrated from TF: joint=1.82 when world_x=1.358, so offset=-0.462
+      main_frame_selector_frame_joint:
+        axis: "z"       # This joint controls world Z position
+        offset: 0.391   # Joint origin Z offset: base_z(0.09) + structure height(0.301)
 
   gripper:
     joints:
@@ -24,6 +48,7 @@ joint_groups:
       - main_frame_selector_frame_joint
     description: "Gripper Y-axis with Z adjustment"
     default_velocity: 0.3
+    default_acceleration: 0.15  # m/s^2
 
   picker:
     joints:
@@ -33,6 +58,7 @@ joint_groups:
       - picker_base_picker_jaw_joint
     description: "All picker joints for item picking"
     default_velocity: 0.2
+    default_acceleration: 0.1  # m/s^2 - gentle for precision picking
 
   container:
     joints:
@@ -40,4 +66,5 @@ joint_groups:
       - selector_right_container_jaw_joint
     description: "Container jaws (synchronized mimic)"
     default_velocity: 0.1
+    default_acceleration: 0.05  # m/s^2 - slow for container handling
     mimic_mode: true  # Single opening value -> symmetric positions (left=-val/2, right=+val/2)
