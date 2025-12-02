@@ -35,6 +35,8 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from tf2_ros import Buffer, TransformListener, TransformException
 from geometry_msgs.msg import Point
+from sensor_msgs.msg import JointState
+from std_msgs.msg import String
 from ament_index_python.packages import get_package_share_directory
 
 from manipulator_control.action import NavigateToAddress, MoveJointGroup
@@ -100,10 +102,35 @@ class NavigateToAddressServer(Node):
             callback_group=self._callback_group
         )
 
+        # Joint states subscriber for dynamic coordinate mapping
+        self._current_joint_positions = {}
+        self._joint_states_lock = threading.Lock()
+        self._joint_states_sub = self.create_subscription(
+            JointState,
+            '/joint_states',
+            self._joint_states_callback,
+            10,
+            callback_group=self._callback_group
+        )
+
+        # Target address publisher for visualization (Story 3.5 - AC1, AC2)
+        self._target_pub = self.create_publisher(
+            String,
+            '/manipulator/target_address',
+            10
+        )
+
         self.get_logger().info(
             f'NavigateToAddress ready. End effector: {self._end_effector_frame}, '
             f'tolerance: {self._position_tolerance}m, timeout: {self._action_timeout}s'
         )
+
+    def _joint_states_callback(self, msg: JointState):
+        """Cache current joint positions for dynamic coordinate mapping."""
+        with self._joint_states_lock:
+            for i, name in enumerate(msg.name):
+                if i < len(msg.position):
+                    self._current_joint_positions[name] = msg.position[i]
 
     def _load_config(self):
         """Load action server parameters from action_servers.yaml (AC8)."""
@@ -167,32 +194,66 @@ class NavigateToAddressServer(Node):
         except Exception as e:
             self.get_logger().error(f'Error loading kinematic config: {e}')
 
-    def _world_to_joint_positions(self, target_x: float, target_y: float, target_z: float) -> list:
+    def _world_to_joint_positions(self, target_x: float, target_y: float, target_z: float) -> tuple:
         """
-        Convert world coordinates to joint positions using coordinate_mapping (AC5).
+        Convert world coordinates to joint positions using dynamic TF lookup (AC5).
 
-        For each joint in the navigation group, looks up which world axis it controls
-        and subtracts the offset.
+        Uses current end effector position from TF and current joint positions to
+        calculate target joint positions. No hardcoded offsets required.
 
-        Example: z_joint = z_world - 0.301 for selector_frame joint
+        Algorithm:
+        1. Get current end effector world position from TF
+        2. Get current joint positions from /joint_states
+        3. Calculate: delta = target_world - current_world
+        4. Calculate: new_joint = current_joint + delta (for corresponding axis)
+
+        Returns: (joint_positions_list, success, error_message)
         """
-        world_coords = {'x': target_x, 'y': target_y, 'z': target_z}
+        # Get current end effector position from TF
+        current_x, current_y, current_z, tf_success, tf_error = self._get_end_effector_position()
+        if not tf_success:
+            return ([], False, f'Failed to get current end effector position: {tf_error}')
+
+        # Calculate deltas in world coordinates
+        delta_x = target_x - current_x
+        delta_y = target_y - current_y
+        delta_z = target_z - current_z
+
+        world_deltas = {'x': delta_x, 'y': delta_y, 'z': delta_z}
+
+        self.get_logger().info(
+            f'Dynamic mapping: current=({current_x:.3f}, {current_y:.3f}, {current_z:.3f}), '
+            f'target=({target_x:.3f}, {target_y:.3f}, {target_z:.3f}), '
+            f'delta=({delta_x:.3f}, {delta_y:.3f}, {delta_z:.3f})'
+        )
+
+        # Get current joint positions
+        with self._joint_states_lock:
+            current_joints = self._current_joint_positions.copy()
+
+        if not current_joints:
+            return ([], False, 'No joint states received yet')
+
         joint_positions = []
-
         for joint_name in self._joints:
+            if joint_name not in current_joints:
+                return ([], False, f'Joint {joint_name} not found in joint_states')
+
             mapping = self._coordinate_mapping.get(joint_name, {})
             axis = mapping.get('axis', 'x')
-            offset = mapping.get('offset', 0.0)
 
-            joint_pos = world_coords[axis] - offset
-            joint_positions.append(joint_pos)
+            current_joint_pos = current_joints[joint_name]
+            delta = world_deltas[axis]
+            new_joint_pos = current_joint_pos + delta
+
+            joint_positions.append(new_joint_pos)
 
             self.get_logger().debug(
-                f'Joint {joint_name}: world_{axis}={world_coords[axis]:.3f} - '
-                f'offset={offset:.3f} = {joint_pos:.3f}'
+                f'Joint {joint_name}: current={current_joint_pos:.3f} + '
+                f'delta_{axis}={delta:.3f} = {new_joint_pos:.3f}'
             )
 
-        return joint_positions
+        return (joint_positions, True, '')
 
     def _apply_approach_distance(self, x: float, y: float, z: float,
                                   side: str, approach_distance: float) -> tuple:
@@ -324,10 +385,17 @@ class NavigateToAddressServer(Node):
             f'(approach: {goal.approach_distance:.3f}m)'
         )
 
+        # Publish target address frame for visualization (Story 3.5 - AC1)
+        side_abbrev = 'l' if goal.side == 'left' else 'r'
+        target_frame = f"addr_{side_abbrev}_{goal.cabinet_num}_{goal.row}_{goal.column}"
+        self._target_pub.publish(String(data=target_frame))
+        self.get_logger().debug(f'Published target address marker: {target_frame}')
+
         # Step 1: Resolve address to world coordinates (AC2, AC9)
         resolve_result = self._resolve_address_sync(goal)
         if not resolve_result['success']:
             self.get_logger().error(f'Address resolution failed: {resolve_result["message"]}')
+            self._target_pub.publish(String(data=''))  # Clear target marker (AC2)
             goal_handle.abort()
             return self._create_result(False, Point(), 0.0, resolve_result['message'])
 
@@ -345,8 +413,16 @@ class NavigateToAddressServer(Node):
             f'World target: ({target_x:.3f}, {target_y:.3f}, {target_z:.3f})'
         )
 
-        # Step 3: Convert world coordinates to joint positions (AC5)
-        joint_targets = self._world_to_joint_positions(target_x, target_y, target_z)
+        # Step 3: Convert world coordinates to joint positions using dynamic TF (AC5)
+        joint_targets, mapping_success, mapping_error = self._world_to_joint_positions(
+            target_x, target_y, target_z
+        )
+        if not mapping_success:
+            self.get_logger().error(f'Coordinate mapping failed: {mapping_error}')
+            self._target_pub.publish(String(data=''))  # Clear target marker (AC2)
+            goal_handle.abort()
+            return self._create_result(False, Point(), 0.0, mapping_error)
+
         self.get_logger().info(
             f'Joint targets: {[f"{p:.3f}" for p in joint_targets]}'
         )
@@ -357,6 +433,7 @@ class NavigateToAddressServer(Node):
         )
         if not motion_result['success']:
             self.get_logger().error(f'Motion execution failed: {motion_result["message"]}')
+            self._target_pub.publish(String(data=''))  # Clear target marker (AC2)
             goal_handle.abort()
             return self._create_result(False, Point(), 0.0, motion_result['message'])
 
@@ -364,6 +441,7 @@ class NavigateToAddressServer(Node):
         actual_x, actual_y, actual_z, tf_success, tf_error = self._get_end_effector_position()
         if not tf_success:
             self.get_logger().error(f'Position verification failed: {tf_error}')
+            self._target_pub.publish(String(data=''))  # Clear target marker (AC2)
             goal_handle.abort()
             return self._create_result(False, Point(), 0.0, tf_error)
 
@@ -379,6 +457,7 @@ class NavigateToAddressServer(Node):
         if positioning_error > self._position_tolerance:
             message = f'Position error {positioning_error:.4f}m exceeds tolerance {self._position_tolerance}m'
             self.get_logger().error(message)
+            self._target_pub.publish(String(data=''))  # Clear target marker (AC2)
             goal_handle.abort()
             return self._create_result(
                 False,
@@ -391,7 +470,8 @@ class NavigateToAddressServer(Node):
         if positioning_error > self._position_tolerance * 0.75:
             self.get_logger().warning(f'Position error approaching tolerance: {positioning_error:.4f}m')
 
-        # Success!
+        # Success! Clear target marker (AC2)
+        self._target_pub.publish(String(data=''))
         execution_time = time.time() - start_time
         goal_handle.succeed()
         return self._create_result(

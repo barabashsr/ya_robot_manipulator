@@ -18,11 +18,14 @@ Publishes to:
 
 import rclpy
 from rclpy.node import Node
+from rclpy.callback_groups import ReentrantCallbackGroup
 from std_msgs.msg import Bool, String
 from visualization_msgs.msg import Marker, MarkerArray
 import yaml
 import os
 from ament_index_python.packages import get_package_share_directory
+
+from manipulator_control.srv import GetAddressCoordinates
 
 
 class StateMarkerPublisher(Node):
@@ -36,6 +39,9 @@ class StateMarkerPublisher(Node):
     def __init__(self):
         super().__init__('state_marker_publisher')
 
+        # Callback group for async service calls
+        self._callback_group = ReentrantCallbackGroup()
+
         # Load configurations
         self.load_marker_config()
         self.load_storage_params()
@@ -45,10 +51,20 @@ class StateMarkerPublisher(Node):
         self.target_address = ""
         self.extracted_addresses = []
 
+        # Cache for resolved world coordinates: address_frame -> (x, y, z, qx, qy, qz, qw)
+        self._address_coords_cache = {}
+
         # Marker ID counters
         self.MAGNET_MARKER_ID = 0
         self.TARGET_MARKER_ID = 1
         self.EXTRACTED_MARKER_START_ID = 100  # IDs 100+ for extracted addresses
+
+        # Service client for address coordinate lookup
+        self._address_client = self.create_client(
+            GetAddressCoordinates,
+            '/manipulator/get_address_coordinates',
+            callback_group=self._callback_group
+        )
 
         # Subscribers
         self.magnet_sub = self.create_subscription(
@@ -186,6 +202,89 @@ class StateMarkerPublisher(Node):
         except Exception:
             return default_dims
 
+    def parse_address_frame(self, address_frame: str):
+        """
+        Parse address frame into service request parameters.
+
+        Address format: addr_{side}_{cabinet}_{row}_{col}
+        Returns (side, cabinet_num, row, column) or None if invalid.
+        """
+        try:
+            parts = address_frame.split('_')
+            if len(parts) < 5 or parts[0] != 'addr':
+                return None
+
+            side_abbrev = parts[1]
+            side = 'left' if side_abbrev == 'l' else 'right'
+            cabinet_num = int(parts[2])
+            row = int(parts[3])
+            column = int(parts[4])
+
+            return (side, cabinet_num, row, column)
+        except (ValueError, IndexError):
+            return None
+
+    def get_address_world_coords(self, address_frame: str):
+        """
+        Get world coordinates for an address frame using GetAddressCoordinates service.
+
+        Returns (x, y, z, qx, qy, qz, qw) or None if lookup fails.
+        Uses cache to avoid repeated service calls.
+        """
+        # Check cache first
+        if address_frame in self._address_coords_cache:
+            return self._address_coords_cache[address_frame]
+
+        # Parse address frame
+        parsed = self.parse_address_frame(address_frame)
+        if parsed is None:
+            self.get_logger().warn(f'Invalid address frame format: {address_frame}')
+            return None
+
+        side, cabinet_num, row, column = parsed
+
+        # Check if service is available
+        if not self._address_client.service_is_ready():
+            self.get_logger().debug('GetAddressCoordinates service not available yet')
+            return None
+
+        # Call service synchronously (within timer callback)
+        request = GetAddressCoordinates.Request()
+        request.side = side
+        request.cabinet_num = cabinet_num
+        request.row = row
+        request.column = column
+
+        try:
+            future = self._address_client.call_async(request)
+            # Use a short timeout - we're in a timer callback
+            rclpy.spin_until_future_complete(self, future, timeout_sec=0.1)
+
+            if future.done():
+                response = future.result()
+                if response.success:
+                    coords = (
+                        response.pose.position.x,
+                        response.pose.position.y,
+                        response.pose.position.z,
+                        response.pose.orientation.x,
+                        response.pose.orientation.y,
+                        response.pose.orientation.z,
+                        response.pose.orientation.w
+                    )
+                    # Cache the result
+                    self._address_coords_cache[address_frame] = coords
+                    self.get_logger().debug(f'Resolved {address_frame} to world coords: {coords[:3]}')
+                    return coords
+                else:
+                    self.get_logger().warn(f'Address lookup failed: {response.error_message}')
+            else:
+                self.get_logger().debug('Address lookup timed out')
+        except Exception as e:
+            self.get_logger().warn(f'Address lookup error: {e}')
+
+        return None
+
     def create_magnet_marker(self) -> Marker:
         """Create magnet engaged marker (red sphere)."""
         marker = Marker()
@@ -222,7 +321,7 @@ class StateMarkerPublisher(Node):
         return marker
 
     def create_target_marker(self) -> Marker:
-        """Create target address marker (green cube)."""
+        """Create target address marker (green cube) at world coordinates."""
         marker = Marker()
         marker.header.stamp = self.get_clock().now().to_msg()
         marker.ns = self.marker_namespace
@@ -230,23 +329,34 @@ class StateMarkerPublisher(Node):
         marker.type = Marker.CUBE
 
         if self.target_address:
-            marker.header.frame_id = self.target_address
-            marker.action = Marker.ADD
+            # Get world coordinates via service
+            coords = self.get_address_world_coords(self.target_address)
+            if coords:
+                x, y, z, qx, qy, qz, qw = coords
+                marker.header.frame_id = "world"
+                marker.action = Marker.ADD
 
-            # Get dimensions from storage params
-            width, height, depth = self.get_box_dimensions(self.target_address)
-            marker.scale.x = width
-            marker.scale.y = depth
-            marker.scale.z = height
+                # Set position in world frame
+                marker.pose.position.x = x
+                marker.pose.position.y = y
+                marker.pose.position.z = z
+                marker.pose.orientation.x = qx
+                marker.pose.orientation.y = qy
+                marker.pose.orientation.z = qz
+                marker.pose.orientation.w = qw
+
+                # Get dimensions from storage params
+                width, height, depth = self.get_box_dimensions(self.target_address)
+                marker.scale.x = width
+                marker.scale.y = depth
+                marker.scale.z = height
+            else:
+                # Service not available or lookup failed - use DELETE action
+                marker.header.frame_id = "world"
+                marker.action = Marker.DELETE
         else:
-            marker.header.frame_id = "base_link"
+            marker.header.frame_id = "world"
             marker.action = Marker.DELETE
-
-        # Position at frame origin
-        marker.pose.position.x = 0.0
-        marker.pose.position.y = 0.0
-        marker.pose.position.z = 0.0
-        marker.pose.orientation.w = 1.0
 
         # Color
         color = self.target_config.get('color', {})
@@ -258,29 +368,40 @@ class StateMarkerPublisher(Node):
         return marker
 
     def create_extracted_markers(self) -> list:
-        """Create extracted address markers (red cubes)."""
+        """Create extracted address markers (red cubes) at world coordinates."""
         markers = []
 
         for i, address in enumerate(self.extracted_addresses):
+            # Get world coordinates via service
+            coords = self.get_address_world_coords(address)
+            if coords is None:
+                # Skip if we can't resolve coordinates
+                continue
+
+            x, y, z, qx, qy, qz, qw = coords
+
             marker = Marker()
-            marker.header.frame_id = address
+            marker.header.frame_id = "world"
             marker.header.stamp = self.get_clock().now().to_msg()
             marker.ns = self.marker_namespace
             marker.id = self.EXTRACTED_MARKER_START_ID + i
             marker.type = Marker.CUBE
             marker.action = Marker.ADD
 
+            # Set position in world frame
+            marker.pose.position.x = x
+            marker.pose.position.y = y
+            marker.pose.position.z = z
+            marker.pose.orientation.x = qx
+            marker.pose.orientation.y = qy
+            marker.pose.orientation.z = qz
+            marker.pose.orientation.w = qw
+
             # Get dimensions from storage params
             width, height, depth = self.get_box_dimensions(address)
             marker.scale.x = width
             marker.scale.y = depth
             marker.scale.z = height
-
-            # Position at frame origin
-            marker.pose.position.x = 0.0
-            marker.pose.position.y = 0.0
-            marker.pose.position.z = 0.0
-            marker.pose.orientation.w = 1.0
 
             # Color (red)
             color = self.extracted_config.get('color', {})

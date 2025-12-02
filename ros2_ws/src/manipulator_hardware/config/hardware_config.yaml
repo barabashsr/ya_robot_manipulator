@@ -1,0 +1,195 @@
+# Hardware Configuration for ya_robot_manipulator
+# Modbus RTU communication settings and register mappings
+
+modbus:
+  port: "/dev/ttyUSB0"
+  baudrate: 115200
+  timeout_sec: 0.5
+  retry_count: 3
+
+# Slave device mapping
+# Each slave controls specific joints (ordinates)
+devices:
+  engineXZ:
+    slave_id: 1
+    description: "Controls X and Z axes"
+    ordinates: [1, 2]  # ord1, ord2
+  engineYB:
+    slave_id: 2
+    description: "Controls Y and B axes"
+    ordinates: [1, 2]  # ord1, ord2
+  engineACD:
+    slave_id: 3
+    description: "Controls A, C, and D axes"
+    ordinates: [1, 2, 3]  # ord1, ord2, ord3
+
+# Joint to register mapping
+# Maps each robot joint to its slave device and ordinate
+#
+# CRITICAL FIRMWARE CONSTRAINT: No Goal Override
+# Firmware rejects new position if previous goal not achieved.
+# Solution: Use incremental commands only (max_velocity * period per cycle)
+#
+joints:
+  base_main_frame_joint:  # X axis - CONTINUOUS
+    slave_id: 1
+    ordinate: 1
+    current_position_register: 1003  # Input FC4
+    target_position_register: 3005   # Holding FC6
+    speed_register: 3006
+    pulses_per_meter: 100000         # Conversion factor
+    direction: 1                     # Positive direction mapping
+    max_velocity: 0.5                # m/s - for incremental command calculation
+    discrete_axis: false
+    min_limit_register: 1006         # MIN limit switch status
+    max_limit_register: 1007         # MAX limit switch status
+
+  main_frame_selector_frame_joint:  # Z axis - CONTINUOUS
+    slave_id: 1
+    ordinate: 2
+    current_position_register: 1010  # Input FC4
+    target_position_register: 3015   # Holding FC6
+    speed_register: 3016
+    pulses_per_meter: 100000
+    direction: 1
+    max_velocity: 0.5
+    discrete_axis: false
+    min_limit_register: 1013
+    max_limit_register: 1014
+
+  selector_frame_gripper_joint:  # Y axis - CONTINUOUS
+    slave_id: 2
+    ordinate: 1
+    current_position_register: 1003  # Input FC4
+    target_position_register: 3005   # Holding FC6
+    speed_register: 3006
+    pulses_per_meter: 100000
+    direction: 1
+    max_velocity: 0.3
+    discrete_axis: false
+    min_limit_register: 1006
+    max_limit_register: 1007
+
+  picker_frame_picker_rail_joint:  # B axis (linear picker rail) - CONTINUOUS
+    slave_id: 2
+    ordinate: 2
+    current_position_register: 1010  # Input FC4
+    target_position_register: 3015   # Holding FC6
+    speed_register: 3016
+    pulses_per_meter: 100000
+    direction: 1
+    max_velocity: 0.2
+    discrete_axis: false
+    min_limit_register: 1013
+    max_limit_register: 1014
+
+  selector_frame_picker_frame_joint:  # A axis - CONTINUOUS
+    slave_id: 3
+    ordinate: 1
+    current_position_register: 1003  # Input FC4
+    target_position_register: 3005   # Holding FC6
+    speed_register: 3006
+    pulses_per_meter: 100000
+    direction: 1
+    max_velocity: 0.3
+    discrete_axis: false
+    min_limit_register: 1006
+    max_limit_register: 1007
+
+  picker_rail_picker_base_joint:  # C axis - DISCRETE MODE
+    slave_id: 3
+    ordinate: 2
+    current_position_register: 1010  # Input FC4 (readable during motion)
+    target_position_register: 3015   # Holding FC6 (write 0 or 1)
+    speed_register: 3016
+    pulses_per_meter: 100000
+    direction: 1
+    # Discrete axis configuration
+    discrete_axis: true              # Binary 0/1 control (move to limit switch)
+    min_limit_register: 1013         # MIN limit switch status
+    max_limit_register: 1014         # MAX limit switch status
+    min_position: 0.0                # Position value when at MIN limit
+    max_position: 0.29               # Position value when at MAX limit (meters)
+
+  picker_base_picker_jaw_joint:  # D axis (picker jaw) - DISCRETE MODE
+    slave_id: 3
+    ordinate: 3
+    current_position_register: 1017  # Input FC4 (readable during motion)
+    target_position_register: 3025   # Holding FC6 (write 0 or 1)
+    speed_register: 3026
+    pulses_per_meter: 100000
+    direction: 1
+    # Discrete axis configuration
+    discrete_axis: true              # Binary 0/1 control (move to limit switch)
+    min_limit_register: 1020         # MIN limit switch status
+    max_limit_register: 1021         # MAX limit switch status
+    min_position: 0.0                # Position value when at MIN limit
+    max_position: 0.19               # Position value when at MAX limit (meters)
+
+# Firmware Constraint Notes:
+# 1. NO GOAL OVERRIDE: Firmware rejects new position if previous not achieved
+#    - Use incremental commands: max_delta = max_velocity * period
+#    - Never send distant targets, clamp all commands
+#
+# 2. DISCRETE AXES (C and D): Binary 0/1 control
+#    - Position IS readable during motion (smooth feedback to ROS2)
+#    - Write 0 = go to MIN limit, Write 1 = go to MAX limit
+#    - Check module_is_busy before commanding
+#
+# 3. SLAVE 3 SEQUENTIAL: Only one axis (A, C, D) can move at a time
+#    - Check busy status, skip if busy (no queuing)
+
+# Status registers (common to all slaves)
+# All use Input Registers (FC4)
+status_registers:
+  err_code: 999         # Error code (0 = OK)
+  module_ready: 1001    # Module ready to accept commands (1 = ready)
+  module_is_busy: 1002  # Module is executing command (1 = busy)
+
+# Register address patterns per ordinate
+# For each ordinate (1, 2, 3), registers follow this pattern:
+register_patterns:
+  ordinate_1:
+    current_position: 1003
+    drive_active: 1004
+    brake_active: 1005
+    min_limit_switch: 1006
+    max_limit_switch: 1007
+    target_position: 3005
+    speed: 3006
+    pulses_per_rev: 3007
+    acceleration: 3008
+  ordinate_2:
+    current_position: 1010
+    drive_active: 1011
+    brake_active: 1012
+    min_limit_switch: 1013
+    max_limit_switch: 1014
+    target_position: 3015
+    speed: 3016
+    pulses_per_rev: 3017
+    acceleration: 3018
+  ordinate_3:
+    current_position: 1017
+    drive_active: 1018
+    brake_active: 1019
+    min_limit_switch: 1020
+    max_limit_switch: 1021
+    target_position: 3025
+    speed: 3026
+    pulses_per_rev: 3027
+    acceleration: 3028
+
+# Coil registers (discrete outputs)
+coils:
+  soft_reset: 1999
+  save_params: 2000
+  null_ord1: 2004
+  direction_ord1: 2005
+  null_ord2: 2009
+  direction_ord2: 2010
+  null_ord3: 2014
+  direction_ord3: 2015
+  discrete_output1: 2019
+  discrete_output2: 2020
+  discrete_output3: 2021

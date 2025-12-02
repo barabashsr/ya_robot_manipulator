@@ -21,7 +21,7 @@ base_assembly:
     mesh: "main_frame.STL"
     color: [1.0, 0.67451, 0.027451, 1.0]  # Orange
     inertial:
-      mass: 480.0
+      mass: 30.0
       origin: {xyz: [0.2, -1.4456e-18, 1.0], rpy: [0, 0, 0]}
       inertia: {ixx: 174.4, ixy: 3.0568e-15, ixz: 0.0,
                 iyy: 166.4, iyz: 0.0, izz: 20.8}
@@ -44,7 +44,7 @@ selector_assembly:
     mesh: "selector_frame.STL"
     color: [0.79216, 0.81961, 0.93333, 1.0]  # Light blue-grey
     inertial:
-      mass: 8.82
+      mass: 2.82
       origin: {xyz: [-0.038, -3.2042e-17, -0.161], rpy: [0, 0, 0]}
       inertia: {ixx: 0.39971, ixy: 5.6088e-17, ixz: 1.0745e-19,
                 iyy: 0.032046, iyz: 2.4617e-34, izz: 0.42647}
@@ -137,7 +137,7 @@ picker_assembly:
     mesh: "picker_frame.STL"
     color: [0.50196, 1.0, 1.0, 1.0]  # Cyan
     inertial:
-      mass: 5.72
+      mass: 2.72
       origin: {xyz: [0.025, 5.6e-17, 0.08], rpy: [0, 0, 0]}
       inertia: {ixx: 0.25589, ixy: -2.6522e-19, ixz: 2.0776e-19,
                 iyy: 0.013394, iyz: 1.2088e-17, izz: 0.24488}

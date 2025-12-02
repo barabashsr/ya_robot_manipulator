@@ -26,29 +26,65 @@ joint_groups:
     # Note: This is subtracted from world coordinates to adjust for end effector position
     end_effector_offset: [0.0, 0.0, 0.0]
 
-    # World-to-joint coordinate mapping
-    # For each joint: which world axis it controls and the offset from world origin
-    # Formula: joint_position = world_coordinate[axis] - offset
+    # World-to-joint coordinate mapping (DYNAMIC - no hardcoded offsets!)
+    # For each joint: which world axis it controls
     #
-    # Calibration notes (robot base at xyz="-1.0 0 0.09"):
-    # - selector_frame has a fixed X offset from joint position due to mechanical structure
-    # - X offset accounts for: base_x(-1.0) + structural_offset(~0.55) = -0.45
-    # - Z offset: base_z(0.09) + structural height
+    # The navigate_to_address_server uses TF to dynamically calculate joint targets:
+    #   1. Get current end effector world position from TF (world -> selector_frame)
+    #   2. Get current joint positions from /joint_states
+    #   3. Calculate: delta = target_world - current_world
+    #   4. Calculate: new_joint = current_joint + delta
+    #
+    # This works regardless of robot base position - no recalibration needed!
     coordinate_mapping:
       base_main_frame_joint:
         axis: "x"       # This joint controls world X position
-        offset: -0.462  # Calibrated from TF: joint=1.82 when world_x=1.358, so offset=-0.462
       main_frame_selector_frame_joint:
         axis: "z"       # This joint controls world Z position
-        offset: 0.391   # Joint origin Z offset: base_z(0.09) + structure height(0.301)
 
   gripper:
     joints:
       - selector_frame_gripper_joint
       - main_frame_selector_frame_joint
-    description: "Gripper Y-axis with Z adjustment"
+    description: "Gripper Y-axis with Z adjustment (generic)"
     default_velocity: 0.3
     default_acceleration: 0.15  # m/s^2
+
+  # Left and right gripper magnet groups for box extraction/insertion
+  # These define the magnets as end effectors for YZ trajectory execution
+  left_gripper:
+    joints:
+      - selector_frame_gripper_joint
+      - main_frame_selector_frame_joint
+    description: "Left magnet end effector for left-side cabinets"
+    default_velocity: 0.3
+    default_acceleration: 0.15
+    end_effector_frame: "left_gripper_magnet"
+    # Coordinate mapping for trajectory execution
+    # Y-axis: gripper moves into cabinet (positive Y for left side)
+    # Z-axis: vertical position
+    coordinate_mapping:
+      selector_frame_gripper_joint:
+        axis: "y"
+      main_frame_selector_frame_joint:
+        axis: "z"
+
+  right_gripper:
+    joints:
+      - selector_frame_gripper_joint
+      - main_frame_selector_frame_joint
+    description: "Right magnet end effector for right-side cabinets"
+    default_velocity: 0.3
+    default_acceleration: 0.15
+    end_effector_frame: "right_gripper_magnet"
+    # Coordinate mapping for trajectory execution
+    # Y-axis: gripper moves into cabinet (negative Y for right side)
+    # Z-axis: vertical position
+    coordinate_mapping:
+      selector_frame_gripper_joint:
+        axis: "y"
+      main_frame_selector_frame_joint:
+        axis: "z"
 
   picker:
     joints:

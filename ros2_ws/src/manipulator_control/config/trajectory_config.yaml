@@ -1,0 +1,41 @@
+# Trajectory Configuration for YZ Parametric Curves
+# Defines scaling from unitless SVG coordinates to real-world joint positions
+#
+# SVG files are designed in Inkscape with unitless coordinates.
+# This config maps those coordinates to meters for robot execution.
+
+trajectories:
+  extract_left:
+    # SVG source file (relative to this config file)
+    svg_file: trajectories/extract_left.svg
+
+    mapping:
+      # SVG X-axis mapping to joint Y (gripper depth into cabinet)
+      # SVG X range [0, 100] maps to joint Y [0.0, 0.4] meters
+      x_range: [0, 100]
+      y_output: [0.0, 0.4]
+
+      # SVG Y-axis mapping to joint Z (vertical offset)
+      # SVG Y=50 is the baseline (Z=0), deviations create Z offsets
+      y_center: 50
+      # Meters per SVG Y unit (1 SVG unit = 1mm offset)
+      z_scale: 0.001
+
+    sampling:
+      # Number of waypoints to generate from Bezier curve
+      num_points: 20
+      # Speed in m/s - waypoint_duration is calculated automatically
+      # total_distance / speed = total_time, total_time / num_points = waypoint_duration
+      speed: 0.1  # 0.1 m/s = 10cm per second (0.4m trajectory = 4 seconds)
+
+  # Right side uses same geometry, sign flip applied at runtime
+  extract_right:
+    svg_file: trajectories/extract_left.svg
+    mapping:
+      x_range: [0, 100]
+      y_output: [0.0, 0.4]
+      y_center: 50
+      z_scale: 0.001
+    sampling:
+      num_points: 20
+      speed: 0.1  # m/s

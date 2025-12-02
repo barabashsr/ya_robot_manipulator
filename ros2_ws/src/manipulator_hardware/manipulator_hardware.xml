@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<!-- Plugin export file for ros2_control hardware interface -->
+<library path="manipulator_hardware">
+  <class name="manipulator_hardware/ModbusHardwareInterface"
+         type="manipulator_hardware.modbus_hardware_interface.ModbusHardwareInterface"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      Modbus RTU hardware interface for ya_robot_manipulator motor controllers.
+      Supports 5 continuous axes (incremental positioning), 2 discrete axes
+      (binary limit switch control), and 2 mock axes (container jaws).
+    </description>
+  </class>
+</library>
