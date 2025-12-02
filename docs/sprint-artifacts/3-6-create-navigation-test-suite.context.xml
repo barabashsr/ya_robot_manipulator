@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Story Context: 3-6-create-navigation-test-suite
+  Generated: 2025-11-27
+  Purpose: Comprehensive validation of Epic 3 Address Navigation System
+-->
+<story-context>
+  <metadata>
+    <story-id>3-6</story-id>
+    <story-title>Create Navigation Test Suite</story-title>
+    <epic>Epic 3: Address Navigation System</epic>
+    <generated-date>2025-11-27</generated-date>
+  </metadata>
+
+  <story-overview>
+    <objective>Create automated test suite validating navigation accuracy, cabinet coverage, and visual marker integration for the complete Address Navigation System</objective>
+    <prerequisites>
+      <prereq story="3-1">AddressResolver utility (TF-based coordinate resolution)</prereq>
+      <prereq story="3-2">GetAddressCoordinates service</prereq>
+      <prereq story="3-3">MoveJointGroup with joint groups configuration</prereq>
+      <prereq story="3-4">NavigateToAddress action server</prereq>
+      <prereq story="3-5">Address state markers visualization</prereq>
+    </prerequisites>
+    <nfr-compliance>
+      <nfr id="NFR-002">Position accuracy: ±0.02m (2cm)</nfr>
+      <nfr id="NFR-008">Navigation success rate: ≥95%</nfr>
+    </nfr-compliance>
+  </story-overview>
+
+  <!-- ACTION INTERFACES -->
+  <action-interfaces>
+    <action name="NavigateToAddress" file="ros2_ws/src/manipulator_control/action/NavigateToAddress.action">
+      <goal>
+        <field name="side" type="string" description="Cabinet side: 'left' or 'right'"/>
+        <field name="cabinet_num" type="uint8" description="Cabinet number (1-4)"/>
+        <field name="row" type="uint8" description="Row within cabinet"/>
+        <field name="column" type="uint8" description="Column within cabinet"/>
+        <field name="approach_distance" type="float64" description="Offset from cabinet face in meters"/>
+      </goal>
+      <result>
+        <field name="success" type="bool"/>
+        <field name="final_position" type="geometry_msgs/Point" description="Actual [x,y,z] in world frame"/>
+        <field name="positioning_error" type="float64" description="Euclidean distance from target (meters)"/>
+        <field name="message" type="string"/>
+      </result>
+      <feedback>
+        <field name="current_position" type="geometry_msgs/Point"/>
+        <field name="distance_to_target" type="float64"/>
+        <field name="progress_percent" type="uint8"/>
+      </feedback>
+    </action>
+
+    <action name="MoveJointGroup" file="ros2_ws/src/manipulator_control/action/MoveJointGroup.action">
+      <goal>
+        <field name="joint_names" type="string[]" description="Joint names or single group name"/>
+        <field name="target_positions" type="float64[]"/>
+        <field name="max_velocity" type="float64" description="0.0 = use default"/>
+      </goal>
+      <result>
+        <field name="success" type="bool"/>
+        <field name="final_positions" type="float64[]"/>
+        <field name="position_error" type="float64"/>
+        <field name="execution_time" type="float64"/>
+        <field name="message" type="string"/>
+      </result>
+      <feedback>
+        <field name="current_positions" type="float64[]"/>
+        <field name="progress_percent" type="float64"/>
+      </feedback>
+    </action>
+  </action-interfaces>
+
+  <!-- SERVICE INTERFACES -->
+  <service-interfaces>
+    <service name="GetAddressCoordinates" file="ros2_ws/src/manipulator_control/srv/GetAddressCoordinates.srv">
+      <request>
+        <field name="side" type="string" description="'left' or 'right'"/>
+        <field name="cabinet_num" type="uint8" description="1-4"/>
+        <field name="row" type="uint8"/>
+        <field name="column" type="uint8"/>
+      </request>
+      <response>
+        <field name="success" type="bool"/>
+        <field name="pose" type="geometry_msgs/Pose" description="Position in world frame"/>
+        <field name="error_message" type="string"/>
+      </response>
+      <topic>/manipulator/get_address_coordinates</topic>
+    </service>
+  </service-interfaces>
+
+  <!-- CONFIGURATION FILES -->
+  <configuration>
+    <config-file name="kinematic_chains.yaml" path="ros2_ws/src/manipulator_control/config/kinematic_chains.yaml">
+      <description>Joint group definitions for MoveJointGroup action server</description>
+      <relevant-sections>
+        <section name="navigation">
+          <joints>base_main_frame_joint, main_frame_selector_frame_joint</joints>
+          <description>X-Z positioning for address navigation</description>
+          <end-effector-frame>selector_frame</end-effector-frame>
+          <coordinate-mapping>
+            <joint name="base_main_frame_joint" axis="x"/>
+            <joint name="main_frame_selector_frame_joint" axis="z"/>
+          </coordinate-mapping>
+        </section>
+      </relevant-sections>
+    </config-file>
+
+    <config-file name="action_servers.yaml" path="ros2_ws/src/manipulator_control/config/action_servers.yaml">
+      <description>Action server parameters</description>
+      <relevant-params>
+        <param name="navigate_to_address.service_timeout">5.0s</param>
+        <param name="navigate_to_address.action_timeout">30.0s</param>
+        <param name="navigate_to_address.position_tolerance">0.02m (NFR-002)</param>
+        <param name="navigate_to_address.feedback_rate">5.0 Hz</param>
+        <param name="move_joint_group.timeout_sec">30.0s</param>
+        <param name="move_joint_group.position_tolerance">0.01m</param>
+      </relevant-params>
+    </config-file>
+
+    <config-file name="storage_params.yaml" path="ros2_ws/src/manipulator_description/config/storage_params.yaml">
+      <description>Cabinet configurations and box dimensions</description>
+      <cabinet-configurations>
+        <cabinet-row side="left">
+          <cabinet num="1" size="4x10x10" description="4 columns, 10 rows, 10 departments"/>
+          <cabinet num="2" size="4x10x10"/>
+          <cabinet num="3" size="4x6x10" description="4 columns, 6 rows, 10 departments"/>
+          <cabinet num="4" size="5x12x14" description="5 columns, 12 rows, 14 departments"/>
+        </cabinet-row>
+        <cabinet-row side="right">
+          <cabinet num="1" size="5x12x14"/>
+          <cabinet num="2" size="5x8x14"/>
+          <cabinet num="3" size="6x14x16" description="Largest: 6 columns, 14 rows"/>
+          <cabinet num="4" size="4x10x10"/>
+        </cabinet-row>
+      </cabinet-configurations>
+      <box-dimensions>
+        <columns-4 width="0.06m"/>
+        <columns-5 width="0.055m"/>
+        <columns-6 width="0.048m"/>
+        <rows-6 height="0.15m"/>
+        <rows-8 height="0.115m"/>
+        <rows-10 height="0.09m"/>
+        <rows-12 height="0.075m"/>
+        <rows-14 height="0.065m"/>
+      </box-dimensions>
+    </config-file>
+
+    <config-file name="state_markers.yaml" path="ros2_ws/src/manipulator_control/config/state_markers.yaml">
+      <description>RViz marker configuration</description>
+      <markers>
+        <marker name="target_marker" type="cube" color="green" alpha="0.5"/>
+        <marker name="extracted_marker" type="cube" color="red" alpha="0.5"/>
+      </markers>
+      <topic>/visualization_marker_array</topic>
+      <namespace>manipulator_state</namespace>
+    </config-file>
+  </configuration>
+
+  <!-- EXISTING SOURCE FILES (Read-Only Reference) -->
+  <source-reference>
+    <file name="navigate_to_address_server.py" path="ros2_ws/src/manipulator_control/src/navigate_to_address_server.py">
+      <description>NavigateToAddress action server - orchestrates address resolution, coordinate mapping, and motion execution</description>
+      <key-methods>
+        <method name="_execute_callback">Main execution: resolve address, map coordinates, execute motion, verify position</method>
+        <method name="_world_to_joint_positions">Dynamic TF-based coordinate mapping (no hardcoded offsets)</method>
+        <method name="_get_end_effector_position">TF lookup for position verification</method>
+        <method name="_calc_xz_distance">Position error calculation in navigation plane</method>
+      </key-methods>
+      <topics-published>
+        <topic name="/manipulator/target_address" type="std_msgs/String">Target frame for visualization</topic>
+      </topics-published>
+    </file>
+
+    <file name="move_joint_group_server.py" path="ros2_ws/src/manipulator_control/src/move_joint_group_server.py">
+      <description>MoveJointGroup action server - coordinates multi-joint motion with feedback</description>
+      <key-methods>
+        <method name="_resolve_joint_group">Resolves named groups or explicit joints, handles mimic mode</method>
+        <method name="execute_callback">Motion execution with coordinated arrival tracking</method>
+        <method name="_calc_aggregate_progress">Aggregate progress across all joints</method>
+      </key-methods>
+    </file>
+  </source-reference>
+
+  <!-- TEST ADDRESSES -->
+  <test-data>
+    <test-addresses description="Representative addresses covering all cabinet types">
+      <address side="left" cabinet="1" row="2" column="2" type="4x10" rationale="Near origin, typical"/>
+      <address side="left" cabinet="2" row="5" column="4" type="4x10" rationale="Middle cabinet, max column"/>
+      <address side="left" cabinet="3" row="3" column="3" type="4x6" rationale="Fewer rows variant"/>
+      <address side="left" cabinet="4" row="10" column="5" type="5x12" rationale="Most rows, 5 columns"/>
+      <address side="right" cabinet="1" row="6" column="3" type="5x12" rationale="Mirror of left-4"/>
+      <address side="right" cabinet="2" row="4" column="2" type="5x8" rationale="Medium row count"/>
+      <address side="right" cabinet="3" row="12" column="6" type="6x14" rationale="Largest cabinet"/>
+      <address side="right" cabinet="4" row="8" column="4" type="4x10" rationale="Same type as left-1,2"/>
+    </test-addresses>
+
+    <joint-limits description="Navigation joint limits from ros2_control.xacro">
+      <joint name="base_main_frame_joint" min="0.1" max="3.9" unit="meters" axis="X"/>
+      <joint name="main_frame_selector_frame_joint" min="0.05" max="1.45" unit="meters" axis="Z"/>
+    </joint-limits>
+
+    <tolerances>
+      <tolerance name="position_accuracy" value="0.02" unit="meters" source="NFR-002"/>
+      <tolerance name="repeatability" value="0.01" unit="meters" source="Test requirement"/>
+      <tolerance name="navigation_timeout" value="30.0" unit="seconds"/>
+      <tolerance name="success_rate" value="0.95" description="95% minimum"/>
+    </tolerances>
+  </test-data>
+
+  <!-- TEST EXECUTION GUIDE -->
+  <test-execution>
+    <prerequisites>
+      <step order="1">Launch full simulation: ros2 launch manipulator_control manipulator_simulation.launch.py</step>
+      <step order="2">Wait ~30 seconds for Gazebo, controllers, action servers, and TF tree</step>
+      <step order="3">Verify nodes ready: ros2 node list | grep -E "navigate_to_address|move_joint_group|get_address_coordinates"</step>
+    </prerequisites>
+
+    <run-command>
+      <command>cd ros2_ws &amp;&amp; python3 -m pytest src/manipulator_control/test/test_epic3_navigation.py -v</command>
+      <expected-duration>~12 minutes</expected-duration>
+    </run-command>
+
+    <cli-verification>
+      <command description="Test address resolution">ros2 service call /manipulator/get_address_coordinates manipulator_control/srv/GetAddressCoordinates "{side: 'left', cabinet_num: 1, row: 2, column: 2}"</command>
+      <command description="Test navigation">ros2 action send_goal /navigate_to_address manipulator_control/action/NavigateToAddress "{side: 'left', cabinet_num: 1, row: 2, column: 2, approach_distance: 0.0}" --feedback</command>
+      <command description="Monitor markers">ros2 topic echo /visualization_marker_array</command>
+    </cli-verification>
+  </test-execution>
+
+  <!-- ACCEPTANCE CRITERIA MAPPING -->
+  <acceptance-criteria>
+    <criterion id="AC1" description="Address resolution tests for 10 sample addresses" test-class="TestAddressResolution"/>
+    <criterion id="AC2" description="Invalid address error handling" test-class="TestAddressResolution"/>
+    <criterion id="AC3" description="Navigation accuracy &lt;0.02m (NFR-002)" test-class="TestNavigationAccuracy"/>
+    <criterion id="AC4" description="Navigation timing &lt;30 seconds" test-class="TestNavigationAccuracy"/>
+    <criterion id="AC5" description="Target marker appears during navigation" test-class="TestMarkerVisualization"/>
+    <criterion id="AC6" description="Target marker cleared on completion" test-class="TestMarkerVisualization"/>
+    <criterion id="AC7" description="Cabinet coverage (8 cabinets)" test-class="TestCabinetCoverage"/>
+    <criterion id="AC8" description="Repeatability within 0.01m" test-class="TestCabinetCoverage"/>
+    <criterion id="AC9" description="Success rate ≥95% (NFR-008)" test-class="TestSuccessRate"/>
+    <criterion id="AC10" description="Test results reporting" test-class="All"/>
+    <criterion id="AC11" description="Test documentation" file="test_epic3_navigation.py docstrings"/>
+    <criterion id="AC12" description="MANDATORY self-testing" section="Dev Agent Record"/>
+  </acceptance-criteria>
+
+  <!-- EXPECTED OUTPUT FILES -->
+  <output-files>
+    <file path="ros2_ws/src/manipulator_control/test/test_epic3_navigation.py" type="created">
+      <description>Main pytest test suite file containing all test classes</description>
+    </file>
+  </output-files>
+
+  <!-- REFERENCES -->
+  <references>
+    <reference type="story" path="docs/sprint-artifacts/3-6-create-navigation-test-suite.md"/>
+    <reference type="epic-spec" path="docs/sprint-artifacts/tech-spec-epic-3.md"/>
+    <reference type="epics" path="docs/epics.md" section="Story 3.6"/>
+    <reference type="architecture" path="docs/architecture-ros2-control-v2-CORRECTIONS.md"/>
+    <reference type="story-3-4" path="docs/sprint-artifacts/3-4-implement-navigatetoaddress-action-server.md"/>
+    <reference type="story-3-5" path="docs/sprint-artifacts/3-5-add-address-state-markers-to-visualization.md"/>
+  </references>
+</story-context>

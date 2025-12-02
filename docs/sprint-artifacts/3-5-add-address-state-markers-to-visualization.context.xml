@@ -1,0 +1,226 @@
+<story-context id="3-5-add-address-state-markers-to-visualization" v="1.0">
+  <metadata>
+    <epicId>3</epicId>
+    <storyId>5</storyId>
+    <title>Add Address State Markers to Visualization</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-27</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/3-5-add-address-state-markers-to-visualization.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>visual markers in RViz showing target and extracted addresses</iWant>
+    <soThat>I can observe navigation targets and track which addresses have been accessed</soThat>
+    <tasks>
+      <task id="1" ac="1,2">Add target address publisher to NavigateToAddress server
+        <subtask id="1.1">Add std_msgs.msg.String import to navigate_to_address_server.py</subtask>
+        <subtask id="1.2">Create publisher: self._target_pub = self.create_publisher(String, '/manipulator/target_address', 10)</subtask>
+        <subtask id="1.3">In _execute_callback, publish target address frame after resolving coordinates</subtask>
+        <subtask id="1.4">At end of _execute_callback (before return), clear target with empty string</subtask>
+        <subtask id="1.5">Also clear on abort/cancel in error paths</subtask>
+      </task>
+      <task id="2" ac="3,4,7,8,10">Verify state_marker_publisher target subscription
+        <subtask id="2.1">Review target_callback in state_marker_publisher.py - confirms stores address string</subtask>
+        <subtask id="2.2">Review create_target_marker - confirms uses address as frame_id, gets dimensions</subtask>
+        <subtask id="2.3">Verify TARGET_MARKER_ID = 1 is stable</subtask>
+        <subtask id="2.4">Verify marker_namespace is "manipulator_state"</subtask>
+        <subtask id="2.5">Document existing behavior in Dev Notes</subtask>
+      </task>
+      <task id="3" ac="5,6">Verify state_marker_publisher extracted subscription
+        <subtask id="3.1">Review extracted_callback - confirms parses comma-separated addresses</subtask>
+        <subtask id="3.2">Review create_extracted_markers - confirms creates cube markers</subtask>
+        <subtask id="3.3">Verify EXTRACTED_MARKER_START_ID = 100+ pattern</subtask>
+        <subtask id="3.4">Test with manual topic publish</subtask>
+      </task>
+      <task id="4" ac="11">Create integration test for target marker visualization
+        <subtask id="4.1">Create test/test_address_state_markers.py</subtask>
+        <subtask id="4.2">Test: Send NavigateToAddress goal, verify target marker published</subtask>
+        <subtask id="4.3">Test: Subscribe to /visualization_marker_array, verify green cube appears</subtask>
+        <subtask id="4.4">Test: Verify target marker removed on completion</subtask>
+        <subtask id="4.5">Test: Verify marker scale matches expected box dimensions</subtask>
+      </task>
+      <task id="5" ac="9,11">Manual RViz visualization verification
+        <subtask id="5.1">Launch simulation with state_marker_publisher</subtask>
+        <subtask id="5.2">Add MarkerArray display in RViz</subtask>
+        <subtask id="5.3">Send NavigateToAddress goal and verify green cube visible</subtask>
+        <subtask id="5.4">Verify cube disappears when navigation completes</subtask>
+        <subtask id="5.5">Test extracted markers with manual topic publish</subtask>
+      </task>
+      <task id="6" ac="ALL">MANDATORY Developer Validation - build, test, document results</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <ac id="1">NavigateToAddress publishes target address TF frame name to /manipulator/target_address (String) when action goal accepted</ac>
+    <ac id="2">NavigateToAddress publishes empty string to /manipulator/target_address when action completes (success or abort)</ac>
+    <ac id="3">Green semi-transparent cube marker appears at target address TF frame during navigation (frame_id = address frame)</ac>
+    <ac id="4">Target marker dimensions match box size for that cabinet type from storage_params.yaml</ac>
+    <ac id="5">StateMarkerPublisher correctly parses comma-separated addresses from /manipulator/extracted_addresses topic</ac>
+    <ac id="6">Red semi-transparent cube markers appear at extracted address TF frames when extracted_addresses contains frame names</ac>
+    <ac id="7">Markers update at 10 Hz (existing state_marker_publisher rate)</ac>
+    <ac id="8">All address markers have stable, unique IDs: target=1, extracted=100+index</ac>
+    <ac id="9">All address markers visible in RViz when MarkerArray display enabled and subscribed to /visualization_marker_array</ac>
+    <ac id="10">Address markers use namespace "manipulator_state" for RViz filtering</ac>
+    <ac id="11">Integration test verifies marker appears during navigation, marker dimensions correct, marker clears on completion, results documented in Dev Agent Record</ac>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics.md</path>
+        <title>Epic Breakdown</title>
+        <section>Story 3.5: Add Address State Markers to Visualization</section>
+        <snippet>Defines acceptance criteria for green target markers and red extracted markers at TF address frames, with box dimensions from storage_params.yaml.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-3.md</path>
+        <title>Epic 3 Technical Specification</title>
+        <section>Observability</section>
+        <snippet>AC-3.9: Green cube marker appears at target address during navigation. Marker namespace "manipulator_state" for RViz filtering.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/3-4-implement-navigatetoaddress-action-server.md</path>
+        <title>Story 3.4 NavigateToAddress</title>
+        <section>Core Concepts</section>
+        <snippet>NavigateToAddress combines GetAddressCoordinates service with MoveJointGroup action. Goal contains side, cabinet_num, row, column fields.</snippet>
+      </doc>
+    </docs>
+
+    <code>
+      <file>
+        <path>ros2_ws/src/manipulator_control/src/navigate_to_address_server.py</path>
+        <kind>action_server</kind>
+        <symbol>NavigateToAddressServer</symbol>
+        <lines>1-695</lines>
+        <reason>Main file to modify - add String publisher for target address visualization. Currently has no target_address publisher.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/src/state_marker_publisher.py</path>
+        <kind>node</kind>
+        <symbol>StateMarkerPublisher</symbol>
+        <lines>1-328</lines>
+        <reason>Already implements target and extracted address marker logic. Subscribes to /manipulator/target_address (line 61-66) and /manipulator/extracted_addresses (line 68-73). No changes required.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/config/state_markers.yaml</path>
+        <kind>config</kind>
+        <symbol>marker_configuration</symbol>
+        <reason>Configuration for marker colors and sizes. target_marker (green, 0.5 alpha), extracted_marker (red, 0.5 alpha). Already configured.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_description/config/storage_params.yaml</path>
+        <kind>config</kind>
+        <symbol>box_configurations</symbol>
+        <reason>Box dimension source for marker sizing. columns_4/5/6 width, rows_6/8/10/12/14 height, departments depth. Loaded by StateMarkerPublisher.get_box_dimensions().</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/test/test_navigate_to_address.py</path>
+        <kind>test</kind>
+        <symbol>test_navigate_to_address</symbol>
+        <lines>1-100</lines>
+        <reason>Existing test patterns for NavigateToAddress. Use as reference for test_address_state_markers.py test structure.</reason>
+      </file>
+    </code>
+
+    <dependencies>
+      <ros2>
+        <package version="humble">rclpy</package>
+        <package version="humble">std_msgs</package>
+        <package version="humble">visualization_msgs</package>
+        <package version="humble">geometry_msgs</package>
+        <package version="humble">tf2_ros</package>
+      </ros2>
+      <python>
+        <package>pytest</package>
+        <package>yaml</package>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <interfaces>
+    <interface>
+      <name>/manipulator/target_address</name>
+      <kind>ROS2 Topic</kind>
+      <signature>std_msgs/String - TF frame name (e.g., "addr_l_1_2_3") or empty string to clear</signature>
+      <path>ros2_ws/src/manipulator_control/src/state_marker_publisher.py:61-66</path>
+    </interface>
+    <interface>
+      <name>/manipulator/extracted_addresses</name>
+      <kind>ROS2 Topic</kind>
+      <signature>std_msgs/String - comma-separated TF frame names (e.g., "addr_l_1_1_1,addr_l_2_1_1")</signature>
+      <path>ros2_ws/src/manipulator_control/src/state_marker_publisher.py:68-73</path>
+    </interface>
+    <interface>
+      <name>/visualization_marker_array</name>
+      <kind>ROS2 Topic</kind>
+      <signature>visualization_msgs/MarkerArray - published at 10 Hz with all state markers</signature>
+      <path>ros2_ws/src/manipulator_control/src/state_marker_publisher.py:76-79</path>
+    </interface>
+    <interface>
+      <name>NavigateToAddress</name>
+      <kind>ROS2 Action</kind>
+      <signature>Goal: side, cabinet_num, row, column, approach_distance | Result: success, final_position, positioning_error, message</signature>
+      <path>ros2_ws/src/manipulator_control/action/NavigateToAddress.action</path>
+    </interface>
+  </interfaces>
+
+  <constraints>
+    <constraint type="pattern">Address frame naming: addr_{side_abbrev}_{cabinet}_{row}_{col} where side_abbrev is 'l' or 'r'</constraint>
+    <constraint type="pattern">Marker IDs: TARGET_MARKER_ID=1, EXTRACTED_MARKER_START_ID=100+index</constraint>
+    <constraint type="pattern">Marker namespace: "manipulator_state" for RViz filtering</constraint>
+    <constraint type="architecture">No changes to state_marker_publisher.py - only add publisher to navigate_to_address_server.py</constraint>
+    <constraint type="testing">MANDATORY: Developer must run integration tests and document results in Dev Agent Record before marking done</constraint>
+    <constraint type="config">Use existing state_markers.yaml and storage_params.yaml - DO NOT create new config files</constraint>
+  </constraints>
+
+  <tests>
+    <standards>
+      pytest for unit tests. Integration tests with ROS2 launch_testing for Gazebo environment.
+      Tests in ros2_ws/src/manipulator_control/test/ directory.
+      Follow existing test patterns from test_navigate_to_address.py for mock structures.
+      All tests must pass before story completion. Results documented in Dev Agent Record.
+    </standards>
+    <locations>
+      <location>ros2_ws/src/manipulator_control/test/test_*.py</location>
+      <location>ros2_ws/src/manipulator_control/scripts/test_*.py</location>
+    </locations>
+    <ideas>
+      <idea ac="1,2">Test String publisher created and publishes target frame on goal acceptance, empty string on completion</idea>
+      <idea ac="3">Test MarkerArray contains CUBE marker with frame_id matching target address during navigation</idea>
+      <idea ac="4">Test marker scale matches expected box dimensions from storage_params lookup</idea>
+      <idea ac="5,6">Test comma-separated extracted addresses parsed and rendered as multiple red cubes</idea>
+      <idea ac="7,8,10">Test marker update rate, stable IDs, and correct namespace</idea>
+      <idea ac="9">Manual RViz verification that markers are visible with MarkerArray display</idea>
+    </ideas>
+  </tests>
+
+  <cliCommands>
+    <command desc="Test target address marker">ros2 topic pub -1 /manipulator/target_address std_msgs/String "{data: 'addr_l_1_1_1'}"</command>
+    <command desc="Clear target marker">ros2 topic pub -1 /manipulator/target_address std_msgs/String "{data: ''}"</command>
+    <command desc="Test extracted addresses">ros2 topic pub -1 /manipulator/extracted_addresses std_msgs/String "{data: 'addr_l_1_1_1,addr_l_2_1_1'}"</command>
+    <command desc="Clear extracted markers">ros2 topic pub -1 /manipulator/extracted_addresses std_msgs/String "{data: ''}"</command>
+    <command desc="Monitor marker array">ros2 topic echo /visualization_marker_array</command>
+    <command desc="Send navigation goal">ros2 action send_goal /navigate_to_address manipulator_control/action/NavigateToAddress "{side: 'left', cabinet_num: 1, row: 1, column: 1, approach_distance: 0.0}"</command>
+  </cliCommands>
+
+  <keyImplementation>
+    <summary>
+      This is a lightweight integration story. The state_marker_publisher.py already implements
+      all marker logic - it subscribes to /manipulator/target_address and /manipulator/extracted_addresses
+      topics and renders appropriate cube markers. The ONLY code change required is adding a
+      String publisher to navigate_to_address_server.py that publishes the target frame name
+      when navigation starts and clears it (empty string) when navigation completes.
+    </summary>
+    <codeChange file="ros2_ws/src/manipulator_control/src/navigate_to_address_server.py">
+      <add>from std_msgs.msg import String</add>
+      <add>self._target_pub = self.create_publisher(String, '/manipulator/target_address', 10)</add>
+      <add>In _execute_callback after goal accepted: side_abbrev = 'l' if goal.side == 'left' else 'r'; target_frame = f"addr_{side_abbrev}_{goal.cabinet_num}_{goal.row}_{goal.column}"; self._target_pub.publish(String(data=target_frame))</add>
+      <add>Before all return statements in _execute_callback: self._target_pub.publish(String(data=''))</add>
+    </codeChange>
+    <newFile file="ros2_ws/src/manipulator_control/test/test_address_state_markers.py">
+      Integration test verifying marker publishing and visualization.
+    </newFile>
+  </keyImplementation>
+</story-context>

@@ -1,9 +1,9 @@
 # ROS2 Control Architecture v2.0 - CORRECTED
 ## ya_robot_manipulator Level 3 Control System
 
-**Document Version:** 2.2
-**Date:** 2025-11-26
-**Corrections Applied:** Based on URDF analysis, detailed user feedback, unified limits architecture, and JointTrajectoryController migration
+**Document Version:** 2.3
+**Date:** 2025-11-27
+**Corrections Applied:** Based on URDF analysis, detailed user feedback, unified limits architecture, JointTrajectoryController migration, and Epic 7 Hardware Interface architecture
 
 ---
 
@@ -2009,149 +2009,162 @@ load_positions:
       z: 1.2      # Higher for camera view
 ```
 
-#### C. YZ Trajectory Generation for Box Insertion/Extraction
+#### C. YZ Trajectory Generation for Box Insertion/Extraction (Parametric Curves)
 
-**Purpose:** Generate safe trajectories in YZ plane (world frame) to insert/extract boxes from cabinets
+**Purpose:** Execute smooth YZ trajectories for box insertion/extraction using parametric curves
 
-**Challenge:** Gripper must move into cabinet opening without collision with cabinet frame
+**Approach:** Predefined Bezier curves designed in SVG, converted to YAML waypoints, executed via JointTrajectoryController
+
+**Why Parametric Curves (not collision checking):**
+- Predictable, repeatable motion profiles
+- Easy to edit visually in Inkscape/SVG editor
+- No runtime computation overhead
+- Smooth spline interpolation via JointTrajectoryController
 
 **Trajectory Types:**
 
 1. **Insertion Trajectory (PutBox, ReturnBox)**
-   - Start: Gripper at cabinet front, box outside
-   - Path: Move Y+ (into cabinet) while adjusting Z to avoid frame collision
-   - End: Box at address depth
+   - Start: Gripper at cabinet front (Y=0)
+   - Path: Bezier curve moving Y+ into cabinet with subtle Z adjustments
+   - End: Box at address depth (Y≈0.4m)
 
 2. **Extraction Trajectory (ExtractBox)**
-   - Start: Gripper extended into cabinet
-   - Path: Move Y- (out of cabinet) while maintaining Z clearance
-   - End: Box fully extracted, clear of cabinet
+   - Start: Gripper extended into cabinet (Y≈0.4m)
+   - Path: Bezier curve moving Y- out with slight Z lift for clearance
+   - End: Box fully extracted (Y=0)
 
-**Trajectory Generator:**
+**Trajectory Config (external scaling - SVG is unitless):**
+
+```yaml
+# config/trajectory_config.yaml
+trajectories:
+  extract_left:
+    svg_file: trajectories/extract_left.svg
+    mapping:
+      x_range: [0, 100]        # SVG X coordinate range
+      y_output: [0.0, 0.4]     # Joint Y output range (meters)
+      y_center: 50             # SVG Y value that maps to Z=0
+      z_scale: 0.001           # Meters per SVG unit (1 unit = 1mm)
+    sampling:
+      num_points: 20           # Waypoints to generate
+      waypoint_duration: 0.5   # Seconds between waypoints
+```
+
+**SVG Source Files (unitless curves):**
+
+```svg
+<!-- config/trajectories/extract_left.svg -->
+<svg viewBox="0 0 100 100">
+  <!-- Unitless Bezier curves - scaling defined in trajectory_config.yaml -->
+  <path id="insertion" d="M 0,50 C 30,50 70,48 100,50"/>
+  <path id="extraction" d="M 100,50 C 70,52 30,52 0,50"/>
+</svg>
+```
+
+**Converter Tool (Development Only):**
+
+```bash
+# Install converter dependency (dev only)
+pip install svgpathtools
+
+# Convert SVG to YAML using config (run once, commit result)
+python3 scripts/svg_to_trajectory.py \
+    --config config/trajectory_config.yaml \
+    --trajectory extract_left \
+    -o config/extraction_trajectories.yaml
+```
+
+**Generated YAML Format:**
+
+```yaml
+# config/extraction_trajectories.yaml (generated, committed)
+source_svg: trajectories/extract_left.svg
+config_used: trajectory_config.yaml
+trajectories:
+  insertion:
+    - {y: 0.0, z: 0.0}
+    - {y: 0.021, z: 0.0}
+    - {y: 0.084, z: 0.001}
+    # ... sampled from Bezier curve
+  extraction:
+    - {y: 0.4, z: 0.0}
+    - {y: 0.379, z: -0.002}
+    # ...
+```
+
+**Runtime Trajectory Generator:**
 
 ```python
 class YZTrajectoryGenerator:
-    """Generate safe YZ trajectories for box insertion/extraction"""
+    """Load and execute parametric curve trajectories for box operations"""
 
-    def __init__(self, storage_config):
-        self.cabinet_dims = storage_config['cabinet_dimensions']
-        self.wall_thickness = self.cabinet_dims['wall_thickness']
-        self.safety_margin = 0.02  # 2cm clearance
+    def __init__(self, config_path: str = 'config/extraction_trajectories.yaml'):
+        with open(config_path) as f:
+            self.config = yaml.safe_load(f)
+        self.trajectories = self.config['trajectories']
 
-    def generate_insertion_trajectory(self,
-                                     current_y, current_z,
-                                     target_y, target_z,
-                                     approach_speed=0.05):
+    def load_trajectory(self, name: str, side: str, base_y: float, base_z: float,
+                       waypoint_duration: float = 0.5) -> list[dict]:
         """
-        Generate trajectory to insert box into cabinet
-
-        Strategy:
-        1. Align Z to target height first (if needed)
-        2. Move Y into cabinet gradually
-        3. Final Z adjustment if address height different
-
-        Returns: List of waypoints [(y, z, speed), ...]
-        """
-        waypoints = []
-
-        # Step 1: Align Z outside cabinet (if target_z different)
-        if abs(current_z - target_z) > 0.01:
-            waypoints.append({
-                'y': current_y,
-                'z': target_z,
-                'speed': 0.1,
-                'description': 'Align Z height'
-            })
-            current_z = target_z
-
-        # Step 2: Move into cabinet opening (Y+)
-        # Check if we need to avoid top frame
-        frame_clearance_z = self.cabinet_dims['exterior']['z'] - self.wall_thickness
-
-        if target_z > frame_clearance_z - self.safety_margin:
-            # Too close to top, lower slightly during insertion
-            safe_z = frame_clearance_z - self.safety_margin
-            waypoints.append({
-                'y': current_y + 0.05,
-                'z': safe_z,
-                'speed': approach_speed,
-                'description': 'Lower for top frame clearance'
-            })
-
-        # Step 3: Continue Y+ to target depth
-        waypoints.append({
-            'y': target_y,
-            'z': target_z,  # Back to target Z (or maintain safe_z)
-            'speed': approach_speed,
-            'description': 'Insert to target depth'
-        })
-
-        return waypoints
-
-    def generate_extraction_trajectory(self,
-                                      current_y, current_z,
-                                      safe_y,
-                                      retract_speed=0.08):
-        """
-        Generate trajectory to extract box from cabinet
-
-        Strategy:
-        1. Retract Y- (out of cabinet)
-        2. Maintain Z or adjust if frame collision risk
-
-        Returns: List of waypoints
-        """
-        waypoints = []
-
-        # Check if current Z risks collision with top frame
-        frame_clearance_z = self.cabinet_dims['exterior']['z'] - self.wall_thickness
-
-        if current_z > frame_clearance_z - self.safety_margin:
-            # Lower slightly before retracting
-            waypoints.append({
-                'y': current_y,
-                'z': frame_clearance_z - self.safety_margin,
-                'speed': 0.05,
-                'description': 'Lower for safe extraction'
-            })
-            current_z = frame_clearance_z - self.safety_margin
-
-        # Retract to safe Y position
-        waypoints.append({
-            'y': safe_y,
-            'z': current_z,
-            'speed': retract_speed,
-            'description': 'Retract from cabinet'
-        })
-
-        return waypoints
-
-    def execute_yz_trajectory(self, waypoints, joint_names):
-        """
-        Execute YZ trajectory using selector Z joint and gripper Y joint
+        Load trajectory and transform to world coordinates.
 
         Args:
-            waypoints: List of {y, z, speed} dicts
-            joint_names: ['main_frame_selector_frame_joint',
-                         'selector_frame_gripper_joint']
+            name: Trajectory name ('insertion' or 'extraction')
+            side: Cabinet side ('left' or 'right') - right side flips Y sign
+            base_y: Starting Y position (gripper center)
+            base_z: Starting Z position (selector height)
+            waypoint_duration: Time between waypoints (seconds)
+
+        Returns:
+            List of waypoints with world coordinates and timing
         """
-        for i, wp in enumerate(waypoints):
-            logger.info(f"Executing waypoint {i+1}/{len(waypoints)}: {wp['description']}")
+        waypoints = self.trajectories[name]
+        sign = 1.0 if side == 'left' else -1.0
 
-            # Command both joints simultaneously for smooth motion
-            # Use MoveJointGroup with custom speed
-            move_group_goal = MoveJointGroup.Goal()
-            move_group_goal.joint_group = "selector_gripper"  # Custom group
-            move_group_goal.target_positions = [wp['z'], wp['y']]
-            move_group_goal.max_velocity = wp['speed']
+        return [
+            {
+                'y': base_y + sign * wp['y'],
+                'z': base_z + wp['z'],
+                'time_from_start': i * waypoint_duration
+            }
+            for i, wp in enumerate(waypoints)
+        ]
 
-            result = move_joint_group_client.send_goal_and_wait(move_group_goal)
+    def execute_trajectory(self, waypoints: list[dict],
+                          trajectory_client) -> bool:
+        """
+        Execute trajectory via JointTrajectoryController.
 
-            if not result.success:
-                raise Exception(f"Waypoint {i+1} failed: {result.message}")
+        Args:
+            waypoints: Transformed waypoints from load_trajectory()
+            trajectory_client: ActionClient for FollowJointTrajectory
 
-            # Small pause between waypoints for stability
-            time.sleep(0.1)
+        Returns:
+            True if trajectory completed successfully
+        """
+        from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+        from builtin_interfaces.msg import Duration
+
+        traj = JointTrajectory()
+        traj.joint_names = [
+            'selector_frame_gripper_joint',      # Y-axis
+            'main_frame_selector_frame_joint'    # Z-axis
+        ]
+
+        for wp in waypoints:
+            point = JointTrajectoryPoint()
+            point.positions = [wp['y'], wp['z']]
+            point.velocities = [0.0, 0.0]  # Let controller interpolate
+            secs = int(wp['time_from_start'])
+            nsecs = int((wp['time_from_start'] - secs) * 1e9)
+            point.time_from_start = Duration(sec=secs, nanosec=nsecs)
+            traj.points.append(point)
+
+        goal = FollowJointTrajectory.Goal()
+        goal.trajectory = traj
+
+        result = trajectory_client.send_goal_and_wait(goal)
+        return result.error_code == FollowJointTrajectory.Result.SUCCESSFUL
 ```
 
 **Integration in ExtractBox:**
@@ -2485,16 +2498,17 @@ rqt  # Use Action Browser to send NavigateToAddress goal
 
 ### Phase 3: Box Handling - Spawn & Electromagnet
 
-**Objective:** Dynamic box spawning, magnetic attachment, and YZ trajectory generation
+**Objective:** Dynamic box spawning, magnetic attachment, and parametric curve-based YZ trajectory execution
 
 **Tasks:**
 
-**3.1 YZ Trajectory Generator Utility**
-- Implement `yz_trajectory_generator.py`
-- Generate safe insertion/extraction trajectories in YZ plane
-- Avoid cabinet frame collisions
-- Configurable speeds and safety margins
-- Test with manual joint commands
+**3.1 YZ Trajectory Generator Utility (Parametric Curves)**
+- Create SVG source files for insertion/extraction curves (`config/trajectories/*.svg`)
+- Implement `scripts/svg_to_trajectory.py` converter (dev tool, requires svgpathtools)
+- Generate `config/extraction_trajectories.yaml` from SVG
+- Implement `yz_trajectory_generator.py` runtime loader
+- Load waypoints, transform for side/position, execute via JointTrajectoryController
+- Test smooth motion with multiple addresses
 
 **3.2 Address Validator Utility**
 - Implement `address_validator.py`
@@ -2518,17 +2532,17 @@ rqt  # Use Action Browser to send NavigateToAddress goal
 
 **3.5 ExtractBox Action Server**
 - Navigate to address (call NavigateToAddress)
-- Generate and execute YZ insertion trajectory (to reach box)
+- Load and execute "insertion" trajectory from YAML (to reach box)
 - Toggle electromagnet ON
-- Generate and execute YZ extraction trajectory (pull box out)
+- Load and execute "extraction" trajectory from YAML (pull box out)
 - Call SpawnBox service
 - Mark address as "extracted" (red marker)
 
 **3.6 ReturnBox Action Server**
 - Navigate to original address
-- Generate and execute YZ insertion trajectory
+- Load and execute "insertion" trajectory from YAML
 - Toggle electromagnet OFF
-- Generate and execute YZ extraction trajectory
+- Load and execute "extraction" trajectory from YAML
 - Call DespawnBox service
 - Remove red marker
 
@@ -3509,6 +3523,97 @@ sudo apt install ros-jazzy-gz-ros2-control
 
 ---
 
+### Epic 7: Hardware Interface for Real Robot Control
+
+**Full Documentation:** `docs/architecture-epic7-hardware-interface.md`
+
+**Overview:** Epic 7 implements a ros2_control hardware interface plugin that enables real hardware control via Modbus RTU, allowing hot-swappable transition between simulation and real hardware.
+
+**Key Architectural Decisions:**
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Implementation Language | **Python** (proof-of-concept) | Matches existing `examples/modbus_driver/`, faster iteration |
+| Hardware Interface Type | `SystemInterface` | Controls 7 joints as coordinated system |
+| Communication Protocol | Modbus RTU | Existing working driver, standard industrial protocol |
+| Container Jaws | Mock interface | No Modbus; future discrete I/O epic |
+
+**Hardware Plugin Architecture:**
+
+```
+┌─────────────────────────────────────┐
+│  controller_manager (100 Hz)        │
+│  - 7 JointTrajectoryControllers     │
+│  - 2 ForwardCommandControllers      │
+└──────────────┬──────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────┐
+│  ModbusHardwareInterface (Python)   │
+│  - export_state_interfaces()        │
+│  - export_command_interfaces()      │
+│  - read() / write() at 100 Hz       │
+└──────────────┬──────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────┐
+│  ModbusDriver (minimalmodbus)       │
+│  - FC4: Read Input Registers        │
+│  - FC6: Write Holding Registers     │
+└──────────────┬──────────────────────┘
+               │
+               ▼
+        /dev/ttyACM0 (Serial RS-485)
+               │
+    ┌──────────┼──────────┐
+    ▼          ▼          ▼
+ Slave 1    Slave 2    Slave 3
+ (X, Z)     (Y, B)     (A, C, D)
+```
+
+**URDF Hardware Switching:**
+
+```xml
+<!-- In ros2_control.xacro -->
+<xacro:if value="${sim}">
+  <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+</xacro:if>
+<xacro:unless value="${sim}">
+  <plugin>manipulator_hardware/ModbusHardwareInterface</plugin>
+  <param name="config_file">$(find manipulator_hardware)/config/hardware_config.yaml</param>
+</xacro:unless>
+```
+
+**Launch Usage:**
+
+```bash
+# Simulation (default)
+ros2 launch manipulator_control manipulator_simulation.launch.py
+
+# Real hardware
+ros2 launch manipulator_control manipulator_simulation.launch.py use_sim_time:=false
+```
+
+**Joint-to-Hardware Mapping:**
+
+| Joint | Slave | Axis | Position Reg | Command Reg |
+|-------|-------|------|--------------|-------------|
+| base_main_frame_joint | 1 | X | 1003 | 2999 |
+| main_frame_selector_frame_joint | 1 | Z | 1010 | 3008 |
+| selector_frame_gripper_joint | 2 | Y | 1003 | 2999 |
+| selector_frame_picker_frame_joint | 3 | A | 1003 | 2999 |
+| picker_frame_picker_rail_joint | 2 | B | 1010 | 3008 |
+| picker_rail_picker_base_joint | 3 | C | 1010 | 3008 |
+| picker_base_picker_jaw_joint | 3 | D | 1017 | 3017 |
+
+**Reference Implementation:** `examples/modbus_driver/` (working Python Modbus driver)
+
+**Key ROS2 Control Documentation:**
+- [Writing a Hardware Component (Jazzy)](https://control.ros.org/jazzy/doc/ros2_control/hardware_interface/doc/writing_new_hardware_component.html)
+- [Hardware Interface Types](https://control.ros.org/jazzy/doc/ros2_control/hardware_interface/doc/hardware_interface_types_userdoc.html)
+
+---
+
 ### Summary of Jazzy/Harmonic Specific Changes
 
 **Key Updates from Older Versions:**
@@ -3646,9 +3751,18 @@ manipulator_control/config/ (SECONDARY - grouped by function):
 **Phase 4:** Item picking + departments (4-5 days)
 **Phase 5:** Integration + testing (5-6 days)
 **Phase 6:** Level 2 bridge (future)
+**Phase 7:** Hardware Interface (INDEPENDENT - can develop in parallel with Phases 1-6)
 
-**Total: ~18-23 days**
+**Total: ~18-23 days (Phases 0-6) + Phase 7 (parallel)**
+
+### Epic 7: Hardware Interface (Independent Development Track)
+
+✅ **Hardware Interface:** Python ros2_control SystemInterface with Modbus RTU
+✅ **Hot-Swappable:** URDF `sim` parameter switches between simulation and hardware
+✅ **Configuration-Driven:** YAML-based joint-to-register mapping
+✅ **Reference Implementation:** `examples/modbus_driver/` working Python driver
+✅ **Full Documentation:** `docs/architecture-epic7-hardware-interface.md`
 
 ---
 
-**This v2.0 document reflects the complete system architecture with all box manipulation capabilities, YZ trajectory planning, and phased development roadmap ready for implementation.**
+**This v2.2 document reflects the complete system architecture with all box manipulation capabilities, YZ trajectory planning, hardware interface architecture, and phased development roadmap ready for implementation.**

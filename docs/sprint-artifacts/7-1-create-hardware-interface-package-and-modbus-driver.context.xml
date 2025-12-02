@@ -1,0 +1,236 @@
+<story-context id="7-1-create-hardware-interface-package-and-modbus-driver" v="1.0">
+  <metadata>
+    <epicId>7</epicId>
+    <storyId>7.1</storyId>
+    <title>Create Hardware Interface Package and Modbus Driver</title>
+    <status>ready-for-dev</status>
+    <generatedAt>2025-11-27</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/7-1-create-hardware-interface-package-and-modbus-driver.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>create the manipulator_hardware ROS2 package with Modbus RTU communication</iWant>
+    <soThat>I have the foundation for real hardware control</soThat>
+    <tasks>
+      <task id="1" ac="1">Create ROS2 Python package structure
+        <subtask>1.1 Create package with ros2 pkg create manipulator_hardware --build-type ament_python</subtask>
+        <subtask>1.2 Configure setup.py with package discovery</subtask>
+        <subtask>1.3 Add dependencies to package.xml (hardware_interface, rclpy)</subtask>
+        <subtask>1.4 Add minimalmodbus to package.xml (pip dependency)</subtask>
+        <subtask>1.5 Create manipulator_hardware.xml pluginlib export file (placeholder)</subtask>
+        <subtask>1.6 Create directory structure (manipulator_hardware/, config/, test/)</subtask>
+      </task>
+      <task id="2" ac="2,3">Implement ModbusDriver class
+        <subtask>2.1 Create manipulator_hardware/modbus_driver.py</subtask>
+        <subtask>2.2 Implement __init__() with configurable port, baudrate, timeout</subtask>
+        <subtask>2.3 Implement connect() using minimalmodbus.Instrument</subtask>
+        <subtask>2.4 Implement disconnect() to close serial connection</subtask>
+        <subtask>2.5 Implement read_position(slave_id, register) using FC4</subtask>
+        <subtask>2.6 Implement write_position(slave_id, register, value) using FC6</subtask>
+        <subtask>2.7 Implement read_error_code(), is_device_ready(), is_device_busy()</subtask>
+        <subtask>2.8 Add retry logic with configurable retry_count</subtask>
+        <subtask>2.9 Add rclpy logging for debug/warn/error messages</subtask>
+      </task>
+      <task id="3" ac="2">Create hardware configuration YAML
+        <subtask>3.1 Create config/hardware_config.yaml with modbus settings</subtask>
+        <subtask>3.2 Add joint-to-register mapping for all 7 motion joints</subtask>
+        <subtask>3.3 Add status register addresses (err_code, module_ready, module_is_busy)</subtask>
+      </task>
+      <task id="4" ac="4">Write unit tests
+        <subtask>4.1 Create test/test_modbus_driver.py</subtask>
+        <subtask>4.2 Test connection handling with mock serial</subtask>
+        <subtask>4.3 Test register read/write operations</subtask>
+        <subtask>4.4 Test timeout behavior</subtask>
+        <subtask>4.5 Test error handling (exception catching)</subtask>
+        <subtask>4.6 Add pytest configuration to setup.py</subtask>
+      </task>
+      <task id="5" ac="5">Build verification
+        <subtask>5.1 Run colcon build and fix any issues</subtask>
+        <subtask>5.2 Run colcon test and verify tests pass</subtask>
+      </task>
+      <task id="6" ac="6" mandatory="true">Hardware verification with single device
+        <subtask>6.1 Connect single Modbus device (slave_id=1, engineXZ)</subtask>
+        <subtask>6.2 Run simple test script to verify connection</subtask>
+        <subtask>6.3 Read module_ready register (1002)</subtask>
+        <subtask>6.4 Read current position register (1003)</subtask>
+        <subtask>6.5 Write target position and verify device accepts command</subtask>
+        <subtask>6.6 Document test results in completion notes</subtask>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">
+      <given>a ROS2 workspace exists at ros2_ws/src</given>
+      <when>I create the manipulator_hardware package</when>
+      <then>the package structure includes: Python ROS2 package with ament_python build type, setup.py with proper entry points, package.xml with dependencies (hardware_interface, rclpy, minimalmodbus), Plugin export XML file for pluginlib registration</then>
+    </criterion>
+    <criterion id="2">
+      <given>the package is created</given>
+      <when>I implement ModbusDriver class</when>
+      <then>it provides: connect(), disconnect(), read_position(), write_position(), read_error_code(), is_device_ready(), is_device_busy()</then>
+    </criterion>
+    <criterion id="3">
+      <given>ModbusDriver is implemented</given>
+      <when>handling serial communication</when>
+      <then>it handles: serial port configuration via minimalmodbus, Modbus RTU framing and CRC, timeout and retry logic, graceful error handling</then>
+    </criterion>
+    <criterion id="4">
+      <given>ModbusDriver is implemented</given>
+      <when>I run unit tests</when>
+      <then>tests verify: connection handling, register read/write operations, timeout behavior, error handling</then>
+    </criterion>
+    <criterion id="5">
+      <given>all code is complete</given>
+      <when>I run colcon build --packages-select manipulator_hardware</when>
+      <then>build succeeds with no errors or warnings</then>
+    </criterion>
+    <criterion id="6" mandatory="true">
+      <given>real hardware is available with ONE device on the bus</given>
+      <when>developer tests the ModbusDriver</when>
+      <then>developer MUST verify: connection to /dev/ttyACM0 succeeds, read from module_ready (1002) returns valid value, read from ord1_current (1003) returns position, write to ord1_given (2999) changes target, device responds within 500ms. Test with slave_id=1 (engineXZ) only.</then>
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/architecture-epic7-hardware-interface.md</path>
+        <title>Epic 7 Hardware Interface Architecture</title>
+        <section>Python Hardware Interface Implementation</section>
+        <snippet>Python hardware interface using ros2_control_py framework. ModbusDriver wraps minimalmodbus to provide clean interface for reading/writing motor controller registers.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture-epic7-hardware-interface.md</path>
+        <title>Epic 7 Hardware Interface Architecture</title>
+        <section>Modbus RTU Communication Layer</section>
+        <snippet>Modbus RTU protocol with FC4 (read input registers) for position/status and FC6 (write holding register) for commands. 3 slave devices controlling 7 motion joints.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-7.md</path>
+        <title>Epic 7 Technical Specification</title>
+        <section>Services and Modules</section>
+        <snippet>manipulator_hardware package with modbus_driver.py (Modbus communication layer) and modbus_hardware_interface.py (ros2_control plugin). Uses minimalmodbus library.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics.md</path>
+        <title>Project Epics</title>
+        <section>Story 7.1</section>
+        <snippet>Create Hardware Interface Package and Modbus Driver. Foundation for real hardware control via Modbus RTU serial communication.</snippet>
+      </doc>
+    </docs>
+
+    <code>
+      <artifact>
+        <path>examples/modbus_driver/modbus_rtu.py</path>
+        <kind>reference-implementation</kind>
+        <symbol>create_instrument, read_input_register, write_holding_register</symbol>
+        <lines>30-91</lines>
+        <reason>Working Python Modbus RTU implementation using minimalmodbus. Use as template for ModbusDriver class. Shows serial configuration, FC4/FC6 usage, and error handling patterns.</reason>
+      </artifact>
+      <artifact>
+        <path>examples/modbus_driver/configuration.yml</path>
+        <kind>config-reference</kind>
+        <symbol>modbus, inp_reg, hold_reg</symbol>
+        <lines>1-80</lines>
+        <reason>Authoritative register mapping for all 3 slave devices. Contains input register addresses (999, 1001, 1002, 1003, 1010, 1017) and holding register addresses (2999, 3008, 3017).</reason>
+      </artifact>
+      <artifact>
+        <path>examples/modbus_driver/control.py</path>
+        <kind>reference-implementation</kind>
+        <symbol>read_error_code_device, read_ready_status_device, read_command_prep_device</symbol>
+        <lines>82-123</lines>
+        <reason>Higher-level control functions showing status register usage patterns. Reference for is_device_ready(), is_device_busy(), read_error_code() implementations.</reason>
+      </artifact>
+    </code>
+
+    <dependencies>
+      <python>
+        <package name="minimalmodbus" version="2.1.1">Modbus RTU communication library - proven with this hardware</package>
+        <package name="pyserial" version="3.5">Serial port access (dependency of minimalmodbus)</package>
+        <package name="pyyaml" version="6.0">YAML configuration parsing</package>
+        <package name="pytest" version=">=7.0">Unit testing framework</package>
+      </python>
+      <ros2>
+        <package name="rclpy">ROS2 Python client library</package>
+        <package name="hardware_interface">ros2_control hardware interface base</package>
+        <package name="ament_python">Python package build type</package>
+      </ros2>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="architecture">Implementation language is Python with minimalmodbus (not C++)</constraint>
+    <constraint type="architecture">Package build type must be ament_python</constraint>
+    <constraint type="pattern">Use Optional[int] return types for operations that may fail - no exceptions should leak</constraint>
+    <constraint type="pattern">Use rclpy.logging.get_logger() for ROS2-compatible logging</constraint>
+    <constraint type="hardware">Serial port: /dev/ttyACM0, baudrate: 115200, timeout: 0.5s</constraint>
+    <constraint type="hardware">3 slave devices: engineXZ (1), engineYB (2), engineACD (3)</constraint>
+    <constraint type="scope">This story implements ONLY the ModbusDriver (communication layer) - NOT the ros2_control plugin (Story 7-2)</constraint>
+    <constraint type="scope">No unit conversion (meters to pulses) - that is Story 7-2</constraint>
+    <constraint type="testing">MANDATORY: Must test with real hardware (single device, slave_id=1) before marking complete</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>ModbusDriver</name>
+      <kind>class</kind>
+      <signature>
+class ModbusDriver:
+    def __init__(self, port: str = '/dev/ttyACM0', baudrate: int = 115200, timeout_sec: float = 0.5, retry_count: int = 3)
+    def connect(self) -> bool
+    def disconnect(self) -> None
+    def read_position(self, slave_id: int, register: int) -> Optional[int]
+    def write_position(self, slave_id: int, register: int, value: int) -> bool
+    def read_error_code(self, slave_id: int) -> Optional[int]
+    def is_device_ready(self, slave_id: int) -> Optional[bool]
+    def is_device_busy(self, slave_id: int) -> Optional[bool]
+      </signature>
+      <path>ros2_ws/src/manipulator_hardware/manipulator_hardware/modbus_driver.py</path>
+    </interface>
+    <interface>
+      <name>Modbus Register Protocol</name>
+      <kind>hardware-protocol</kind>
+      <signature>
+FC4 (Read Input Registers):
+  - err_code: register 999
+  - module_is_busy: register 1001
+  - module_ready: register 1002
+  - ord1_current: register 1003
+  - ord2_current: register 1010
+  - ord3_current: register 1017
+
+FC6 (Write Single Holding Register):
+  - ord1_given: register 2999
+  - ord2_given: register 3008
+  - ord3_given: register 3017
+      </signature>
+      <path>examples/modbus_driver/configuration.yml</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Use pytest framework for unit tests. Mock minimalmodbus.Instrument using unittest.mock to avoid requiring real hardware for unit tests. Target ≥80% line coverage for ModbusDriver class. Hardware verification (AC#6) is MANDATORY and requires real device connected with slave_id=1 only.
+    </standards>
+    <locations>
+      <location>ros2_ws/src/manipulator_hardware/test/test_modbus_driver.py</location>
+    </locations>
+    <ideas>
+      <test ac="2,3">test_connect_success - mock Instrument creation, verify serial settings applied</test>
+      <test ac="2,3">test_connect_failure - mock serial port not available, verify returns False</test>
+      <test ac="2,3">test_disconnect - verify serial.close() called</test>
+      <test ac="2">test_read_position_success - mock read_register FC4, verify correct slave_id and register</test>
+      <test ac="2">test_read_position_timeout - mock timeout exception, verify returns None</test>
+      <test ac="2">test_write_position_success - mock write_register FC6, verify returns True</test>
+      <test ac="2">test_write_position_failure - mock exception, verify returns False</test>
+      <test ac="2">test_read_error_code - verify reads register 999</test>
+      <test ac="2">test_is_device_ready - verify reads register 1002, returns bool</test>
+      <test ac="2">test_is_device_busy - verify reads register 1001, returns bool</test>
+      <test ac="3">test_retry_logic - mock failure then success, verify retry_count honored</test>
+      <test ac="6" manual="true">test_hardware_single_device - connect to real engineXZ (slave_id=1), read/write registers</test>
+    </ideas>
+  </tests>
+</story-context>

@@ -208,6 +208,7 @@ Before marking any story as `done`, verify:
 **Epic 4B (Advanced Box Operations):** FR-014, FR-015, FR-018
 **Epic 5 (Item Picking & Department Frames):** FR-005, FR-006, FR-012 (complete), FR-013 (partial), FR-016, FR-017
 **Epic 6 (High-Level Workflows & System Integration):** FR-019, FR-020, FR-013 (complete), all NFRs
+**Epic 7 (Hardware Interface):** Real hardware control via Modbus RTU - independent of Epics 1-6 (can be developed in parallel)
 
 ---
 
@@ -220,8 +221,9 @@ Before marking any story as `done`, verify:
 **Epic 4B:** Advanced Box Operations (4 stories) - Box relocation and loading stations
 **Epic 5:** Item Picking & Department Frames (8 stories) - Pick items from departments within boxes
 **Epic 6:** High-Level Workflows & System Integration (8 stories) - Complete autonomous operation + validation
+**Epic 7:** Hardware Interface (3 stories) - Real hardware control via Modbus RTU (INDEPENDENT - can develop in parallel)
 
-**Total: 7 epics, 42 stories**
+**Total: 8 epics, 45 stories**
 
 ---
 
@@ -1302,55 +1304,159 @@ So that I can ensure positioning accuracy meets requirements across all cabinet 
 
 ## Epic 4A: Box Extraction Core
 
-**Goal:** Implement YZ trajectory generation, electromagnet simulation, dynamic box spawning, and core box extraction/return actions with collision-free motion.
+**Goal:** Implement parametric curve-based YZ trajectory generation (SVG → YAML), electromagnet simulation, dynamic box spawning, and core box extraction/return actions with smooth motion profiles.
 
 **Value Delivered:** Complete box handling capability with 100+ boxes extractable/returnable, enabling all downstream item picking and box relocation workflows.
 
-### Story 4A.1: Implement YZ Trajectory Generator Utility
+### Story 4A.1: Implement YZ Trajectory Generator Utility (Parametric Curves)
 
 As a developer,
-I want a utility to generate safe YZ plane trajectories for box insertion/extraction,
-So that gripper motion avoids cabinet frame collisions during box operations.
+I want a utility to load and execute parametric curve-based YZ trajectories for box insertion/extraction,
+So that gripper motion follows smooth, editable curves during box operations.
 
 **Acceptance Criteria:**
 
-**Given** cabinet dimensions and wall thickness are defined in storage_params.yaml
-**When** I call generate_insertion_trajectory(current_y, current_z, target_y, target_z, approach_speed)
-**Then** the utility returns a list of waypoints with:
-- Each waypoint: {y: float, z: float, speed: float, description: string}
-- Waypoints ensure gripper clears cabinet top frame (safety_margin=0.02m)
-- Path adjusts Z height if current_z risks top frame collision
-- Smooth progression from current to target position
+**Given** SVG source files define Bezier curve trajectories for insertion/extraction
+**When** I run `scripts/svg_to_trajectory.py config/trajectories/extract_left.svg -o config/extraction_trajectories.yaml`
+**Then** the converter generates YAML waypoints:
+- Samples curve at configurable number of points (default 20)
+- Converts SVG coordinates to Y/Z positions in meters
+- Outputs YAML with trajectory names matching SVG path IDs (e.g., "insertion", "extraction")
 
-**When** I call generate_extraction_trajectory(current_y, current_z, safe_y, retract_speed)
-**Then** the utility returns waypoints for safe retraction:
-- Checks if current_z near top frame (cabinet exterior.z - wall_thickness)
-- Lowers Z if needed before retracting Y
-- Smooth Y- motion to safe position outside cabinet
+**Given** extraction_trajectories.yaml contains waypoints
+**When** I call `load_trajectory(name="insertion", side="left", base_y=0.0, base_z=0.5)`
+**Then** the utility returns transformed waypoints:
+- Y values flipped for right side (sign = -1)
+- Base Y/Z positions added as offsets
+- time_from_start calculated from waypoint spacing
 
-**And** utility provides execute_yz_trajectory(waypoints, joint_names) method:
-- Commands joints using MoveJointGroup action client
-- Waits for each waypoint completion before proceeding to next
-- Returns success/failure for overall trajectory execution
+**And** utility provides `execute_trajectory(waypoints)` method:
+- Builds JointTrajectory message from waypoints
+- Sends to JointTrajectoryController action
+- Returns success/failure for overall execution
 
-**And** trajectories are tested in Gazebo without collisions for 10 different addresses
+**And** SVG source files exist for both cabinet sides:
+- `config/trajectories/extract_left.svg` with paths: "insertion", "extraction"
+- `config/trajectories/extract_right.svg` (or mirrored from left)
 
-**Prerequisites:** Story 3.3 (MoveJointGroup with joint groups)
+**And** trajectories tested in Gazebo produce smooth motion for 10 different addresses
+
+**Prerequisites:** Story 3.3 (MoveJointGroup with joint groups), Story 2.3.1 (JointTrajectoryController)
 
 **Technical Notes:**
-- Reference architecture lines 1468-1657 for YZ trajectory generation algorithms
-- Utility class: YZTrajectoryGenerator in utils/yz_trajectory_generator.py
-- Cabinet dimensions from storage_params.yaml: exterior.z=1.4m, wall_thickness=0.02m
-- Frame clearance check: current_z > (exterior.z - wall_thickness - safety_margin)
-- Joint names for YZ motion: [main_frame_selector_frame_joint, selector_frame_gripper_joint]
-- Approach speeds: 0.05 m/s (slow/safe), 0.08 m/s (normal), 0.1 m/s (fast)
-- Waypoint descriptions aid debugging (e.g., "Align Z height", "Insert to target depth")
+
+**Trajectory Config (external scaling - SVG is unitless):**
+```yaml
+# config/trajectory_config.yaml
+trajectories:
+  extract_left:
+    svg_file: trajectories/extract_left.svg
+    mapping:
+      x_range: [0, 100]        # SVG X coordinate range
+      y_output: [0.0, 0.4]     # Joint Y output range (meters)
+      y_center: 50             # SVG Y value that maps to Z=0
+      z_scale: 0.001           # Meters per SVG unit (1 unit = 1mm)
+    sampling:
+      num_points: 20           # Waypoints to generate
+      waypoint_duration: 0.5   # Seconds between waypoints
+```
+
+**SVG Source Format (unitless curves):**
+```svg
+<!-- config/trajectories/extract_left.svg -->
+<svg viewBox="0 0 100 100">
+  <!-- Unitless Bezier curves - scaling defined in trajectory_config.yaml -->
+  <path id="insertion" d="M 0,50 C 30,50 70,48 100,50"/>
+  <path id="extraction" d="M 100,50 C 70,52 30,52 0,50"/>
+</svg>
+```
+
+**Converter Script (scripts/svg_to_trajectory.py):**
+```python
+#!/usr/bin/env python3
+"""Convert SVG paths to ROS2 trajectory YAML using external config."""
+from svgpathtools import svg2paths
+import numpy as np
+import yaml
+import argparse
+
+def svg_to_waypoints(svg_file: str, mapping: dict, sampling: dict) -> dict:
+    """Convert SVG using scaling from config."""
+    paths, attributes = svg2paths(svg_file)
+    x_min, x_max = mapping['x_range']
+    y_min, y_max = mapping['y_output']
+    y_center, z_scale = mapping['y_center'], mapping['z_scale']
+    num_points = sampling['num_points']
+
+    trajectories = {}
+    for path, attr in zip(paths, attributes):
+        path_id = attr.get('id', f'path_{len(trajectories)}')
+        waypoints = []
+        for t in np.linspace(0, 1, num_points):
+            point = path.point(t)
+            y = (point.real - x_min) / (x_max - x_min) * (y_max - y_min) + y_min
+            z = (y_center - point.imag) * z_scale
+            waypoints.append({'y': round(float(y), 4), 'z': round(float(z), 4)})
+        trajectories[path_id] = waypoints
+    return trajectories
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', required=True)
+    parser.add_argument('--trajectory', required=True)
+    parser.add_argument('-o', '--output', required=True)
+    args = parser.parse_args()
+
+    with open(args.config) as f:
+        config = yaml.safe_load(f)
+    traj = config['trajectories'][args.trajectory]
+    waypoints = svg_to_waypoints(traj['svg_file'], traj['mapping'], traj['sampling'])
+    output = {'source_svg': traj['svg_file'], 'config_used': args.config, 'trajectories': waypoints}
+    with open(args.output, 'w') as f:
+        yaml.dump(output, f, default_flow_style=False)
+
+if __name__ == '__main__':
+    main()
+```
+
+**Runtime Loader (utils/yz_trajectory_generator.py):**
+```python
+def load_trajectory(name: str, side: str, base_y: float, base_z: float,
+                    waypoint_duration: float = 0.5) -> list[dict]:
+    """Load trajectory and transform to world coordinates."""
+    with open('config/extraction_trajectories.yaml') as f:
+        data = yaml.safe_load(f)
+
+    waypoints = data['trajectories'][name]
+    sign = 1.0 if side == 'left' else -1.0
+
+    return [
+        {
+            'y': base_y + sign * wp['y'],
+            'z': base_z + wp['z'],
+            'time_from_start': i * waypoint_duration
+        }
+        for i, wp in enumerate(waypoints)
+    ]
+```
+
+**Workflow:**
+1. Define scaling in `trajectory_config.yaml` (SVG → real units mapping)
+2. Design curves in Inkscape (unitless SVG) - visual, easy to adjust
+3. Run converter: `python3 scripts/svg_to_trajectory.py --config config/trajectory_config.yaml --trajectory extract_left -o config/extraction_trajectories.yaml`
+4. Commit generated YAML to repo
+5. Runtime loads YAML only (no svgpathtools dependency at runtime)
+
+**Joint Mapping:**
+- Y waypoints → `selector_frame_gripper_joint` (into/out of cabinet)
+- Z waypoints → `main_frame_selector_frame_joint` (vertical offset for clearance)
 
 **Implementation Notes (Config Reuse):**
-- **USE:** `manipulator_description/config/storage_params.yaml` - cabinet exterior dimensions, wall_thickness
-- **CREATE:** `manipulator_control/config/trajectory.yaml` - NEW file for trajectory-specific parameters:
-  - `safety_margin`, `clearance_height`, `speeds` (approach, normal, fast)
-- **DO NOT DUPLICATE:** Cabinet dimensions - load from storage_params.yaml
+- **CREATE:** `config/trajectory_config.yaml` - Scaling config (SVG → real units)
+- **CREATE:** `config/trajectories/extract_left.svg` - SVG source (unitless, editable in Inkscape)
+- **CREATE:** `config/extraction_trajectories.yaml` - Generated waypoints (committed to repo)
+- **CREATE:** `scripts/svg_to_trajectory.py` - Converter tool (dev dependency: svgpathtools)
+- **USE:** JointTrajectoryController from Story 2.3.1 for smooth execution
 
 ---
 
@@ -3050,8 +3156,314 @@ This matrix shows complete traceability from Functional Requirements to Epic Sto
 | FR-018 | Address Validation Utilities | Epic 4B | 4B.1 |
 | FR-019 | Complete Pick-from-Storage Workflow | Epic 6 | 6.1 |
 | FR-020 | RQt Tool Integration | Epic 2, 6 | 2.6, 6.8 |
+| FR-HW-001 | Real Hardware Control | Epic 7 | 7.1, 7.2, 7.3 |
 
 **Coverage Validation:** ✅ All 20 functional requirements mapped to implementation stories
+**Hardware Readiness:** ✅ Epic 7 enables real robot control (parallel development track)
+
+---
+
+## Epic 7: Hardware Interface (Modbus RTU)
+
+**Goal:** Implement a ros2_control hardware interface plugin that communicates with the real robot hardware via Modbus RTU, enabling hot-swappable transition between simulation and real hardware.
+
+**Value Delivered:** Complete hardware abstraction layer allowing the same JointTrajectoryControllers and action servers to control real motors without code changes.
+
+**Independence:** This epic is INDEPENDENT of Epics 1-6 and can be developed in parallel. It requires only the base ros2_control framework.
+
+**Tech Spec:** `docs/tech-spec-hardware-interface.md`
+
+---
+
+### Story 7.1: Create Hardware Interface Package and Modbus Driver
+
+As a developer,
+I want to create the manipulator_hardware ROS2 package with Modbus RTU communication,
+So that I have the foundation for real hardware control.
+
+**Acceptance Criteria:**
+
+**Given** a ROS2 workspace exists at `ros2_ws/src`
+**When** I create the manipulator_hardware package
+**Then** the package structure includes:
+- Standard ROS2 C++ package layout with hardware_interface dependencies
+- CMakeLists.txt with dependencies: hardware_interface, pluginlib, rclcpp_lifecycle
+- package.xml with correct build and runtime dependencies
+- Plugin export XML file for pluginlib registration
+
+**And** ModbusDriver class is implemented with:
+- `connect(port, baudrate)` - Establish serial connection
+- `disconnect()` - Close serial connection
+- `read_position(slave_id, register_addr)` - Read position from input register (returns pulses)
+- `write_position(slave_id, register_addr, pulses)` - Write position to holding register
+- `read_error_code(slave_id)` - Read device error status
+- `is_device_ready(slave_id)` - Check device ready status
+- `is_device_busy(slave_id)` - Check device busy status
+
+**And** ModbusDriver handles:
+- Serial port configuration (baudrate, parity, stop bits)
+- Modbus RTU framing and CRC
+- Timeout and retry logic (configurable)
+- Thread-safe operation (if needed)
+
+**And** unit tests verify:
+- Connection handling (success/failure)
+- Register read/write operations (with mock serial)
+- Timeout behavior
+- Error handling
+
+**And** `colcon build --packages-select manipulator_hardware` succeeds
+
+**Prerequisites:** None (independent epic)
+
+**Technical Notes:**
+- Reference: `examples/modbus_driver/modbus_rtu.py` for Modbus patterns
+- Use libmodbus C library or implement custom Modbus RTU frame handling
+- Serial port: `/dev/ttyACM0` (configurable)
+- Baudrate: 115200 (configurable)
+- Configuration from YAML loaded at runtime
+
+**Core Concepts:**
+- **Modbus RTU Protocol:** Serial communication with CRC-16 error checking
+- **Register Types:** Input registers (read-only state), Holding registers (read/write commands)
+- **Function Codes:** FC3 (read holding), FC4 (read input), FC6 (write single register)
+
+---
+
+### Story 7.2: Implement ModbusHardwareInterface Plugin
+
+As a developer,
+I want to implement the ros2_control SystemInterface plugin,
+So that JointTrajectoryControllers can command real hardware.
+
+**Acceptance Criteria:**
+
+**Given** the ModbusDriver is implemented (Story 7.1)
+**When** I implement ModbusHardwareInterface
+**Then** the plugin implements hardware_interface::SystemInterface with:
+
+**Lifecycle Callbacks:**
+- `on_init()` - Parse HardwareInfo, load joint configurations from YAML
+- `on_configure()` - Connect to Modbus devices, verify communication
+- `on_activate()` - Enable position command interfaces
+- `on_deactivate()` - Safe shutdown, hold last position
+- `on_cleanup()` - Disconnect from devices
+- `on_error()` - Handle communication failures gracefully
+
+**Interface Exports:**
+- `export_state_interfaces()` - Position and velocity for 7 motion joints + 2 mock jaws
+- `export_command_interfaces()` - Position for 7 motion joints + 2 mock jaws
+
+**Control Loop:**
+- `read()` - Read positions from all joints (including discrete axes during motion), convert pulses→meters
+- `write()` - Write commanded positions using **incremental commands only** (see firmware constraints below)
+
+**And** configuration is loaded from `config/hardware_config.yaml`:
+```yaml
+modbus:
+  port: "/dev/ttyACM0"
+  baudrate: 115200
+joints:
+  base_main_frame_joint:
+    slave_id: 1
+    ordinate: 1
+    position_register: 1003
+    command_register: 2999
+    pulses_per_meter: 100000
+    direction: 1
+  # ... (all 7 joints)
+```
+
+**And** container jaws (2) use mock interface:
+- State interfaces return commanded position (mock feedback)
+- Command interfaces accept position commands
+- No Modbus communication for these joints
+
+**And** unit conversion is accurate:
+- `pulses = position_meters * pulses_per_meter * direction`
+- `position_meters = pulses / pulses_per_meter * direction`
+- Precision: 0.01mm (1 pulse with 100,000 pulses/meter)
+
+**And** plugin is registered via pluginlib:
+```xml
+<library path="manipulator_hardware">
+  <class name="manipulator_hardware/ModbusHardwareInterface"
+         type="manipulator_hardware::ModbusHardwareInterface"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>Modbus RTU hardware interface for manipulator</description>
+  </class>
+</library>
+```
+
+**And** integration test verifies:
+- Plugin loads successfully
+- State interfaces export correctly
+- Command interfaces export correctly
+- Read/write cycle works with mock serial
+
+**Prerequisites:** Story 7.1 (ModbusDriver)
+
+**Technical Notes:**
+- Reference: `ros2_ws/src/manipulator_description/urdf/manipulator/ros2_control.xacro` for interface definitions
+- Reference: `examples/modbus_driver/configuration.yml` for register mappings
+- Reference: `docs/architecture-epic7-hardware-interface.md` for discrete axis handling
+- Update rate: 10 Hz for hardware (100 Hz for simulation)
+- Container jaws will be upgraded to discrete I/O in future epic
+
+**Core Concepts:**
+- **SystemInterface:** ros2_control hardware abstraction base class
+- **State Interfaces:** Read-only sensor data (position, velocity)
+- **Command Interfaces:** Writable control outputs (position commands)
+- **Lifecycle Management:** Controlled startup/shutdown sequence
+- **Discrete Axis Mode:** Binary 0/1 control for axes that move to limit switches
+
+**Critical Firmware Constraints:**
+
+1. **No Goal Override:** Firmware rejects new position if previous goal not achieved
+   - Solution: Incremental commands only - never send distant targets
+   - Calculate max_delta = max_velocity * period, clamp all commands
+
+2. **Discrete Axes (C and D):** Binary 0/1 control, move to limit switches
+   - Position IS readable during motion (provides smooth feedback to ROS2)
+   - Control is binary: threshold command ≥0.5 → 1, else → 0
+   - Check busy status before sending, skip if busy
+
+3. **Sequential on Slave 3:** Only one axis (A, C, D) can move at a time
+
+**Discrete Axis Handling:**
+
+Axes C (`picker_rail_picker_base_joint`) and D (`picker_base_picker_jaw_joint`):
+- **Read:** Position register IS readable during motion - report actual position to ROS2
+- **Write:** Binary 0/1 to target register (0 = MIN limit, 1 = MAX limit)
+- **Busy blocking:** Check `module_is_busy` (1002) before commanding
+- **Skip if at target:** Check limit switches before sending redundant commands
+
+**Continuous Axis Handling (X, Z, Y, A, B):**
+
+- **Incremental only:** max_delta = max_velocity * period
+- **No queuing:** Commands immediate or skipped, never queued
+- **No distant goals:** Clamp all commands to achievable within one cycle
+
+**Joint-to-Hardware Mapping:**
+
+| Joint | Slave | Ord | Pos Reg | Cmd Reg | Mode |
+|-------|-------|-----|---------|---------|------|
+| base_main_frame_joint | 1 | 1 | 1003 | 3005 | Continuous |
+| main_frame_selector_frame_joint | 1 | 2 | 1010 | 3015 | Continuous |
+| selector_frame_gripper_joint | 2 | 1 | 1003 | 3005 | Continuous |
+| selector_frame_picker_frame_joint | 3 | 1 | 1003 | 3005 | Continuous |
+| picker_frame_picker_rail_joint | 2 | 2 | 1010 | 3015 | Continuous |
+| picker_rail_picker_base_joint | 3 | 2 | 1010 | 3015 | **Discrete** |
+| picker_base_picker_jaw_joint | 3 | 3 | 1017 | 3025 | **Discrete** |
+
+**Discrete Axis Registers:**
+
+| Joint | Direction Coil | MIN Limit | MAX Limit |
+|-------|----------------|-----------|-----------|
+| picker_rail_picker_base_joint (C) | 2010 | 1013 | 1014 |
+| picker_base_picker_jaw_joint (D) | 2015 | 1020 | 1021 |
+
+---
+
+### Story 7.3: URDF Integration and Hardware Testing
+
+As a robotics operator,
+I want to switch between simulation and real hardware using a launch argument,
+So that I can test algorithms in Gazebo and deploy to real hardware seamlessly.
+
+**Acceptance Criteria:**
+
+**Given** ModbusHardwareInterface plugin is implemented (Story 7.2)
+**When** I modify ros2_control.xacro
+**Then** the URDF uses ModbusHardwareInterface when `sim=false`:
+
+```xml
+<xacro:unless value="${sim}">
+  <hardware>
+    <plugin>manipulator_hardware/ModbusHardwareInterface</plugin>
+    <param name="config_file">$(find manipulator_hardware)/config/hardware_config.yaml</param>
+  </hardware>
+</xacro:unless>
+```
+
+**And** simulation mode (`sim=true`) continues to use `gz_ros2_control/GazeboSimSystem`
+
+**And** launch file supports hardware mode:
+```bash
+# Simulation (default)
+ros2 launch manipulator_control manipulator_simulation.launch.py
+
+# Real hardware
+ros2 launch manipulator_control manipulator_simulation.launch.py use_sim_time:=false
+```
+
+**And** in hardware mode:
+- Hardware interface connects to serial port
+- `/joint_states` publishes real hardware positions
+- JointTrajectoryControllers command real hardware
+- All existing action servers work without modification
+
+**And** hardware testing validates:
+- Single joint movement (each of 7 joints independently)
+- Multi-joint coordinated trajectory
+- Position accuracy (±0.01m tolerance)
+- Communication reliability (no dropped commands over 1000 cycles)
+
+**And** error handling works:
+- Serial port unavailable → graceful error, no crash
+- Modbus timeout → log warning, retry next cycle
+- Device error code → log error, optional stop
+
+**And** documentation is updated:
+- `manipulator_hardware/README.md` - Package usage, configuration guide
+- `docs/architecture-ros2-control-v2-CORRECTIONS.md` - Add hardware interface section
+
+**Prerequisites:** Story 7.2 (ModbusHardwareInterface)
+
+**Technical Notes:**
+- Do NOT modify existing simulation infrastructure
+- Do NOT modify controller configurations
+- Only change: ros2_control.xacro plugin selection
+- Test with both simulation and hardware to ensure no regression
+
+**Test Requirements:**
+
+1. **Build Verification:**
+   ```bash
+   colcon build --packages-select manipulator_hardware manipulator_description
+   # Exit code 0
+   ```
+
+2. **Simulation Regression:**
+   ```bash
+   ros2 launch manipulator_control manipulator_simulation.launch.py
+   # Gazebo launches, controllers activate, /joint_states publishes
+   ```
+
+3. **Hardware Connection:**
+   ```bash
+   ros2 launch manipulator_control manipulator_simulation.launch.py use_sim_time:=false
+   # Hardware interface connects, controllers activate
+   ```
+
+4. **Single Joint Test:**
+   ```bash
+   ros2 action send_goal /base_main_frame_joint_controller/follow_joint_trajectory \
+     control_msgs/action/FollowJointTrajectory \
+     "{trajectory: {joint_names: ['base_main_frame_joint'], points: [{positions: [2.0], time_from_start: {sec: 5}}]}}"
+   # Joint moves to 2.0m position
+   ```
+
+5. **Position Feedback:**
+   ```bash
+   ros2 topic echo /joint_states --once
+   # Positions reflect real hardware state
+   ```
+
+**Core Concepts:**
+- **Hot-Swappable:** Same controllers, same actions, different hardware backend
+- **URDF Parameterization:** `sim` xacro argument controls plugin selection
+- **Launch Argument:** `use_sim_time` controls simulation vs hardware mode
 
 ---
 
@@ -3060,10 +3472,11 @@ This matrix shows complete traceability from Functional Requirements to Epic Sto
 ### Epic Breakdown Summary
 
 **Total Implementation Scope:**
-- **7 Epics** organized by functional capability and natural implementation sequence
-- **40 Stories** sized for single developer session completion
+- **8 Epics** organized by functional capability and natural implementation sequence
+- **45 Stories** sized for single developer session completion
 - **Complete FR Coverage** - All 20 functional requirements traced to stories
 - **NFR Integration** - All 13 non-functional requirements addressed
+- **Hardware Ready** - Epic 7 provides real hardware control (parallel development track)
 
 ### Epic Sequencing Rationale
 
@@ -3074,6 +3487,7 @@ This matrix shows complete traceability from Functional Requirements to Epic Sto
 5. **Epic 4B (Box Advanced):** Adds box relocation and loading station capabilities
 6. **Epic 5 (Item Picking):** Implements department-level picking within extracted boxes
 7. **Epic 6 (Integration):** Delivers complete autonomous workflows with validation
+8. **Epic 7 (Hardware):** INDEPENDENT - Real hardware control via Modbus RTU (can develop in parallel)
 
 ### Success Criteria Mapping
 

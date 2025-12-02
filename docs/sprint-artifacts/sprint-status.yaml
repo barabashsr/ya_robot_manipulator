@@ -59,15 +59,15 @@ development_status:
   epic-3: contexted
   3-1-implement-address-resolver-utility: done
   3-2-implement-getaddresscoordinates-service: done
-  3-3-implement-movejointgroup-with-joint-groups-configuration: backlog
-  3-4-implement-navigatetoaddress-action-server: backlog
-  3-5-add-address-state-markers-to-visualization: backlog
-  3-6-create-navigation-test-suite: backlog
+  3-3-implement-movejointgroup-with-joint-groups-configuration: done
+  3-4-implement-navigatetoaddress-action-server: done
+  3-5-add-address-state-markers-to-visualization: done
+  3-6-create-navigation-test-suite: done
   epic-3-retrospective: optional
 
   # Epic 4A: Box Extraction Core (5 stories)
-  epic-4a: backlog
-  4a-1-implement-yz-trajectory-generator-utility: backlog
+  epic-4a: contexted
+  4a-1-implement-yz-trajectory-generator-utility: ready-for-dev
   4a-2-implement-electromagnet-simulator-and-service: backlog
   4a-3-implement-dynamic-box-spawner-with-department-frame-generation: backlog
   4a-4-implement-extractbox-action-server: backlog
@@ -105,3 +105,10 @@ development_status:
   6-7-performance-profiling-and-optimization: backlog
   6-8-complete-system-documentation-and-rqt-usage-guide: backlog
   epic-6-retrospective: optional
+
+  # Epic 7: Hardware Interface - Modbus RTU (3 stories) - INDEPENDENT TRACK
+  epic-7: contexted
+  7-1-create-hardware-interface-package-and-modbus-driver: review
+  7-2-implement-modbushardwareinterface-plugin: ready-for-dev
+  7-3-urdf-integration-and-hardware-testing: backlog
+  epic-7-retrospective: optional

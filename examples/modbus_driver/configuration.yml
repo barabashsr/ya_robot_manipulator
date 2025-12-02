@@ -1,0 +1,98 @@
+# Конфигурация для робота
+web:
+  host: "0.0.0.0"
+  port: 8001
+
+modbus:
+  port: "/dev/ttyACM0"
+  baudrate: 115200
+  devices:                  # id modules
+    engineXZ: 1
+    engineYB: 2
+    engineACD: 3
+
+penaltype:
+  1:
+    cellnumber1:  10
+    cellnumber2:  20
+    cellnumber3:  30
+    cellnumber4:  40
+  2:
+    cellnumber1:  20
+    cellnumber2:  40
+    cellnumber3:  60
+    cellnumber4:  80
+  3:
+    cellnumber1:  30
+    cellnumber2:  60
+    cellnumber3:  90
+    cellnumber4:  120
+
+inp_reg:                            #Input Register absolute address (dec)
+  err_code: 999                     # Код ошибки/статуса
+  module_ready: 1001                # Модуль готов к приему команды
+  module_is_busy: 1002              # Модуль занят
+  ord1_current: 1003                # Текущее значение оси 1
+  ord1_drive_active: 1004           # Активировать привод ось 1
+  ord1_brake_active: 1005           # Активировать тормоз ось 1
+  min_limit_switch_ord1: 1006       # Концевой выключатель MIN оси 1
+  max_limit_switch_ord1: 1007       # Концевой выключатель MAX оси 1
+  ord2_current: 1010                # Текущее значение оси 2
+  ord2_drive_active: 1011           # Активировать привод ось 2
+  ord2_brake_active: 1012           # Активировать тормоз ось 2
+  min_limit_switch_ord2: 1013       # Концевой выключатель MIN оси 2
+  max_limit_switch_ord2: 1014       # Концевой выключатель MAX оси 2
+  ord3_current: 1017                # Текущее значение оси 3
+  ord3_drive_active: 1018           # Активировать привод ось 3
+  ord3_brake_active: 1019           # Активировать тормоз ось 3
+  min_limit_switch_ord3: 1020       # Концевой выключатель MIN оси 3
+  max_limit_switch_ord3: 1021       # Концевой выключатель MAX оси 3
+  discrete_input1: 1024             # Дискретный вход input1
+  discrete_input2: 1025             # Дискретный вход input2
+
+
+
+
+hold_reg:                   # Holding Register absolute address (dec)
+  module_address: 2999      # Адрес модуля
+  # Axis 1
+  ord1_name: 3003           # Имя оси 1 (ASCII)
+  ord1_type: 3004           # Тип оси 1
+  ord1_given: 3005          # Заданное значение оси 1
+  ord1_speed_given: 3006    # Скорость оси 1 (имп/с)
+  ord1_pulse_turn: 3007     # Импульсов на оборот оси 1
+  ord1_acl_dcl_point: 3008  # Ускорение/торможение оси 1
+  # Axis 2
+  ord2_name: 3013           # Имя оси 2 (ASCII)
+  ord2_type: 3014           # Тип оси 2
+  ord2_given: 3015          # Заданное значение оси 2
+  ord2_speed_given: 3016    # Скорость оси 2 (имп/с)
+  ord2_pulse_turn: 3017     # Импульсов на оборот оси 2
+  ord2_acl_dcl_point: 3018  # Ускорение/торможение оси 2
+  # Axis 3
+  ord3_name: 3023           # Имя оси 3 (ASCII)
+  ord3_type: 3024           # Тип оси 3
+  ord3_given: 3025          # Заданное значение оси 3
+  ord3_speed_given: 3026    # Скорость оси 3 (имп/с)
+  ord3_pulse_turn: 3027     # Импульсов на оборот оси 3
+  ord3_acl_dcl_point: 3028  # Ускорение/торможение оси 3
+
+disc_o_reg:                         # Discrete output (coils) absolute address (dec)
+  soft_reset: 1999                  # Активировать SoftReset
+  save_params: 2000                 # Сохранить параметры в память
+  # Axis 1
+  null_ord1: 2004                   # Обнулить координату ось 1
+  direction_ord1: 2005              # Направление оси 1
+  # Axis 2
+  null_ord2: 2009                   # Обнулить координату ось 2
+  direction_ord2: 2010              # Направление оси 2
+  # Axis 3
+  null_ord3: 2014                   # Обнулить координату ось 3
+  direction_ord3: 2015              # Направление оси 3
+  # Discrete outputs
+  discrete_output1: 2019            # Активировать дискретный выход 1
+  discrete_output2: 2020            # Активировать дискретный выход 2
+  discrete_output3: 2021            # Активировать дискретный выход 3
+
+
+

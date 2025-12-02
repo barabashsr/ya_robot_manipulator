@@ -1,0 +1,272 @@
+<story-context id="epic-3-story-4-navigatetoaddress" v="1.0">
+  <metadata>
+    <epicId>3</epicId>
+    <storyId>4</storyId>
+    <title>Implement NavigateToAddress Action Server</title>
+    <status>ready-for-dev</status>
+    <generatedAt>2025-11-27</generatedAt>
+    <generator>SM Agent (Bob)</generator>
+    <sourceStoryPath>docs/sprint-artifacts/3-4-implement-navigatetoaddress-action-server.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>a high-level action to navigate the manipulator to any warehouse address</iWant>
+    <soThat>higher-level workflows (ExtractBox, PickItemFromStorage) can position the system with a single action call</soThat>
+    <tasks>
+      <task id="1">Extend kinematic_chains.yaml with end effector configuration (end_effector_frame, coordinate_mapping)</task>
+      <task id="2">Create NavigateToAddress.action interface (update existing)</task>
+      <task id="3">Create NavigateToAddressServer class structure</task>
+      <task id="4">Implement world-to-joint coordinate mapping</task>
+      <task id="5">Implement goal acceptance callback</task>
+      <task id="6">Implement execute callback - address resolution</task>
+      <task id="7">Implement execute callback - motion execution</task>
+      <task id="8">Implement execute callback - position verification via TF</task>
+      <task id="9">Implement logging</task>
+      <task id="10">Add launch configuration</task>
+      <task id="11">Create unit tests</task>
+      <task id="12">Integration verification via TF</task>
+      <task id="13">MANDATORY Developer Validation - all tests must pass</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <ac id="1">NavigateToAddress action defined with goal (side, cabinet_num, row, column, approach_distance), result (success, final_position, positioning_error, message), feedback (current_position, distance_to_target, progress_percent)</ac>
+    <ac id="2">Action calls GetAddressCoordinates service to resolve address to world coordinates before motion</ac>
+    <ac id="3">Action uses MoveJointGroup with joint_group="navigation" for coordinated XZ motion</ac>
+    <ac id="4">Navigation group in kinematic_chains.yaml defines end_effector_frame and coordinate_mapping</ac>
+    <ac id="5">Joint target positions computed using coordinate_mapping offsets (z_joint = z_world - 0.301)</ac>
+    <ac id="6">Position verification via TF lookup of end_effector_frame, success requires error &lt; 2cm (NFR-002)</ac>
+    <ac id="7">Approach distance adjusts Y coordinate based on side</ac>
+    <ac id="8">Navigation timeout of 30 seconds (configurable), timeout returns success=false</ac>
+    <ac id="9">Invalid addresses immediately rejected with error message from service</ac>
+    <ac id="10">Feedback published at 5 Hz with current end effector position from TF</ac>
+    <ac id="11">INFO/WARN/ERROR logging for navigation lifecycle events</ac>
+    <ac id="12">MANDATORY: All unit tests pass, integration test verifies navigation to 3 addresses with &lt;2cm accuracy via TF</ac>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-3.md</path>
+        <title>Epic 3 Technical Specification</title>
+        <section>APIs and Interfaces - NavigateToAddress Action</section>
+        <snippet>NavigateToAddress action server for high-level navigation. Goal: side, cabinet_num, row, column, approach_distance. Result: success, final_position, positioning_error. Feedback: current_position, distance_to_target, progress_percent.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-3.md</path>
+        <title>Epic 3 Technical Specification</title>
+        <section>Workflows and Sequencing - Navigation Sequence</section>
+        <snippet>Navigation sequence: 1) Validate address, 2) Resolve coordinates via GetAddressCoordinates, 3) Calculate joint targets, 4) Execute MoveJointGroup, 5) Verify positioning &lt;2cm, 6) Update visualization.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-3.md</path>
+        <title>Epic 3 Technical Specification</title>
+        <section>Data Models - Joint Group Definitions</section>
+        <snippet>Navigation group: joints=[base_main_frame_joint, main_frame_selector_frame_joint], default_velocity=0.5, for XZ plane positioning.</snippet>
+      </doc>
+      <doc>
+        <path>docs/prd.md</path>
+        <title>Product Requirements Document</title>
+        <section>FR-001: Warehouse Address Navigation</section>
+        <snippet>System shall navigate to any valid warehouse address (side, cabinet, row, column) and position the manipulator for box operations.</snippet>
+      </doc>
+      <doc>
+        <path>docs/prd.md</path>
+        <title>Product Requirements Document</title>
+        <section>NFR-002: Position Accuracy</section>
+        <snippet>Positioning accuracy shall be within ±2cm of target address coordinates.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture-ros2-control-v2-CORRECTIONS.md</path>
+        <title>Architecture Document</title>
+        <section>Phase 2 - Address Navigation</section>
+        <snippet>Navigation uses 2 DOF group for XZ plane positioning via JointTrajectoryController with smooth interpolated motion.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/3-3-implement-movejointgroup-with-joint-groups-configuration.md</path>
+        <title>Story 3.3: MoveJointGroup with Joint Groups</title>
+        <section>Implementation Pattern</section>
+        <snippet>MoveJointGroup uses named groups from kinematic_chains.yaml. Navigation group coordinates 2 joints with default_velocity=0.5 m/s. 30 unit tests establish pattern.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/3-2-implement-getaddresscoordinates-service.md</path>
+        <title>Story 3.2: GetAddressCoordinates Service</title>
+        <section>Service Interface</section>
+        <snippet>Service at /manipulator/get_address_coordinates returns full pose (position + orientation). Response time &lt;100ms. Error messages flow from AddressResolver.</snippet>
+      </doc>
+    </docs>
+
+    <code>
+      <file>
+        <path>ros2_ws/src/manipulator_control/config/kinematic_chains.yaml</path>
+        <kind>config</kind>
+        <symbol>joint_groups.navigation</symbol>
+        <reason>MUST EXTEND: Add end_effector_frame, end_effector_offset, coordinate_mapping for navigation group</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/action/NavigateToAddress.action</path>
+        <kind>interface</kind>
+        <symbol>NavigateToAddress</symbol>
+        <reason>MUST UPDATE: Add approach_distance to goal, positioning_error to result, current_position (Point) to feedback</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/manipulator_utils/address_resolver.py</path>
+        <kind>utility</kind>
+        <symbol>AddressResolver</symbol>
+        <lines>1-299</lines>
+        <reason>DEPENDENCY: Use for address validation and TF-based coordinate resolution. Methods: get_address_pose(), validate_address()</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/manipulator_control/address_service_node.py</path>
+        <kind>service</kind>
+        <symbol>AddressServiceNode</symbol>
+        <lines>1-83</lines>
+        <reason>DEPENDENCY: GetAddressCoordinates service wrapper. Client pattern for service calls.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/src/move_joint_group_server.py</path>
+        <kind>action_server</kind>
+        <symbol>MoveJointGroupServer</symbol>
+        <lines>1-523</lines>
+        <reason>DEPENDENCY: Action client target for navigation motion. Pattern for action server implementation, config loading, feedback publishing.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/src/controller_interface.py</path>
+        <kind>utility</kind>
+        <symbol>ControllerInterface</symbol>
+        <lines>1-80</lines>
+        <reason>REFERENCE: Dual-mode joint control pattern. Hybrid architecture with JointTrajectoryController for motion joints.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/srv/GetAddressCoordinates.srv</path>
+        <kind>service_def</kind>
+        <symbol>GetAddressCoordinates</symbol>
+        <reason>DEPENDENCY: Service definition for address resolution. Request: side, cabinet_num, row, column. Response: success, pose, error_message.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/action/MoveJointGroup.action</path>
+        <kind>action_def</kind>
+        <symbol>MoveJointGroup</symbol>
+        <reason>DEPENDENCY: Action definition for joint group motion. Goal: joint_names, target_positions, max_velocity.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/test/test_move_joint_group.py</path>
+        <kind>test</kind>
+        <symbol>test_move_joint_group</symbol>
+        <lines>1-50</lines>
+        <reason>PATTERN: Unit test structure with mock joint groups, pytest fixtures. Follow same pattern for test_navigate_to_address.py.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/test/test_address_resolver.py</path>
+        <kind>test</kind>
+        <symbol>test_address_resolver</symbol>
+        <reason>PATTERN: Unit tests for address resolution. Mock TF buffer pattern for testing without simulation.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_description/urdf/manipulator/manipulator_base.urdf.xacro</path>
+        <kind>urdf</kind>
+        <symbol>base_main_frame_joint</symbol>
+        <reason>REFERENCE: Joint origin [0,0,0] - X axis prismatic. World X = joint position (direct mapping).</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_description/urdf/manipulator/manipulator_selector.urdf.xacro</path>
+        <kind>urdf</kind>
+        <symbol>main_frame_selector_frame_joint</symbol>
+        <reason>REFERENCE: Joint origin [0.538, 0, 0.301] - Z axis prismatic. World Z = 0.301 + joint position.</reason>
+      </file>
+    </code>
+
+    <dependencies>
+      <ros2>
+        <package name="rclpy">ROS2 Python client library</package>
+        <package name="rclpy.action">ActionServer, ActionClient, GoalResponse, CancelResponse</package>
+        <package name="tf2_ros">Buffer, TransformListener for TF lookups</package>
+        <package name="geometry_msgs">Point, Pose messages for positions</package>
+        <package name="ament_index_python">get_package_share_directory for config loading</package>
+      </ros2>
+      <python>
+        <package name="yaml">YAML parsing for kinematic_chains.yaml</package>
+        <package name="math">sqrt for Euclidean distance calculation</package>
+        <package name="pytest">Unit testing framework</package>
+      </python>
+      <internal>
+        <package name="manipulator_control">MoveJointGroup action, GetAddressCoordinates service</package>
+        <package name="manipulator_utils">AddressResolver utility</package>
+      </internal>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="accuracy">Position error must be &lt;2cm (0.02m) per NFR-002</constraint>
+    <constraint type="timeout">Navigation must complete within 30 seconds</constraint>
+    <constraint type="service_timeout">GetAddressCoordinates service call timeout: 5 seconds</constraint>
+    <constraint type="tf_timeout">TF lookup timeout: 1.0 second</constraint>
+    <constraint type="feedback_rate">Feedback must publish at 5 Hz during motion</constraint>
+    <constraint type="config">End effector frame and coordinate mapping must be configurable in kinematic_chains.yaml</constraint>
+    <constraint type="coordinate_mapping">Joint positions != world coordinates. z_joint = z_world - 0.301 for selector_frame joint.</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>NavigateToAddress Action</name>
+      <kind>ROS2 Action</kind>
+      <signature>
+        Goal: string side, uint8 cabinet_num, uint8 row, uint8 column, float64 approach_distance
+        Result: bool success, geometry_msgs/Point final_position, float64 positioning_error, string message
+        Feedback: geometry_msgs/Point current_position, float64 distance_to_target, uint8 progress_percent
+      </signature>
+      <path>ros2_ws/src/manipulator_control/action/NavigateToAddress.action</path>
+    </interface>
+    <interface>
+      <name>GetAddressCoordinates Service</name>
+      <kind>ROS2 Service</kind>
+      <signature>
+        Request: string side, uint8 cabinet_num, uint8 row, uint8 column
+        Response: bool success, geometry_msgs/Pose pose, string error_message
+      </signature>
+      <path>ros2_ws/src/manipulator_control/srv/GetAddressCoordinates.srv</path>
+    </interface>
+    <interface>
+      <name>MoveJointGroup Action</name>
+      <kind>ROS2 Action</kind>
+      <signature>
+        Goal: string[] joint_names, float64[] target_positions, float64 max_velocity
+        Result: bool success, float64[] final_positions, float64 position_error, float64 execution_time, string message
+        Feedback: float64[] current_positions, float64 progress_percent
+      </signature>
+      <path>ros2_ws/src/manipulator_control/action/MoveJointGroup.action</path>
+    </interface>
+    <interface>
+      <name>TF Lookup</name>
+      <kind>TF2 API</kind>
+      <signature>tf_buffer.lookup_transform('world', end_effector_frame, Time(), timeout=Duration(seconds=1.0))</signature>
+      <path>tf2_ros.Buffer</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Unit tests use pytest with mock objects for ROS2 dependencies. Follow pattern from test_move_joint_group.py
+      and test_address_resolver.py. Mock TF buffer for coordinate mapping tests. Mock service/action clients
+      for integration logic tests. Use MOCK_JOINT_GROUPS dict pattern for config testing.
+    </standards>
+    <locations>
+      <location>ros2_ws/src/manipulator_control/test/test_navigate_to_address.py</location>
+    </locations>
+    <ideas>
+      <idea ac="1">Test action interface message imports and field types</idea>
+      <idea ac="4,5">Test coordinate_mapping config loading from kinematic_chains.yaml</idea>
+      <idea ac="5">Test world-to-joint mapping: (1.5, 0.4, 0.8) -> [1.5, 0.499] with z_offset=0.301</idea>
+      <idea ac="5">Test world-to-joint mapping with zero offsets</idea>
+      <idea ac="7">Test approach_distance calculation: left side Y decreases, right side Y increases</idea>
+      <idea ac="6">Test Euclidean position error calculation</idea>
+      <idea ac="6">Test position error threshold detection (pass at 0.019m, fail at 0.021m)</idea>
+      <idea ac="10">Test progress percent calculation (distance-based)</idea>
+      <idea ac="9">Test invalid address rejection with proper error message forwarding</idea>
+      <idea ac="12">Integration: Navigate to left-1-1-1, verify TF alignment &lt;2cm</idea>
+      <idea ac="12">Integration: Navigate to left-3-5-3, verify different cabinet</idea>
+      <idea ac="12">Integration: Navigate to right-4-1-4, verify right side</idea>
+    </ideas>
+  </tests>
+</story-context>

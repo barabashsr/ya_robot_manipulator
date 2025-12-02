@@ -1,0 +1,262 @@
+<story-context id="7-2" v="1.0">
+  <metadata>
+    <epicId>7</epicId>
+    <storyId>2</storyId>
+    <title>Implement ModbusHardwareInterface Plugin</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/7-2-implement-modbushardwareinterface-plugin.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>implement the ros2_control SystemInterface plugin</iWant>
+    <soThat>JointTrajectoryControllers can command real hardware</soThat>
+    <tasks>
+      <task id="1" ac="1">Create ModbusHardwareInterface class structure
+        <subtask>1.1 Create manipulator_hardware/modbus_hardware_interface.py</subtask>
+        <subtask>1.2 Import SystemInterface from hardware_interface</subtask>
+        <subtask>1.3 Define class with __init__ initializing state/command storage</subtask>
+        <subtask>1.4 Define mock_joints list for container jaws</subtask>
+      </task>
+      <task id="2" ac="1,6">Implement lifecycle callbacks
+        <subtask>2.1 Implement on_init() - parse HardwareInfo, load YAML config</subtask>
+        <subtask>2.2 Implement on_configure() - connect ModbusDriver, verify devices</subtask>
+        <subtask>2.3 Implement on_activate() - sync commands to current positions</subtask>
+        <subtask>2.4 Implement on_deactivate() - hold position, log</subtask>
+        <subtask>2.5 Implement on_cleanup() - disconnect ModbusDriver</subtask>
+        <subtask>2.6 Implement on_error() - graceful shutdown</subtask>
+      </task>
+      <task id="3" ac="2,3">Implement interface exports
+        <subtask>3.1 Implement export_state_interfaces() - 9 position + 9 velocity</subtask>
+        <subtask>3.2 Implement export_command_interfaces() - 9 position</subtask>
+      </task>
+      <task id="4" ac="4,5,9,10,11,12">Implement control loop
+        <subtask>4.1 Implement read() - read positions from all axes, convert pulses to meters</subtask>
+        <subtask>4.2 Implement write() for continuous axes - incremental commands only</subtask>
+        <subtask>4.3 Implement write() for discrete axes (C, D) - threshold, busy, limit checks</subtask>
+        <subtask>4.4 Handle mock joints (state = command, no hardware write)</subtask>
+        <subtask>4.5 Implement _is_slave_busy(slave_id) helper</subtask>
+        <subtask>4.6 Implement _read_limit_switch(slave_id, register) helper</subtask>
+        <subtask>4.7 Implement Slave 3 sequential command queue</subtask>
+      </task>
+      <task id="5" ac="4,5">Implement unit conversion helpers
+        <subtask>5.1 Create _pulses_to_meters(pulses, joint_config)</subtask>
+        <subtask>5.2 Create _meters_to_pulses(meters, joint_config)</subtask>
+        <subtask>5.3 Add unit tests for conversion accuracy</subtask>
+      </task>
+      <task id="6" ac="6">Update hardware_config.yaml
+        <subtask>6.1 Verify joint mapping matches tech-spec registers</subtask>
+        <subtask>6.2 Add pulses_per_meter and direction</subtask>
+        <subtask>6.3 Add max_velocity for continuous axes</subtask>
+        <subtask>6.4 Add limit registers for all axes</subtask>
+        <subtask>6.5 Add discrete axis config for C/D</subtask>
+      </task>
+      <task id="7" ac="7">Register plugin via pluginlib
+        <subtask>7.1 Update manipulator_hardware.xml</subtask>
+        <subtask>7.2 Verify package.xml has pluginlib export</subtask>
+      </task>
+      <task id="8" ac="8,9,10,11,12">Write unit tests
+        <subtask>8.1 Create test/test_modbus_hardware_interface.py</subtask>
+        <subtask>8.2-8.10 Test lifecycle, interfaces, conversions, discrete axes</subtask>
+      </task>
+      <task id="9" ac="13" mandatory="true">MANDATORY Self-test script
+        <subtask>9.1 Create scripts/test_hardware_interface.py</subtask>
+        <subtask>9.2-9.9 Standalone tests without controller_manager</subtask>
+      </task>
+      <task id="10">Build and test verification
+        <subtask>10.1 Run colcon build</subtask>
+        <subtask>10.2 Run colcon test</subtask>
+        <subtask>10.3 Run self-test with real hardware</subtask>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">Plugin implements hardware_interface.SystemInterface with all lifecycle callbacks</criterion>
+    <criterion id="2">export_state_interfaces() exports 9 position + 9 velocity interfaces</criterion>
+    <criterion id="3">export_command_interfaces() exports 9 position interfaces</criterion>
+    <criterion id="4">read() reads positions, converts pulses to meters, estimates velocity, handles mock joints</criterion>
+    <criterion id="5">write() detects changes, converts meters to pulses, writes via ModbusDriver</criterion>
+    <criterion id="6">on_init() loads Modbus port/baudrate/timeout and per-joint config from hardware_config.yaml</criterion>
+    <criterion id="7">manipulator_hardware.xml exports plugin with correct Python class path</criterion>
+    <criterion id="8">Unit tests verify lifecycle, interface counts, conversions, read/write cycles</criterion>
+    <criterion id="9">Discrete axis write defers when slave busy (no error to controller)</criterion>
+    <criterion id="10">Discrete axis write thresholds to binary (0.5 boundary), checks limit switches</criterion>
+    <criterion id="11">Slave 3 sequential - only one axis command per cycle</criterion>
+    <criterion id="12">Continuous axes use incremental commands (max_velocity * period)</criterion>
+    <criterion id="13" mandatory="true">MANDATORY: Self-test script verifies plugin without controller_manager</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-7.md</path>
+        <title>Epic 7 Technical Specification</title>
+        <section>Hardware Mapping Reference, APIs and Interfaces</section>
+        <snippet>Defines Modbus register addresses, slave mappings, FC4/FC6 usage, and SystemInterface contract for ros2_control integration.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture-epic7-hardware-interface.md</path>
+        <title>Epic 7 Hardware Interface Architecture</title>
+        <section>Python Hardware Interface Implementation, Axis Types</section>
+        <snippet>Specifies three axis types (continuous/discrete/mock), incremental command strategy, limit switch registers, and Slave 3 sequential constraints.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/7-1-create-hardware-interface-package-and-modbus-driver.md</path>
+        <title>Story 7-1: ModbusDriver (completed)</title>
+        <section>ModbusDriver API</section>
+        <snippet>Documents ModbusDriver class with read_position(), write_position(), is_device_busy() APIs that this story builds upon.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics.md</path>
+        <title>Epic Definitions</title>
+        <section>Epic 7: Real Hardware Interface</section>
+        <snippet>Epic goal: Replace simulation with real Modbus-controlled motor drivers for production deployment.</snippet>
+      </doc>
+    </docs>
+
+    <code>
+      <artifact>
+        <path>ros2_ws/src/manipulator_hardware/manipulator_hardware/modbus_driver.py</path>
+        <kind>module</kind>
+        <symbol>ModbusDriver</symbol>
+        <lines>1-255</lines>
+        <reason>Dependency - ModbusHardwareInterface uses ModbusDriver for all Modbus communication. Methods: connect(), disconnect(), read_position(), write_position(), is_device_busy(), is_device_ready()</reason>
+      </artifact>
+      <artifact>
+        <path>ros2_ws/src/manipulator_hardware/config/hardware_config.yaml</path>
+        <kind>config</kind>
+        <symbol>joints, modbus, status_registers</symbol>
+        <lines>1-179</lines>
+        <reason>Configuration file to UPDATE - contains joint mappings, register addresses, discrete_axis flags, limit registers. Already has correct structure.</reason>
+      </artifact>
+      <artifact>
+        <path>ros2_ws/src/manipulator_hardware/manipulator_hardware.xml</path>
+        <kind>pluginlib</kind>
+        <symbol>ModbusHardwareInterface</symbol>
+        <lines>1-16</lines>
+        <reason>Plugin registration file to UPDATE - currently has placeholder comment, needs actual class registration.</reason>
+      </artifact>
+      <artifact>
+        <path>ros2_ws/src/manipulator_hardware/package.xml</path>
+        <kind>manifest</kind>
+        <symbol>hardware_interface export</symbol>
+        <lines>21-24</lines>
+        <reason>Already has pluginlib export for manipulator_hardware.xml - no changes needed.</reason>
+      </artifact>
+      <artifact>
+        <path>ros2_ws/src/manipulator_hardware/setup.py</path>
+        <kind>build</kind>
+        <symbol>data_files, entry_points</symbol>
+        <lines>1-39</lines>
+        <reason>Build configuration - may need to add entry_point for test script.</reason>
+      </artifact>
+      <artifact>
+        <path>ros2_ws/src/manipulator_hardware/test/test_modbus_driver.py</path>
+        <kind>test</kind>
+        <symbol>TestModbusDriver*</symbol>
+        <lines>1-565</lines>
+        <reason>Reference for testing patterns - shows how to mock minimalmodbus for unit tests.</reason>
+      </artifact>
+    </code>
+
+    <dependencies>
+      <python>
+        <package version=">=2.1.0">minimalmodbus</package>
+        <package version=">=3.5">pyserial</package>
+        <package version=">=7.0">pytest</package>
+      </python>
+      <ros2>
+        <package>rclpy</package>
+        <package>hardware_interface</package>
+        <package>controller_manager</package>
+      </ros2>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="firmware">INCREMENTAL COMMANDS ONLY: STM32 firmware rejects new position if previous goal not achieved. Must clamp command delta to max_velocity * period per cycle.</constraint>
+    <constraint type="hardware">SLAVE 3 SEQUENTIAL: Only one axis (A, C, D) can move at a time on engineACD slave. Check module_is_busy before commanding.</constraint>
+    <constraint type="discrete-axis">DISCRETE BINARY CONTROL: C and D axes use 0/1 commands (not position). Threshold at 0.5. Check limit switches to skip redundant writes.</constraint>
+    <constraint type="update-rate">HARDWARE UPDATE RATE: 10 Hz (100ms cycle) - fits 7 reads + 7 writes within timing budget.</constraint>
+    <constraint type="architecture">COMPOSITION: ModbusHardwareInterface HAS-A ModbusDriver (created in on_configure for DI/mocking).</constraint>
+    <constraint type="units">SI BOUNDARY: Hardware interface converts between ROS2 SI units (meters) and hardware units (pulses). Formula: pulses = meters * pulses_per_meter * direction</constraint>
+    <constraint type="testing">MANDATORY SELF-TEST: Developer MUST run standalone test script without controller_manager and document results.</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>SystemInterface</name>
+      <kind>base class</kind>
+      <signature>hardware_interface.SystemInterface</signature>
+      <path>hardware_interface package (ros2_control)</path>
+    </interface>
+    <interface>
+      <name>ModbusDriver.read_position</name>
+      <kind>method</kind>
+      <signature>read_position(slave_id: int, register: int) -> Optional[int]</signature>
+      <path>ros2_ws/src/manipulator_hardware/manipulator_hardware/modbus_driver.py:209</path>
+    </interface>
+    <interface>
+      <name>ModbusDriver.write_position</name>
+      <kind>method</kind>
+      <signature>write_position(slave_id: int, register: int, value: int) -> bool</signature>
+      <path>ros2_ws/src/manipulator_hardware/manipulator_hardware/modbus_driver.py:213</path>
+    </interface>
+    <interface>
+      <name>ModbusDriver.is_device_busy</name>
+      <kind>method</kind>
+      <signature>is_device_busy(slave_id: int) -> Optional[bool]</signature>
+      <path>ros2_ws/src/manipulator_hardware/manipulator_hardware/modbus_driver.py:232</path>
+    </interface>
+    <interface>
+      <name>export_state_interfaces</name>
+      <kind>ros2_control callback</kind>
+      <signature>export_state_interfaces() -> list[StateInterface]</signature>
+      <path>To implement: 9 position + 9 velocity interfaces</path>
+    </interface>
+    <interface>
+      <name>export_command_interfaces</name>
+      <kind>ros2_control callback</kind>
+      <signature>export_command_interfaces() -> list[CommandInterface]</signature>
+      <path>To implement: 9 position command interfaces</path>
+    </interface>
+    <interface>
+      <name>read</name>
+      <kind>ros2_control callback</kind>
+      <signature>read(time: Time, period: Duration) -> return_type</signature>
+      <path>To implement: Called at 10Hz, reads all joint positions</path>
+    </interface>
+    <interface>
+      <name>write</name>
+      <kind>ros2_control callback</kind>
+      <signature>write(time: Time, period: Duration) -> return_type</signature>
+      <path>To implement: Called at 10Hz, writes changed commands</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      pytest framework with mocked ModbusDriver. Tests follow pattern from test_modbus_driver.py - patch module-level variables (MODBUS_AVAILABLE, minimalmodbus, serial) to inject mocks. Use MagicMock for instrument objects. Coverage target: 80%+ for ModbusHardwareInterface.
+    </standards>
+    <locations>
+      <location>ros2_ws/src/manipulator_hardware/test/test_modbus_hardware_interface.py</location>
+      <location>ros2_ws/src/manipulator_hardware/scripts/test_hardware_interface.py</location>
+    </locations>
+    <ideas>
+      <idea ac="1">Test lifecycle transitions: UNCONFIGURED -> INACTIVE -> ACTIVE -> INACTIVE -> UNCONFIGURED</idea>
+      <idea ac="2,3">Test interface export counts: exactly 9+9 state, 9 command interfaces</idea>
+      <idea ac="4,5">Test unit conversion: 0.5m -> 50000 pulses, 50000 pulses -> 0.5m</idea>
+      <idea ac="4">Test read() updates position and velocity from mock driver</idea>
+      <idea ac="5">Test write() detects unchanged commands (skip write)</idea>
+      <idea ac="9">Test discrete axis write deferred when is_device_busy() returns True</idea>
+      <idea ac="10">Test discrete axis threshold: 0.49 -> 0, 0.5 -> 1, 0.51 -> 1</idea>
+      <idea ac="10">Test discrete axis skips write when already at target limit</idea>
+      <idea ac="11">Test Slave 3 sequential: multiple commands -> only first processed per cycle</idea>
+      <idea ac="12">Test continuous axis incremental: large delta clamped to max_velocity * period</idea>
+      <idea ac="13">MANDATORY: Standalone script tests without controller_manager</idea>
+    </ideas>
+  </tests>
+</story-context>

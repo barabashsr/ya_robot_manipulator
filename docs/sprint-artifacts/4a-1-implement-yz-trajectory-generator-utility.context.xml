@@ -1,0 +1,457 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Story Context: 4A.1 - Implement YZ Trajectory Generator Utility (Parametric Curves)
+  Generated: 2025-11-28
+  Purpose: Provide dev agent with all context needed to implement story
+-->
+<story-context story-id="4a-1" epic-id="4a" generated="2025-11-28">
+
+  <story-summary>
+    <title>Implement YZ Trajectory Generator Utility (Parametric Curves)</title>
+    <goal>Create a utility to load and execute parametric curve-based YZ trajectories for box insertion/extraction using SVG source files with external scaling configuration</goal>
+    <key-deliverables>
+      <deliverable>trajectory_config.yaml - External scaling configuration</deliverable>
+      <deliverable>extract_left.svg - Unitless Bezier curve source file</deliverable>
+      <deliverable>svg_to_trajectory.py - Converter script (dev tool)</deliverable>
+      <deliverable>extraction_trajectories.yaml - Generated waypoints</deliverable>
+      <deliverable>yz_trajectory_generator.py - Runtime loader and executor</deliverable>
+    </key-deliverables>
+  </story-summary>
+
+  <acceptance-criteria>
+    <ac id="1">trajectory_config.yaml exists with mapping parameters (x_range, y_output, y_center, z_scale) and sampling parameters for each trajectory</ac>
+    <ac id="2">Given an SVG file and config entry, when svg_to_trajectory.py is run, then YAML waypoints file is generated using scaling from config (not hardcoded)</ac>
+    <ac id="3">Generated YAML contains source_svg reference, config_used reference, and trajectories dict with path IDs as keys and list of {y, z} waypoints</ac>
+    <ac id="4">Given trajectory name and side, when load_trajectory() is called, then waypoints are loaded from YAML and transformed with correct sign flip (right side = negative Y)</ac>
+    <ac id="5">Loaded waypoints have base Y/Z positions added as offsets to relative curve positions</ac>
+    <ac id="6">Loaded waypoints include time_from_start calculated from waypoint_duration in config</ac>
+    <ac id="7">Given transformed waypoints, when execute_trajectory() is called, then JointTrajectoryController executes smooth motion and method returns success/failure</ac>
+    <ac id="8">SVG source files exist for extraction with paths named "insertion" and "extraction"</ac>
+    <ac id="9">Trajectories tested in Gazebo produce smooth motion without collisions for 10 different addresses</ac>
+  </acceptance-criteria>
+
+  <technical-context>
+    <architecture-decisions>
+      <decision id="1">
+        <title>External Config for SVG Scaling</title>
+        <rationale>SVG files are unitless - scaling defined in trajectory_config.yaml allows same SVG to be re-scaled without editing, clear separation of shape (SVG) and units (config)</rationale>
+      </decision>
+      <decision id="2">
+        <title>Parametric Curves over Collision Checking</title>
+        <rationale>Predictable motion profiles, easy visual editing in Inkscape, no runtime computation overhead, smooth spline interpolation via JointTrajectoryController</rationale>
+      </decision>
+      <decision id="3">
+        <title>One-time Conversion Workflow</title>
+        <rationale>SVG converted to YAML once at dev time, YAML committed to repo, runtime has no svgpathtools dependency</rationale>
+      </decision>
+    </architecture-decisions>
+
+    <joint-mapping>
+      <joint name="selector_frame_gripper_joint" axis="Y" purpose="Into/out of cabinet" limits="±0.39m"/>
+      <joint name="main_frame_selector_frame_joint" axis="Z" purpose="Vertical offset for clearance" limits="0.05-1.45m"/>
+    </joint-mapping>
+
+    <coordinate-system>
+      <note>SVG X-axis maps to joint Y (gripper depth into cabinet)</note>
+      <note>SVG Y-axis deviation from center maps to joint Z offset</note>
+      <note>Left cabinet: positive Y values</note>
+      <note>Right cabinet: negative Y values (sign flip at runtime)</note>
+    </coordinate-system>
+  </technical-context>
+
+  <file-structure>
+    <new-files>
+      <file path="ros2_ws/src/manipulator_control/config/trajectory_config.yaml" purpose="Scaling configuration (SVG to real units)"/>
+      <file path="ros2_ws/src/manipulator_control/config/trajectories/extract_left.svg" purpose="SVG source (unitless Bezier curves)"/>
+      <file path="ros2_ws/src/manipulator_control/config/extraction_trajectories.yaml" purpose="Generated waypoints (committed)"/>
+      <file path="ros2_ws/src/manipulator_control/scripts/svg_to_trajectory.py" purpose="Converter tool"/>
+      <file path="ros2_ws/src/manipulator_control/src/utils/yz_trajectory_generator.py" purpose="Runtime loader and executor"/>
+      <file path="ros2_ws/src/manipulator_control/test/test_svg_to_trajectory.py" purpose="Converter unit tests"/>
+      <file path="ros2_ws/src/manipulator_control/test/test_yz_trajectory_generator.py" purpose="Loader unit tests"/>
+    </new-files>
+    <modified-files>
+      <!-- None expected - new utility -->
+    </modified-files>
+  </file-structure>
+
+  <config-formats>
+    <config name="trajectory_config.yaml">
+      <![CDATA[
+# config/trajectory_config.yaml
+trajectories:
+  extract_left:
+    svg_file: trajectories/extract_left.svg
+    mapping:
+      x_range: [0, 100]        # SVG X coordinate range
+      y_output: [0.0, 0.4]     # Joint Y output range (meters)
+      y_center: 50             # SVG Y value that maps to Z=0
+      z_scale: 0.001           # Meters per SVG unit (1 unit = 1mm)
+    sampling:
+      num_points: 20           # Waypoints to generate
+      waypoint_duration: 0.5   # Seconds between waypoints
+      ]]>
+    </config>
+
+    <config name="extract_left.svg">
+      <![CDATA[
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Unitless Bezier curves - scaling defined in trajectory_config.yaml -->
+  <!-- Insertion: gripper moves into cabinet (Y increases) -->
+  <path id="insertion" d="M 0,50 C 30,50 70,48 100,50" fill="none" stroke="blue"/>
+  <!-- Extraction: gripper retracts with box (Y decreases, slight Z lift) -->
+  <path id="extraction" d="M 100,50 C 70,52 30,52 0,50" fill="none" stroke="red"/>
+</svg>
+      ]]>
+    </config>
+
+    <config name="extraction_trajectories.yaml">
+      <![CDATA[
+# Generated by svg_to_trajectory.py - DO NOT EDIT MANUALLY
+source_svg: trajectories/extract_left.svg
+config_used: trajectory_config.yaml
+generated: "2025-11-28T12:00:00"
+trajectories:
+  insertion:
+    - {y: 0.0, z: 0.0}
+    - {y: 0.021, z: 0.0}
+    - {y: 0.042, z: 0.0001}
+    # ... 17 more waypoints sampled from Bezier curve
+    - {y: 0.4, z: 0.0}
+  extraction:
+    - {y: 0.4, z: 0.0}
+    - {y: 0.379, z: -0.0002}
+    # ... 17 more waypoints
+    - {y: 0.0, z: 0.0}
+      ]]>
+    </config>
+  </config-formats>
+
+  <code-templates>
+    <template name="svg_to_trajectory.py">
+      <![CDATA[
+#!/usr/bin/env python3
+"""Convert SVG paths to ROS2 trajectory YAML using external config.
+
+Usage:
+    python3 svg_to_trajectory.py --config config/trajectory_config.yaml \
+        --trajectory extract_left -o config/extraction_trajectories.yaml
+"""
+from svgpathtools import svg2paths
+import numpy as np
+import yaml
+import argparse
+from datetime import datetime
+from pathlib import Path
+
+
+def svg_to_waypoints(svg_file: str, mapping: dict, sampling: dict) -> dict:
+    """
+    Convert SVG paths to waypoints using scaling from config.
+
+    Args:
+        svg_file: Path to SVG file
+        mapping: Dict with x_range, y_output, y_center, z_scale
+        sampling: Dict with num_points
+
+    Returns:
+        Dict mapping path IDs to list of {y, z} waypoints
+    """
+    paths, attributes = svg2paths(svg_file)
+
+    x_min, x_max = mapping['x_range']
+    y_min, y_max = mapping['y_output']
+    y_center = mapping['y_center']
+    z_scale = mapping['z_scale']
+    num_points = sampling['num_points']
+
+    trajectories = {}
+    for path, attr in zip(paths, attributes):
+        path_id = attr.get('id', f'path_{len(trajectories)}')
+        waypoints = []
+
+        for t in np.linspace(0, 1, num_points):
+            point = path.point(t)
+            # Scale SVG X to joint Y using config
+            y = (point.real - x_min) / (x_max - x_min) * (y_max - y_min) + y_min
+            # Scale SVG Y deviation from center to joint Z offset
+            z = (y_center - point.imag) * z_scale
+            waypoints.append({
+                'y': round(float(y), 4),
+                'z': round(float(z), 4)
+            })
+
+        trajectories[path_id] = waypoints
+
+    return trajectories
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Convert SVG to trajectory YAML')
+    parser.add_argument('--config', required=True, help='Path to trajectory_config.yaml')
+    parser.add_argument('--trajectory', required=True, help='Trajectory name (e.g., extract_left)')
+    parser.add_argument('-o', '--output', required=True, help='Output YAML file')
+    args = parser.parse_args()
+
+    # Load config
+    with open(args.config) as f:
+        config = yaml.safe_load(f)
+
+    traj_config = config['trajectories'][args.trajectory]
+    svg_file = Path(args.config).parent / traj_config['svg_file']
+
+    # Convert
+    trajectories = svg_to_waypoints(
+        str(svg_file),
+        traj_config['mapping'],
+        traj_config['sampling']
+    )
+
+    # Output
+    output = {
+        'source_svg': traj_config['svg_file'],
+        'config_used': args.config,
+        'generated': datetime.now().isoformat(),
+        'trajectories': trajectories
+    }
+
+    with open(args.output, 'w') as f:
+        yaml.dump(output, f, default_flow_style=False, sort_keys=False)
+
+    print(f"Generated {args.output} with {len(trajectories)} trajectories")
+    for name, wps in trajectories.items():
+        print(f"  {name}: {len(wps)} waypoints")
+
+
+if __name__ == '__main__':
+    main()
+      ]]>
+    </template>
+
+    <template name="yz_trajectory_generator.py">
+      <![CDATA[
+#!/usr/bin/env python3
+"""YZ Trajectory Generator - Load and execute parametric curve trajectories.
+
+This module provides utilities to load pre-generated trajectory waypoints
+and execute them via JointTrajectoryController.
+"""
+import yaml
+import logging
+from pathlib import Path
+from dataclasses import dataclass
+from typing import Optional
+
+import rclpy
+from rclpy.action import ActionClient
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from control_msgs.action import FollowJointTrajectory
+from builtin_interfaces.msg import Duration
+
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class TransformedWaypoint:
+    """A waypoint transformed to world coordinates with timing."""
+    y: float              # Joint Y position (meters)
+    z: float              # Joint Z position (meters)
+    time_from_start: float  # Seconds from trajectory start
+
+
+class YZTrajectoryGenerator:
+    """Load and execute parametric curve trajectories for box operations."""
+
+    # Joint names for YZ motion
+    JOINT_NAMES = [
+        'selector_frame_gripper_joint',      # Y-axis (into/out of cabinet)
+        'main_frame_selector_frame_joint'    # Z-axis (vertical)
+    ]
+
+    def __init__(self,
+                 waypoints_path: str = 'config/extraction_trajectories.yaml',
+                 config_path: str = 'config/trajectory_config.yaml'):
+        """
+        Initialize trajectory generator.
+
+        Args:
+            waypoints_path: Path to generated waypoints YAML
+            config_path: Path to trajectory config (for waypoint_duration)
+        """
+        self.waypoints_path = Path(waypoints_path)
+        self.config_path = Path(config_path)
+
+        # Load waypoints
+        with open(self.waypoints_path) as f:
+            self.waypoints_data = yaml.safe_load(f)
+        self.trajectories = self.waypoints_data['trajectories']
+
+        # Load config for timing
+        with open(self.config_path) as f:
+            self.config = yaml.safe_load(f)
+
+        logger.info(f"Loaded trajectories: {list(self.trajectories.keys())}")
+
+    def load_trajectory(self,
+                       name: str,
+                       side: str,
+                       base_y: float,
+                       base_z: float,
+                       trajectory_name: str = 'extract_left') -> list[TransformedWaypoint]:
+        """
+        Load trajectory and transform to world coordinates.
+
+        Args:
+            name: Trajectory name ('insertion' or 'extraction')
+            side: Cabinet side ('left' or 'right') - right side flips Y sign
+            base_y: Current gripper Y position (center position)
+            base_z: Current selector Z position
+            trajectory_name: Config trajectory name for timing lookup
+
+        Returns:
+            List of TransformedWaypoint with world coordinates and timing
+        """
+        if name not in self.trajectories:
+            raise ValueError(f"Unknown trajectory: {name}. Available: {list(self.trajectories.keys())}")
+
+        waypoints = self.trajectories[name]
+
+        # Get timing from config
+        traj_config = self.config['trajectories'].get(trajectory_name, {})
+        sampling = traj_config.get('sampling', {})
+        waypoint_duration = sampling.get('waypoint_duration', 0.5)
+
+        # Transform
+        sign = 1.0 if side == 'left' else -1.0
+
+        transformed = []
+        for i, wp in enumerate(waypoints):
+            transformed.append(TransformedWaypoint(
+                y=base_y + sign * wp['y'],
+                z=base_z + wp['z'],
+                time_from_start=i * waypoint_duration
+            ))
+
+        logger.debug(f"Loaded {name} trajectory: {len(transformed)} waypoints, "
+                    f"side={side}, base=({base_y}, {base_z})")
+
+        return transformed
+
+    def build_joint_trajectory(self,
+                               waypoints: list[TransformedWaypoint]) -> JointTrajectory:
+        """
+        Build JointTrajectory message from waypoints.
+
+        Args:
+            waypoints: List of TransformedWaypoint
+
+        Returns:
+            JointTrajectory message ready to send
+        """
+        traj = JointTrajectory()
+        traj.joint_names = self.JOINT_NAMES
+
+        for wp in waypoints:
+            point = JointTrajectoryPoint()
+            point.positions = [wp.y, wp.z]
+            point.velocities = [0.0, 0.0]  # Let controller interpolate
+
+            secs = int(wp.time_from_start)
+            nsecs = int((wp.time_from_start - secs) * 1e9)
+            point.time_from_start = Duration(sec=secs, nanosec=nsecs)
+
+            traj.points.append(point)
+
+        return traj
+
+    async def execute_trajectory(self,
+                                waypoints: list[TransformedWaypoint],
+                                action_client: ActionClient,
+                                timeout_sec: float = 30.0) -> bool:
+        """
+        Execute trajectory via JointTrajectoryController.
+
+        Args:
+            waypoints: Transformed waypoints from load_trajectory()
+            action_client: ActionClient for FollowJointTrajectory
+            timeout_sec: Timeout for trajectory execution
+
+        Returns:
+            True if trajectory completed successfully
+        """
+        # Build trajectory message
+        traj = self.build_joint_trajectory(waypoints)
+
+        # Create goal
+        goal = FollowJointTrajectory.Goal()
+        goal.trajectory = traj
+
+        logger.info(f"Executing trajectory with {len(waypoints)} waypoints")
+
+        # Send goal
+        goal_handle = await action_client.send_goal_async(goal)
+
+        if not goal_handle.accepted:
+            logger.error("Trajectory goal rejected")
+            return False
+
+        # Wait for result
+        result = await goal_handle.get_result_async()
+
+        success = result.result.error_code == FollowJointTrajectory.Result.SUCCESSFUL
+        if success:
+            logger.info("Trajectory completed successfully")
+        else:
+            logger.error(f"Trajectory failed with error code: {result.result.error_code}")
+
+        return success
+      ]]>
+    </template>
+  </code-templates>
+
+  <dependencies>
+    <development>
+      <package name="svgpathtools" install="pip install svgpathtools" purpose="SVG path parsing"/>
+      <package name="numpy" install="pip install numpy" purpose="Linspace for sampling"/>
+      <package name="pyyaml" install="pip install pyyaml" purpose="YAML output"/>
+    </development>
+    <runtime>
+      <package name="pyyaml" purpose="YAML loading"/>
+      <package name="trajectory_msgs" purpose="JointTrajectory, JointTrajectoryPoint"/>
+      <package name="control_msgs" purpose="FollowJointTrajectory action"/>
+      <package name="rclpy" purpose="Action client"/>
+    </runtime>
+  </dependencies>
+
+  <testing-guidance>
+    <unit-tests>
+      <test name="test_config_loading">Verify trajectory_config.yaml loads correctly with all required fields</test>
+      <test name="test_svg_converter_uses_config">Verify converter reads scaling from config, not hardcoded values</test>
+      <test name="test_yaml_output_format">Verify generated YAML has source_svg, config_used, trajectories keys</test>
+      <test name="test_waypoint_scaling">Verify Y/Z values match expected output from config mapping</test>
+      <test name="test_load_trajectory_left">Verify left side produces positive Y values</test>
+      <test name="test_load_trajectory_right">Verify right side produces negative Y values (sign flip)</test>
+      <test name="test_base_offset">Verify base_y/base_z offsets applied correctly</test>
+      <test name="test_timing">Verify time_from_start uses waypoint_duration from config</test>
+    </unit-tests>
+    <integration-tests>
+      <test name="test_gazebo_execution">Execute trajectory in Gazebo, verify smooth motion</test>
+      <test name="test_multiple_addresses">Test with 10 different base positions</test>
+    </integration-tests>
+    <commands>
+      <command purpose="Run converter">python3 scripts/svg_to_trajectory.py --config config/trajectory_config.yaml --trajectory extract_left -o config/extraction_trajectories.yaml</command>
+      <command purpose="Run unit tests">cd ros2_ws && python3 -m pytest src/manipulator_control/test/test_yz_trajectory_generator.py -v</command>
+      <command purpose="Run integration tests">cd ros2_ws && python3 -m pytest src/manipulator_control/test/test_yz_trajectory_generator.py::TestGazeboExecution -v</command>
+    </commands>
+  </testing-guidance>
+
+  <references>
+    <reference type="story" path="docs/sprint-artifacts/4a-1-implement-yz-trajectory-generator-utility.md"/>
+    <reference type="tech-spec" path="docs/sprint-artifacts/tech-spec-epic-4a.md"/>
+    <reference type="architecture" path="docs/architecture-ros2-control-v2-CORRECTIONS.md" section="C. YZ Trajectory Generation"/>
+    <reference type="epic" path="docs/epics.md" section="Story 4A.1"/>
+    <reference type="previous-story" path="docs/sprint-artifacts/3-6-create-navigation-test-suite.md" note="Action client patterns, test framework"/>
+  </references>
+
+</story-context>

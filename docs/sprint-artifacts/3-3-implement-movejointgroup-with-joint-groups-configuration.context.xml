@@ -1,0 +1,226 @@
+<story-context id="3-3-implement-movejointgroup-with-joint-groups-configuration" v="1.0">
+  <metadata>
+    <epicId>3</epicId>
+    <storyId>3</storyId>
+    <title>Implement MoveJointGroup with Joint Groups Configuration</title>
+    <status>ready-for-dev</status>
+    <generatedAt>2025-11-27</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/3-3-implement-movejointgroup-with-joint-groups-configuration.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>to extend MoveJointGroup to support predefined joint groups from configuration</iWant>
+    <soThat>navigation and other coordinated motions use consistent groupings</soThat>
+    <tasks>
+      <task id="1" status="pending">Verify current implementation meets ACs (AC: 1, 2, 4, 5, 6, 7)
+        <subtask id="1.1">Review move_joint_group_server.py implementation</subtask>
+        <subtask id="1.2">Verify _load_joint_groups() loads from kinematic_chains.yaml</subtask>
+        <subtask id="1.3">Verify _resolve_joint_group() handles named groups correctly</subtask>
+        <subtask id="1.4">Verify mimic mode calculation for container group</subtask>
+        <subtask id="1.5">Verify coordinated arrival check in execute_callback</subtask>
+        <subtask id="1.6">Verify aggregate progress calculation in _calc_aggregate_progress()</subtask>
+        <subtask id="1.7">Document any gaps or issues found</subtask>
+      </task>
+      <task id="2" status="pending">Implement default velocity from config (AC: 3)
+        <subtask id="2.1">Modify _resolve_joint_group() to return group's default_velocity</subtask>
+        <subtask id="2.2">Use default velocity in trajectory duration calculation if goal doesn't specify</subtask>
+        <subtask id="2.3">Log when using default vs. specified velocity</subtask>
+        <subtask id="2.4">Verify trajectory controller uses appropriate timing</subtask>
+      </task>
+      <task id="3" status="pending">Add optional default_acceleration support (AC: 3)
+        <subtask id="3.1">Add default_acceleration to kinematic_chains.yaml groups</subtask>
+        <subtask id="3.2">Use in trajectory point generation if trajectory controllers support it</subtask>
+        <subtask id="3.3">Validate acceleration values against joint capabilities</subtask>
+      </task>
+      <task id="4" status="pending">Create unit tests for joint group functionality (AC: 8)
+        <subtask id="4.1">Create ros2_ws/src/manipulator_control/test/test_move_joint_group.py</subtask>
+        <subtask id="4.2">Test: Config loading - verify all 4 groups loaded</subtask>
+        <subtask id="4.3">Test: Named group resolution - "navigation" to correct joints</subtask>
+        <subtask id="4.4">Test: Container mimic calculation - opening to symmetric positions</subtask>
+        <subtask id="4.5">Test: Invalid group rejection - returns error with valid list</subtask>
+        <subtask id="4.6">Test: Default velocity retrieval from config</subtask>
+        <subtask id="4.7">Test: Position count validation (group joints vs. target positions)</subtask>
+      </task>
+      <task id="5" status="pending">Create integration test with simulation (AC: 8)
+        <subtask id="5.1">Launch simulation with MoveJointGroup server running</subtask>
+        <subtask id="5.2">Send goal: joint_names=["navigation"], target_positions=[1.5, 0.8]</subtask>
+        <subtask id="5.3">Verify both joints move to targets within tolerance</subtask>
+        <subtask id="5.4">Measure coordination (both arrive within 1 second)</subtask>
+        <subtask id="5.5">Test container mimic: joint_names=["container"], target_positions=[0.2]</subtask>
+        <subtask id="5.6">Verify jaw positions are symmetric (-0.1, +0.1)</subtask>
+      </task>
+      <task id="6" status="pending">MANDATORY Developer Validation (AC: ALL)
+        <subtask id="6.1">Run colcon build --packages-select manipulator_control - must exit 0</subtask>
+        <subtask id="6.2">Run pytest test/test_move_joint_group.py -v - all tests must pass</subtask>
+        <subtask id="6.3">Launch simulation and send navigation group goal via rqt_action</subtask>
+        <subtask id="6.4">Verify default_velocity from config is applied (check trajectory duration)</subtask>
+        <subtask id="6.5">Verify container mimic works correctly in simulation</subtask>
+        <subtask id="6.6">Document test results in Dev Agent Record section</subtask>
+        <subtask id="6.7">Story is NOT complete until all tests pass and results documented</subtask>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1">Config Loading: MoveJointGroup server loads joint groups from config/kinematic_chains.yaml on startup and logs loaded groups</criterion>
+    <criterion id="AC2">Named Group Resolution: Goal with joint_names=["navigation"] resolves to [base_main_frame_joint, main_frame_selector_frame_joint] correctly</criterion>
+    <criterion id="AC3">Default Velocity: When max_velocity not specified in goal, server uses default_velocity from config (navigation=0.5, container=0.1, etc.)</criterion>
+    <criterion id="AC4">Container Mimic Mode: Goal joint_names=["container"], target_positions=[0.3] commands left=-0.15, right=+0.15</criterion>
+    <criterion id="AC5">Invalid Group Handling: Goal with invalid joint_names=["invalid_group"] is rejected with error message listing valid groups</criterion>
+    <criterion id="AC6">Coordinated Arrival: All joints in group reach targets within 1 second of each other (verified in result message)</criterion>
+    <criterion id="AC7">Aggregate Progress: Feedback includes progress_percent as average of individual joint progress (0-100%)</criterion>
+    <criterion id="AC8">MANDATORY Test Verification: All unit tests pass, integration test with simulation verifies navigation group motion, results documented in Dev Agent Record</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-3.md</path>
+        <title>Epic Technical Specification: Address Navigation System</title>
+        <section>Data Models and Contracts - Joint Group Definitions</section>
+        <snippet>Defines joint_groups: navigation (2 joints for XZ positioning), gripper (Y-axis with Z), picker (4 joints), container (2 jaws with mimic_mode). Navigation default_velocity=0.5 m/s.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics.md</path>
+        <title>Epics and Stories</title>
+        <section>Story 3.3: Implement MoveJointGroup with Joint Groups Configuration</section>
+        <snippet>Story requirements for extending MoveJointGroup to support predefined joint groups. Container mimic behavior: left=-opening/2, right=+opening/2.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture-ros2-control-v2-CORRECTIONS.md</path>
+        <title>Architecture - ROS2 Control</title>
+        <section>Joint Groups</section>
+        <snippet>Navigation uses 2 DOF group [base_main_frame_joint, main_frame_selector_frame_joint] for XZ plane positioning. Container group uses software mimic.</snippet>
+      </doc>
+    </docs>
+
+    <code>
+      <file>
+        <path>ros2_ws/src/manipulator_control/src/move_joint_group_server.py</path>
+        <kind>action_server</kind>
+        <symbol>MoveJointGroupServer</symbol>
+        <lines>1-458</lines>
+        <reason>Main implementation file. Already has _load_joint_groups(), _resolve_joint_group() with mimic mode, coordinated arrival check. Missing: default velocity application.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/config/kinematic_chains.yaml</path>
+        <kind>config</kind>
+        <symbol>joint_groups</symbol>
+        <lines>1-44</lines>
+        <reason>Defines all 4 joint groups with joints, default_velocity, and mimic_mode. Source of truth for group definitions.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/src/controller_interface.py</path>
+        <kind>utility</kind>
+        <symbol>ControllerInterface</symbol>
+        <lines>1-100</lines>
+        <reason>Dual-mode controller utility for trajectory (7 joints) and forward command (2 jaws). Used by MoveJointGroupServer for joint commands.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/config/action_servers.yaml</path>
+        <kind>config</kind>
+        <symbol>move_joint_group</symbol>
+        <lines>1-17</lines>
+        <reason>Action server parameters: timeout_sec=30.0, position_tolerance=0.01, feedback_rate=10.0</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/action/MoveJointGroup.action</path>
+        <kind>interface</kind>
+        <symbol>MoveJointGroup.action</symbol>
+        <lines>1-17</lines>
+        <reason>Action interface definition. Goal has max_velocity field (0.0 = use default from config).</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/test/test_address_resolver.py</path>
+        <kind>test</kind>
+        <symbol>TestAddressResolver</symbol>
+        <lines>1-350</lines>
+        <reason>Reference for pytest patterns used in this project. Follow same mock and test structure.</reason>
+      </file>
+    </code>
+
+    <dependencies>
+      <ros2>
+        <package>rclpy</package>
+        <package>std_msgs</package>
+        <package>sensor_msgs</package>
+        <package>geometry_msgs</package>
+        <package>control_msgs</package>
+        <package>trajectory_msgs</package>
+        <package>tf2_ros</package>
+        <package>visualization_msgs</package>
+      </ros2>
+      <python>
+        <package>pytest</package>
+        <package>yaml</package>
+      </python>
+    </dependencies>
+  </artifacts>
+
+  <interfaces>
+    <interface>
+      <name>MoveJointGroup Action</name>
+      <kind>ROS2 Action</kind>
+      <signature>
+Goal: string[] joint_names, float64[] target_positions, float64 max_velocity
+Result: bool success, float64[] final_positions, float64 position_error, float64 execution_time, string message
+Feedback: float64[] current_positions, float64 progress_percent
+      </signature>
+      <path>ros2_ws/src/manipulator_control/action/MoveJointGroup.action</path>
+    </interface>
+    <interface>
+      <name>ControllerInterface.command_joint_group</name>
+      <kind>Python method</kind>
+      <signature>command_joint_group(joint_names: List[str], positions: List[float]) -> bool</signature>
+      <path>ros2_ws/src/manipulator_control/src/controller_interface.py</path>
+    </interface>
+    <interface>
+      <name>kinematic_chains.yaml joint_groups</name>
+      <kind>YAML config</kind>
+      <signature>
+joint_groups:
+  navigation:
+    joints: [base_main_frame_joint, main_frame_selector_frame_joint]
+    default_velocity: 0.5
+  container:
+    joints: [selector_left_container_jaw_joint, selector_right_container_jaw_joint]
+    mimic_mode: true
+    default_velocity: 0.1
+      </signature>
+      <path>ros2_ws/src/manipulator_control/config/kinematic_chains.yaml</path>
+    </interface>
+  </interfaces>
+
+  <constraints>
+    <constraint type="architecture">Use ControllerInterface for all joint commands - do not directly publish to controller topics</constraint>
+    <constraint type="config">Joint group definitions ONLY in kinematic_chains.yaml - do not duplicate joint names elsewhere</constraint>
+    <constraint type="config">Joint limits loaded from manipulator_params.yaml via ControllerInterface - do not hardcode</constraint>
+    <constraint type="nfr">Position tolerance: 0.01m (NFR-002)</constraint>
+    <constraint type="nfr">Coordinated arrival: all joints within 1 second of each other</constraint>
+    <constraint type="nfr">Timeout: 30 seconds max for group motion</constraint>
+    <constraint type="testing">All unit tests must pass before marking story done</constraint>
+    <constraint type="testing">Integration test in simulation required</constraint>
+  </constraints>
+
+  <tests>
+    <standards>
+      Use pytest framework. Tests in ros2_ws/src/manipulator_control/test/ directory. Mock ROS2 node and TF buffer for unit tests. Follow patterns from test_address_resolver.py (51 tests passing). Integration tests use launch_testing with Gazebo simulation.
+    </standards>
+    <locations>
+      <location>ros2_ws/src/manipulator_control/test/test_move_joint_group.py (NEW - create this)</location>
+      <location>ros2_ws/src/manipulator_control/test/test_controller_interface.py (existing)</location>
+    </locations>
+    <ideas>
+      <idea ac="AC1">Test _load_joint_groups() returns 4 groups with correct keys</idea>
+      <idea ac="AC2">Test _resolve_joint_group(["navigation"], [1.5, 0.8]) returns correct joint names</idea>
+      <idea ac="AC3">Test default_velocity retrieved from config when goal.max_velocity=0.0</idea>
+      <idea ac="AC4">Test container mimic: opening=0.3 results in left=-0.15, right=+0.15</idea>
+      <idea ac="AC5">Test invalid group name returns None with logged error</idea>
+      <idea ac="AC6">Test coordinated arrival check in execute_callback</idea>
+      <idea ac="AC7">Test _calc_aggregate_progress() returns correct average percentage</idea>
+      <idea ac="AC8">Integration: Send navigation goal in simulation, verify joint positions</idea>
+    </ideas>
+  </tests>
+</story-context>
