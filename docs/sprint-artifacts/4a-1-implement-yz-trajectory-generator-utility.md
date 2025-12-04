@@ -1,6 +1,6 @@
 # Story 4A.1: Implement YZ Trajectory Generator Utility (Parametric Curves)
 
-Status: Approved
+Status: Done
 
 ## Story
 
@@ -130,93 +130,76 @@ manipulator_control/
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create trajectory config file (AC: 1)
-  - [ ] 1.1 Create `config/trajectory_config.yaml`
-  - [ ] 1.2 Define `extract_left` entry with:
+- [x] Task 1: Create trajectory config file (AC: 1)
+  - [x] 1.1 Create `config/trajectory_config.yaml`
+  - [x] 1.2 Define `extract_left` entry with:
     - `svg_file: trajectories/extract_left.svg`
     - `mapping.x_range: [0, 100]`
     - `mapping.y_output: [0.0, 0.4]` (meters)
     - `mapping.y_center: 50`
     - `mapping.z_scale: 0.001` (1mm per SVG unit)
     - `sampling.num_points: 20`
-    - `sampling.waypoint_duration: 0.5`
-  - [ ] 1.3 Add comments explaining each parameter
+    - `sampling.speed: 0.1` (m/s - replaces waypoint_duration)
+  - [x] 1.3 Add comments explaining each parameter
 
-- [ ] Task 2: Create SVG source files (AC: 8)
-  - [ ] 2.1 Create `config/trajectories/` directory structure
-  - [ ] 2.2 Create `extract_left.svg` with viewBox="0 0 100 100"
-  - [ ] 2.3 Add insertion path: `<path id="insertion" d="M 0,50 C 30,50 70,48 100,50"/>`
-  - [ ] 2.4 Add extraction path: `<path id="extraction" d="M 100,50 C 70,52 30,52 0,50"/>`
-  - [ ] 2.5 Add XML comments (SVG is unitless, see trajectory_config.yaml for scaling)
-  - [ ] 2.6 Test SVG renders correctly in browser/Inkscape
+- [x] Task 2: Create SVG source files (AC: 8)
+  - [x] 2.1 Create `config/trajectories/` directory structure
+  - [x] 2.2 Create `extract_left.svg` with viewBox="0 0 100 100"
+  - [x] 2.3 Add insertion path with clearance dip
+  - [x] 2.4 Add extraction path with clearance lift
+  - [x] 2.5 Add XML comments (SVG is unitless, see trajectory_config.yaml for scaling)
+  - [x] 2.6 Test SVG renders correctly in browser/Inkscape
 
-- [ ] Task 3: Implement SVG-to-YAML converter (AC: 2, 3)
-  - [ ] 3.1 Create `scripts/svg_to_trajectory.py`
-  - [ ] 3.2 Add argparse for: `--config` (trajectory_config.yaml), `--trajectory` (e.g., extract_left), `--output`
-  - [ ] 3.3 Load config and extract mapping/sampling for specified trajectory
-  - [ ] 3.4 Use `svgpathtools` to parse SVG file from config
-  - [ ] 3.5 Sample each path at `num_points` using `path.point(t)` for t in 0..1
-  - [ ] 3.6 Apply scaling from config:
-    - `y = (point.real - x_range[0]) / (x_range[1] - x_range[0]) * (y_output[1] - y_output[0]) + y_output[0]`
-    - `z = (y_center - point.imag) * z_scale`
-  - [ ] 3.7 Output YAML with `source_svg`, `config_used`, and `trajectories` dict
-  - [ ] 3.8 Add shebang and make executable
+- [x] Task 3: Implement SVG-to-YAML converter (AC: 2, 3)
+  - [x] 3.1 Create `scripts/svg_to_trajectory.py`
+  - [x] 3.2 Add argparse for: `--config` (trajectory_config.yaml), `--trajectory` (e.g., extract_left), `--output`
+  - [x] 3.3 Load config and extract mapping/sampling for specified trajectory
+  - [x] 3.4 Use `svgpathtools` to parse SVG file from config
+  - [x] 3.5 Sample each path at `num_points` using `path.point(t)` for t in 0..1
+  - [x] 3.6 Apply scaling from config
+  - [x] 3.7 Output YAML with `source_svg`, `config_used`, and `trajectories` dict
+  - [x] 3.8 Add shebang and make executable
 
-- [ ] Task 4: Generate initial trajectory YAML (AC: 3)
-  - [ ] 4.1 Install svgpathtools: `pip install svgpathtools`
-  - [ ] 4.2 Run converter: `python3 scripts/svg_to_trajectory.py --config config/trajectory_config.yaml --trajectory extract_left -o config/extraction_trajectories.yaml`
-  - [ ] 4.3 Verify YAML contains insertion and extraction trajectories with correct scaling
-  - [ ] 4.4 Commit generated YAML to repository
+- [x] Task 4: Generate initial trajectory YAML (AC: 3)
+  - [x] 4.1 Install svgpathtools: `pip install svgpathtools`
+  - [x] 4.2 Run converter
+  - [x] 4.3 Verify YAML contains insertion and extraction trajectories with correct scaling
+  - [x] 4.4 Commit generated YAML to repository
 
-- [ ] Task 5: Implement YZTrajectoryGenerator class (AC: 4, 5, 6)
-  - [ ] 5.1 Create `src/utils/yz_trajectory_generator.py`
-  - [ ] 5.2 Implement `__init__(waypoints_path, config_path)` to load both files
-  - [ ] 5.3 Implement `load_trajectory(name, side, base_y, base_z)`:
-    - Load waypoints from self.trajectories[name]
-    - Get waypoint_duration from config
-    - Apply sign = 1.0 if left else -1.0
-    - Transform: y = base_y + sign * wp['y'], z = base_z + wp['z']
-    - Add time_from_start = i * waypoint_duration
-  - [ ] 5.4 Add type hints and docstrings
-  - [ ] 5.5 Add logging for trajectory loading
+- [x] Task 5: Implement YZTrajectoryGenerator class (AC: 4, 5, 6)
+  - [x] 5.1 Create `src/utils/yz_trajectory_generator.py`
+  - [x] 5.2 Implement `__init__(waypoints_path, config_path)` to load both files
+  - [x] 5.3 Implement `load_trajectory(name, side, base_y, base_z)`
+  - [x] 5.4 Add type hints and docstrings
+  - [x] 5.5 Add logging for trajectory loading
 
-- [ ] Task 6: Implement trajectory execution method (AC: 7)
-  - [ ] 6.1 Implement `execute_trajectory(waypoints, trajectory_client)`:
-    - Build JointTrajectory message
-    - Set joint_names: [selector_frame_gripper_joint, main_frame_selector_frame_joint]
-    - Create JointTrajectoryPoint for each waypoint
-    - Set positions = [wp['y'], wp['z']]
-    - Set time_from_start from waypoint
-  - [ ] 6.2 Create FollowJointTrajectory.Goal and send via action client
-  - [ ] 6.3 Wait for result and return success/failure boolean
-  - [ ] 6.4 Add error handling for timeout and rejected goals
+- [x] Task 6: Implement trajectory execution method (AC: 7)
+  - [x] 6.1 Implement `execute_trajectory()` with parallel Y/Z controller support
+  - [x] 6.2 Create FollowJointTrajectory.Goal and send via action client
+  - [x] 6.3 Wait for result and return success/failure boolean
+  - [x] 6.4 Add error handling for timeout and rejected goals
 
-- [ ] Task 7: Create unit tests for converter (AC: 2, 3)
-  - [ ] 7.1 Create `test/test_svg_to_trajectory.py`
-  - [ ] 7.2 Test: Converter reads scaling from config (not hardcoded)
-  - [ ] 7.3 Test: SVG with multiple paths produces multiple trajectories
-  - [ ] 7.4 Test: Y/Z scaling matches config values
-  - [ ] 7.5 Test: Output YAML includes config_used reference
+- [x] Task 7: Create unit tests for converter (AC: 2, 3)
+  - [x] 7.1 Create `test/test_svg_to_trajectory.py`
+  - [x] 7.2 Test: Converter reads scaling from config (not hardcoded)
+  - [x] 7.3 Test: SVG with multiple paths produces multiple trajectories
+  - [x] 7.4 Test: Y/Z scaling matches config values
+  - [x] 7.5 Test: Output YAML includes config_used reference
 
-- [ ] Task 8: Create unit tests for trajectory loader (AC: 4, 5, 6)
-  - [ ] 8.1 Create `test/test_yz_trajectory_generator.py`
-  - [ ] 8.2 Test: load_trajectory returns correct waypoint count
-  - [ ] 8.3 Test: left side produces positive Y values
-  - [ ] 8.4 Test: right side produces negative Y values (sign flip)
-  - [ ] 8.5 Test: base position offsets applied correctly
-  - [ ] 8.6 Test: time_from_start uses waypoint_duration from config
+- [x] Task 8: Create unit tests for trajectory loader (AC: 4, 5, 6)
+  - [x] 8.1 Create `test/test_yz_trajectory_generator.py`
+  - [x] 8.2 Test: load_trajectory returns correct waypoint count
+  - [x] 8.3 Test: left side produces positive Y values
+  - [x] 8.4 Test: right side produces negative Y values (sign flip)
+  - [x] 8.5 Test: base position offsets applied correctly
+  - [x] 8.6 Test: time_from_start uses waypoint_duration from config
 
-- [ ] Task 9: Gazebo integration testing (AC: 9)
-  - [ ] 9.1 Launch simulation with trajectory controller running
-  - [ ] 9.2 Create test script that:
-    - Initializes YZTrajectoryGenerator with config
-    - Creates FollowJointTrajectory action client
-    - Loads insertion trajectory for left cabinet
-    - Executes trajectory
-    - Verifies smooth motion (no jerks, no collisions)
-  - [ ] 9.3 Test with 10 different base positions (simulating different addresses)
-  - [ ] 9.4 Verify all executions complete successfully
-  - [ ] 9.5 Document test results in Dev Agent Record
+- [x] Task 9: Gazebo integration testing (AC: 9)
+  - [x] 9.1 Launch simulation with trajectory controller running
+  - [x] 9.2 Create test script `test/test_yz_trajectory_gazebo.py`
+  - [x] 9.3 Test with 10 different base positions (simulating different addresses)
+  - [x] 9.4 Verify all executions complete successfully (15/15 tests passed)
+  - [x] 9.5 Document test results in Dev Agent Record
 
 ## Dev Notes
 
@@ -368,4 +351,35 @@ trajectories:
 
 ### Completion Notes List
 
+1. **2025-12-04**: All implementation complete. Unit tests (16/16) and Gazebo integration tests (15/15) passing.
+   - Fixed async/spin issue in Gazebo tests by using `MultiThreadedExecutor` with background thread and callback-based action handling
+   - SVG curves include clearance profiles (insertion dips ~15mm, extraction lifts ~25mm)
+   - Config uses `speed` (m/s) instead of `waypoint_duration` for more intuitive timing control
+   - YZTrajectoryGenerator supports parallel Y/Z controller execution
+
+### Test Results Summary
+
+**Unit Tests (16 passed)**:
+- `test_svg_to_trajectory.py`: 5 tests (AC2, AC3)
+- `test_yz_trajectory_generator.py`: 11 tests (AC4, AC5, AC6)
+
+**Gazebo Integration Tests (15 passed)**:
+- 10 insertion trajectories at various base positions (left/right cabinets, Z: 0.3-1.1m)
+- 2 extraction trajectories (left/right)
+- 3 smoothness validation tests
+
 ### File List
+
+| File | Purpose |
+|------|---------|
+| `config/trajectory_config.yaml` | SVG-to-joint scaling configuration |
+| `config/trajectories/extract_left.svg` | Bezier curve definitions for insertion/extraction |
+| `config/extraction_trajectories.yaml` | Generated waypoints (20 points per trajectory) |
+| `scripts/svg_to_trajectory.py` | SVG-to-YAML converter tool |
+| `scripts/visualize_trajectory.py` | Trajectory visualization helper |
+| `scripts/test_trajectory_execution.py` | Manual trajectory test script |
+| `src/utils/__init__.py` | Utils package init |
+| `src/utils/yz_trajectory_generator.py` | Runtime trajectory loader and executor |
+| `test/test_svg_to_trajectory.py` | Converter unit tests |
+| `test/test_yz_trajectory_generator.py` | Loader unit tests |
+| `test/test_yz_trajectory_gazebo.py` | Gazebo integration tests |

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  YZ Trajectory Curves for Box Extraction/Insertion
+  YZ Trajectory Curve for Box Extraction/Insertion
 
   COORDINATE SYSTEM (unitless - scaling defined in trajectory_config.yaml):
   - X axis (0-100): Maps to joint Y (gripper depth into cabinet)
@@ -9,31 +9,23 @@
     - Y=30 means Z offset = (50-30)*0.001 = +20mm (lift up)
     - Y=70 means Z offset = (50-70)*0.001 = -20mm (dip down)
 
-  PATH NAMING:
-  - insertion: Gripper moves INTO cabinet (X: 0 → 100)
-  - extraction: Gripper retracts WITH box (X: 100 → 0)
+  SINGLE TRAJECTORY STRATEGY:
+  - Same path used for both insertion and extraction (reversed at runtime)
+  - Profile: Lift UP in the middle for clearance
+  - Insertion: Follow path forward (0 → 100), enter with lift to clear shelf lip
+  - Extraction: Follow path reversed (100 → 0), exit with lift to clear box from shelf
 
-  CLEARANCE STRATEGY:
-  - Insertion: Start level, dip DOWN slightly mid-path to clear lip, end level
-  - Extraction: Start level, lift UP mid-path for box clearance, end level
+  The lift profile works for both directions:
+  - Going IN: Lifts over any shelf lip/obstruction
+  - Coming OUT: Lifts box clear of shelf before retracting
 -->
 <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-  <!-- Insertion: gripper enters cabinet -->
-  <!-- Profile: level start -> slight dip (clear cabinet lip) -> level at depth -->
-  <!-- Y=50 = level, Y=70 = 20mm dip down, Y=30 = 20mm lift up -->
-  <!-- Control points create smooth arc: dip to Y=65 (~15mm down) mid-insertion -->
-  <path id="insertion"
-        d="M 0,50 C 25,50 40,65 50,65 C 60,65 75,50 100,50"
+  <!-- Main trajectory: level -> lift up -> level -->
+  <!-- Y=50 = level (Z=0), Y=30 = 20mm lift up -->
+  <!-- Smooth Bezier curve with ~20mm lift in middle section -->
+  <path id="trajectory"
+        d="M 0,50 C 25,50 35,30 50,30 C 65,30 75,50 100,50"
         fill="none"
         stroke="blue"
-        stroke-width="1"/>
-
-  <!-- Extraction: gripper retracts with box -->
-  <!-- Profile: level at depth -> lift UP (clear box from shelf) -> level at exit -->
-  <!-- Control points create smooth arc: lift to Y=25 (~25mm up) mid-extraction -->
-  <path id="extraction"
-        d="M 100,50 C 75,50 60,25 50,25 C 40,25 25,50 0,50"
-        fill="none"
-        stroke="red"
         stroke-width="1"/>
 </svg>

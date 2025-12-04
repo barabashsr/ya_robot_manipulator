@@ -34,8 +34,12 @@ from typing import Dict, List, Optional, Tuple
 import yaml
 from builtin_interfaces.msg import Duration
 from control_msgs.action import FollowJointTrajectory
+from geometry_msgs.msg import Point
 from rclpy.action import ActionClient
+from rclpy.node import Node
+from std_msgs.msg import ColorRGBA
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from visualization_msgs.msg import Marker, MarkerArray
 
 logger = logging.getLogger(__name__)
 
@@ -332,3 +336,215 @@ class YZTrajectoryGenerator:
         else:
             logger.error(f"Trajectory failed: Y={y_success}, Z={z_success}")
             return False
+
+    # End effector frame names for each side
+    END_EFFECTOR_FRAMES = {
+        'left': 'left_gripper_magnet',
+        'right': 'right_gripper_magnet',
+    }
+
+    def publish_trajectory_markers(
+        self,
+        waypoints: List[TransformedWaypoint],
+        marker_publisher,
+        node: Node,
+        address_frame: str,
+        side: str = 'left',
+        color: Optional[ColorRGBA] = None,
+    ) -> None:
+        """Publish trajectory waypoints as RViz markers relative to target address.
+
+        The trajectory is published in the address frame, showing the fixed path
+        the end effector will follow. The trajectory:
+        - Starts at the address position (where gripper should align)
+        - Extends INTO the cabinet (positive Y for left side, negative for right)
+        - Shows any vertical clearance adjustments
+
+        Coordinate mapping in address frame:
+        - X axis: not used (along cabinet depth would be X in address frame)
+        - Y axis: lateral (into cabinet = towards center for left, away for right)
+        - Z axis: vertical offset
+
+        Note: The waypoints contain absolute joint positions. We convert them
+        to positions relative to the address frame for visualization.
+
+        Args:
+            waypoints: List of TransformedWaypoint to visualize
+            marker_publisher: ROS2 publisher for MarkerArray
+            node: ROS2 node for getting clock time
+            address_frame: TF frame of target address (e.g., 'addr_l_1_5_2')
+            side: Cabinet side ('left' or 'right')
+            color: Optional color for markers (default: cyan)
+        """
+        if color is None:
+            color = ColorRGBA(r=0.0, g=0.8, b=1.0, a=0.9)  # Cyan
+
+        marker_array = MarkerArray()
+        stamp = node.get_clock().now().to_msg()
+
+        if not waypoints:
+            return
+
+        # Use address frame - trajectory is fixed relative to the target address
+        frame_id = address_frame
+
+        # First waypoint is the "home" position at the address
+        # Subsequent waypoints show the path INTO the cabinet
+        first_y = waypoints[0].y
+        first_z = waypoints[0].z
+
+        # Direction multiplier: left side goes +Y into cabinet, right goes -Y
+        # But in address frame, we always show trajectory going "forward" (+X or +Y)
+        # The sign is already applied in the waypoints, so relative positions work
+
+        # Direction: left side trajectory goes +Y (into cabinet towards center)
+        # Right side goes -Y. In address frame, we show trajectory going into cabinet.
+        # For left: gripper Y increases -> show as -Y in address frame (towards center)
+        # For right: gripper Y decreases -> show as +Y in address frame (towards center)
+        y_direction = -1.0 if side == 'left' else 1.0
+
+        # Sphere markers for each waypoint
+        for i, wp in enumerate(waypoints):
+            marker = Marker()
+            marker.header.frame_id = frame_id
+            marker.header.stamp = stamp
+            marker.ns = 'trajectory_waypoints'
+            marker.id = i
+            marker.type = Marker.SPHERE
+            marker.action = Marker.ADD
+
+            # Position relative to address origin
+            # Address frame has same orientation as world:
+            # - X: forward (along robot rail)
+            # - Y: lateral (left cabinet = +Y side, right cabinet = -Y side)
+            # - Z: vertical
+            rel_y = wp.y - first_y  # How far gripper moves
+            rel_z = wp.z - first_z  # Vertical offset (clearance)
+
+            # Map to address frame
+            marker.pose.position.x = 0.0  # No X movement
+            marker.pose.position.y = y_direction * rel_y  # Into cabinet
+            marker.pose.position.z = rel_z  # Vertical offset
+            marker.pose.orientation.w = 1.0
+
+            marker.scale.x = 0.012
+            marker.scale.y = 0.012
+            marker.scale.z = 0.012
+            marker.color = color
+            marker.lifetime.sec = 0
+
+            marker_array.markers.append(marker)
+
+        # Line strip connecting waypoints
+        line_marker = Marker()
+        line_marker.header.frame_id = frame_id
+        line_marker.header.stamp = stamp
+        line_marker.ns = 'trajectory_path'
+        line_marker.id = 0
+        line_marker.type = Marker.LINE_STRIP
+        line_marker.action = Marker.ADD
+
+        for wp in waypoints:
+            rel_y = wp.y - first_y
+            rel_z = wp.z - first_z
+            p = Point()
+            p.x = 0.0
+            p.y = y_direction * rel_y
+            p.z = rel_z
+            line_marker.points.append(p)
+
+        line_marker.scale.x = 0.004
+        line_marker.color = color
+        line_marker.lifetime.sec = 0
+
+        marker_array.markers.append(line_marker)
+
+        # Arrow showing direction (start to end)
+        arrow_marker = Marker()
+        arrow_marker.header.frame_id = frame_id
+        arrow_marker.header.stamp = stamp
+        arrow_marker.ns = 'trajectory_direction'
+        arrow_marker.id = 0
+        arrow_marker.type = Marker.ARROW
+        arrow_marker.action = Marker.ADD
+
+        last_rel_y = waypoints[-1].y - first_y
+        last_rel_z = waypoints[-1].z - first_z
+
+        start = Point(x=0.0, y=0.0, z=0.0)
+        end = Point(x=0.0, y=y_direction * last_rel_y, z=last_rel_z)
+        arrow_marker.points = [start, end]
+
+        arrow_marker.scale.x = 0.006
+        arrow_marker.scale.y = 0.012
+        arrow_marker.scale.z = 0.015
+        arrow_marker.color = ColorRGBA(r=1.0, g=0.5, b=0.0, a=0.9)  # Orange
+        arrow_marker.lifetime.sec = 0
+
+        marker_array.markers.append(arrow_marker)
+
+        # Start marker (green sphere at address)
+        start_marker = Marker()
+        start_marker.header.frame_id = frame_id
+        start_marker.header.stamp = stamp
+        start_marker.ns = 'trajectory_endpoints'
+        start_marker.id = 0
+        start_marker.type = Marker.SPHERE
+        start_marker.action = Marker.ADD
+        start_marker.pose.position.x = 0.0
+        start_marker.pose.position.y = 0.0
+        start_marker.pose.position.z = 0.0
+        start_marker.pose.orientation.w = 1.0
+        start_marker.scale.x = 0.02
+        start_marker.scale.y = 0.02
+        start_marker.scale.z = 0.02
+        start_marker.color = ColorRGBA(r=0.0, g=1.0, b=0.0, a=0.9)  # Green
+        start_marker.lifetime.sec = 0
+        marker_array.markers.append(start_marker)
+
+        # End marker (red sphere at deepest point)
+        end_marker = Marker()
+        end_marker.header.frame_id = frame_id
+        end_marker.header.stamp = stamp
+        end_marker.ns = 'trajectory_endpoints'
+        end_marker.id = 1
+        end_marker.type = Marker.SPHERE
+        end_marker.action = Marker.ADD
+        end_marker.pose.position.x = 0.0
+        end_marker.pose.position.y = y_direction * last_rel_y
+        end_marker.pose.position.z = last_rel_z
+        end_marker.pose.orientation.w = 1.0
+        end_marker.scale.x = 0.02
+        end_marker.scale.y = 0.02
+        end_marker.scale.z = 0.02
+        end_marker.color = ColorRGBA(r=1.0, g=0.0, b=0.0, a=0.9)  # Red
+        end_marker.lifetime.sec = 0
+        marker_array.markers.append(end_marker)
+
+        marker_publisher.publish(marker_array)
+        logger.debug(f"Published {len(waypoints)} trajectory markers in {frame_id} frame")
+
+    def clear_trajectory_markers(
+        self,
+        marker_publisher,
+        node: Node,
+    ) -> None:
+        """Clear all trajectory markers from RViz.
+
+        Args:
+            marker_publisher: ROS2 publisher for MarkerArray
+            node: ROS2 node for getting clock time
+        """
+        marker_array = MarkerArray()
+        stamp = node.get_clock().now().to_msg()
+
+        # Delete all markers in our namespaces
+        for ns in ['trajectory_waypoints', 'trajectory_path', 'trajectory_direction']:
+            delete_marker = Marker()
+            delete_marker.header.stamp = stamp
+            delete_marker.ns = ns
+            delete_marker.action = Marker.DELETEALL
+            marker_array.markers.append(delete_marker)
+
+        marker_publisher.publish(marker_array)
+        logger.debug("Cleared trajectory markers")

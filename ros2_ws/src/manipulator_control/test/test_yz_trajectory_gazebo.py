@@ -19,16 +19,19 @@ How to Run:
 
 Expected Duration: ~5-10 minutes (includes trajectory execution waits)
 """
-import asyncio
-import math
+import threading
+import time
 from pathlib import Path
 
 import pytest
 import rclpy
 from rclpy.action import ActionClient
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 
+from builtin_interfaces.msg import Duration
 from control_msgs.action import FollowJointTrajectory
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 # Add src to path for imports
 import sys
@@ -78,7 +81,22 @@ def test_node(ros2_context):
 
 
 @pytest.fixture(scope='module')
-def y_action_client(test_node):
+def executor(test_node):
+    """Create and start executor in background thread."""
+    executor = MultiThreadedExecutor()
+    executor.add_node(test_node)
+
+    # Run executor in background thread
+    spin_thread = threading.Thread(target=executor.spin, daemon=True)
+    spin_thread.start()
+
+    yield executor
+
+    executor.shutdown()
+
+
+@pytest.fixture(scope='module')
+def y_action_client(test_node, executor):
     """Create action client for Y-axis (gripper) trajectory controller."""
     client = ActionClient(
         test_node,
@@ -96,7 +114,7 @@ def y_action_client(test_node):
 
 
 @pytest.fixture(scope='module')
-def z_action_client(test_node):
+def z_action_client(test_node, executor):
     """Create action client for Z-axis (selector frame) trajectory controller."""
     client = ActionClient(
         test_node,
@@ -120,6 +138,135 @@ def trajectory_generator():
         waypoints_path=str(CONFIG_DIR / 'extraction_trajectories.yaml'),
         config_path=str(CONFIG_DIR / 'trajectory_config.yaml'),
     )
+
+
+def execute_single_trajectory_sync(
+    action_client: ActionClient,
+    joint_name: str,
+    positions: list,
+    durations: list,
+    timeout_sec: float = 30.0,
+) -> bool:
+    """Execute a single joint trajectory synchronously.
+
+    Uses callback-based approach that works with background executor.
+
+    Args:
+        action_client: ActionClient for FollowJointTrajectory
+        joint_name: Name of the joint
+        positions: List of position values
+        durations: List of time_from_start values (seconds)
+        timeout_sec: Timeout for execution
+
+    Returns:
+        True if trajectory completed successfully
+    """
+    # Build trajectory
+    traj = JointTrajectory()
+    traj.joint_names = [joint_name]
+
+    for i, (pos, dur) in enumerate(zip(positions, durations)):
+        point = JointTrajectoryPoint()
+        point.positions = [pos]
+        # Only set velocities at start/end for smooth motion
+        if i == 0 or i == len(positions) - 1:
+            point.velocities = [0.0]
+        secs = int(dur)
+        nsecs = int((dur - secs) * 1e9)
+        point.time_from_start = Duration(sec=secs, nanosec=nsecs)
+        traj.points.append(point)
+
+    # Create goal
+    goal = FollowJointTrajectory.Goal()
+    goal.trajectory = traj
+
+    # Use event for synchronization
+    result_event = threading.Event()
+    result_holder = {'success': False}
+
+    def goal_response_callback(future):
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            result_holder['success'] = False
+            result_event.set()
+            return
+
+        # Get result
+        result_future = goal_handle.get_result_async()
+        result_future.add_done_callback(result_callback)
+
+    def result_callback(future):
+        result = future.result()
+        result_holder['success'] = (
+            result.result.error_code == FollowJointTrajectory.Result.SUCCESSFUL
+        )
+        result_event.set()
+
+    # Send goal
+    send_future = action_client.send_goal_async(goal)
+    send_future.add_done_callback(goal_response_callback)
+
+    # Wait for result
+    if result_event.wait(timeout=timeout_sec):
+        return result_holder['success']
+    else:
+        return False
+
+
+def execute_yz_trajectory_sync(
+    y_client: ActionClient,
+    z_client: ActionClient,
+    waypoints: list,
+    timeout_sec: float = 30.0,
+) -> bool:
+    """Execute YZ trajectory using both controllers synchronously.
+
+    Args:
+        y_client: ActionClient for Y-axis
+        z_client: ActionClient for Z-axis
+        waypoints: List of TransformedWaypoint
+        timeout_sec: Timeout for execution
+
+    Returns:
+        True if both trajectories completed successfully
+    """
+    # Extract positions and timings
+    y_positions = [wp.y for wp in waypoints]
+    z_positions = [wp.z for wp in waypoints]
+    durations = [wp.time_from_start for wp in waypoints]
+
+    # Execute both in parallel using threads
+    y_result = {'success': False}
+    z_result = {'success': False}
+
+    def run_y():
+        y_result['success'] = execute_single_trajectory_sync(
+            y_client,
+            'selector_frame_gripper_joint',
+            y_positions,
+            durations,
+            timeout_sec,
+        )
+
+    def run_z():
+        z_result['success'] = execute_single_trajectory_sync(
+            z_client,
+            'main_frame_selector_frame_joint',
+            z_positions,
+            durations,
+            timeout_sec,
+        )
+
+    y_thread = threading.Thread(target=run_y)
+    z_thread = threading.Thread(target=run_z)
+
+    y_thread.start()
+    z_thread.start()
+
+    y_thread.join(timeout=timeout_sec + 5)
+    z_thread.join(timeout=timeout_sec + 5)
+
+    return y_result['success'] and z_result['success']
 
 
 class TestGazeboTrajectoryExecution:
@@ -150,17 +297,12 @@ class TestGazeboTrajectoryExecution:
             base_z=base_z,
         )
 
-        # Execute synchronously using asyncio
-        async def execute():
-            return await trajectory_generator.execute_trajectory(
-                waypoints, y_action_client, z_action_client, timeout_sec=TRAJECTORY_TIMEOUT
-            )
-
-        loop = asyncio.new_event_loop()
-        try:
-            success = loop.run_until_complete(execute())
-        finally:
-            loop.close()
+        success = execute_yz_trajectory_sync(
+            y_action_client,
+            z_action_client,
+            waypoints,
+            timeout_sec=TRAJECTORY_TIMEOUT,
+        )
 
         assert success, f"Insertion trajectory failed for {description}"
 
@@ -175,16 +317,12 @@ class TestGazeboTrajectoryExecution:
             base_z=0.5,
         )
 
-        async def execute():
-            return await trajectory_generator.execute_trajectory(
-                waypoints, y_action_client, z_action_client, timeout_sec=TRAJECTORY_TIMEOUT
-            )
-
-        loop = asyncio.new_event_loop()
-        try:
-            success = loop.run_until_complete(execute())
-        finally:
-            loop.close()
+        success = execute_yz_trajectory_sync(
+            y_action_client,
+            z_action_client,
+            waypoints,
+            timeout_sec=TRAJECTORY_TIMEOUT,
+        )
 
         assert success, "Extraction trajectory failed for left side"
 
@@ -199,16 +337,12 @@ class TestGazeboTrajectoryExecution:
             base_z=0.5,
         )
 
-        async def execute():
-            return await trajectory_generator.execute_trajectory(
-                waypoints, y_action_client, z_action_client, timeout_sec=TRAJECTORY_TIMEOUT
-            )
-
-        loop = asyncio.new_event_loop()
-        try:
-            success = loop.run_until_complete(execute())
-        finally:
-            loop.close()
+        success = execute_yz_trajectory_sync(
+            y_action_client,
+            z_action_client,
+            waypoints,
+            timeout_sec=TRAJECTORY_TIMEOUT,
+        )
 
         assert success, "Extraction trajectory failed for right side"
 
