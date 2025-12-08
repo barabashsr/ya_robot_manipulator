@@ -176,6 +176,29 @@ def generate_launch_description():
         ]
     )
 
+    # Box spawner configuration (Story 4A.3)
+    box_spawner_config = PathJoinSubstitution([
+        manipulator_control_share,
+        'config',
+        'box_spawner.yaml'
+    ])
+
+    # Box Spawn Manager Node (Story 4A.3)
+    # Provides /manipulator/box_spawn/spawn and /manipulator/box_spawn/despawn services
+    # 3 second delay to allow TF tree to populate
+    box_spawn_manager_node = TimerAction(
+        period=3.0,
+        actions=[
+            Node(
+                package='manipulator_control',
+                executable='box_spawn_manager_node',
+                name='box_spawn_manager_node',
+                output='screen',
+                parameters=[{'config_file': box_spawner_config}]
+            )
+        ]
+    )
+
     # Joystick control launch (optional)
     joy_control_launch = TimerAction(
         period=3.0,  # Wait for controllers to be ready
@@ -221,6 +244,9 @@ def generate_launch_description():
 
         # Start Electromagnet Simulator Node (delayed) - Story 4A.2
         electromagnet_simulator_node,
+
+        # Start Box Spawn Manager Node (delayed) - Story 4A.3
+        box_spawn_manager_node,
 
         # Start joystick control (optional, delayed)
         joy_control_launch

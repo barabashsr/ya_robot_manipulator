@@ -1,0 +1,52 @@
+# Box Spawner Configuration
+# Story 4A.3: Implement Dynamic Box Spawner with Department Frame Generation
+
+# TF publishing rate for robot_state_publisher
+tf_publish_rate: 10.0  # Hz
+
+# Gazebo world configuration
+# Must match the world name in your Gazebo simulation (e.g., empty.sdf -> "empty")
+gazebo_world_name: "empty"
+
+# Gazebo entity services (Harmonic)
+# These endpoints are used for spawning/deleting box models in simulation
+spawn_service: "/world/{world_name}/create"
+delete_service: "/world/{world_name}/remove"
+
+# Box physics properties
+box_mass: 0.5  # kg - used in URDF inertial
+
+# Department marker visualization
+department_marker_radius: 0.01  # meters - sphere radius for department link visuals
+
+# Box material colors (RGBA)
+box_color:
+  r: 0.3
+  g: 0.5
+  b: 0.8
+  a: 1.0
+
+department_marker_color:
+  r: 1.0
+  g: 0.0
+  b: 0.0
+  a: 0.8
+
+# Gripper frame configuration (must match URDF)
+left_gripper_frame: "left_gripper_magnet"
+right_gripper_frame: "right_gripper_magnet"
+
+# Service endpoints
+spawn_service_name: "/manipulator/box_spawn/spawn"
+despawn_service_name: "/manipulator/box_spawn/despawn"
+
+# DetachableJoint topic pattern for Gazebo physics attachment
+# Format: /model/{box_id}/detachable_joint/attach|detach
+detachable_joint_topic_pattern: "/model/{box_id}/detachable_joint"
+
+# Timeout for service operations
+spawn_timeout_sec: 5.0
+despawn_timeout_sec: 5.0
+
+# RSP process startup wait time
+rsp_startup_wait_sec: 0.5

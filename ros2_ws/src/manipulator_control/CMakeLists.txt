@@ -113,6 +113,21 @@ install(
   RENAME electromagnet_simulator_node
 )
 
+# Install Box Spawn Manager Node (Story 4A.3)
+install(
+  PROGRAMS
+    src/box_spawn_manager_node.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME box_spawn_manager_node
+)
+
+# Install box URDF generator utility (Story 4A.3)
+install(
+  DIRECTORY src/utils/
+  DESTINATION lib/${PROJECT_NAME}/utils
+  FILES_MATCHING PATTERN "*.py"
+)
+
 # Install Python modules (utility classes)
 install(
   PROGRAMS

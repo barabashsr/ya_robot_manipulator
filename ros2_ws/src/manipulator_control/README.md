@@ -204,6 +204,71 @@ ros2 topic echo /manipulator/electromagnet/engaged
 **Configuration:**
 Electromagnet parameters are defined in `config/electromagnet.yaml`
 
+## Box Spawn Manager (Story 4A.3)
+
+The package provides dynamic box spawning with department child links in the TF tree for box extraction operations.
+
+**Services:**
+```
+/manipulator/box_spawn/spawn (manipulator_control/srv/SpawnBox)
+/manipulator/box_spawn/despawn (manipulator_control/srv/DespawnBox)
+```
+
+**SpawnBox Request:**
+- `box_id` (string): Box identifier, format: `box_{side}_{cabinet}_{row}_{col}` (e.g., `box_l_1_2_3`)
+- `side` (string): Cabinet side - `left` or `right`
+- `cabinet_num` (uint8): Cabinet number (1-4)
+- `row` (uint8): Row within cabinet (1-N)
+- `column` (uint8): Column within cabinet (1-N)
+
+**SpawnBox Response:**
+- `success` (bool): True if box spawned successfully
+- `box_id` (string): Confirmed box identifier
+- `department_count` (uint8): Number of departments in spawned box
+- `message` (string): Status message
+
+**DespawnBox Request/Response:**
+- Request: `box_id` (string)
+- Response: `success` (bool), `message` (string)
+
+**Usage:**
+```bash
+# Spawn a box at left cabinet 1, row 2, column 3
+ros2 service call /manipulator/box_spawn/spawn manipulator_control/srv/SpawnBox \
+  "{box_id: 'box_l_1_2_3', side: 'left', cabinet_num: 1, row: 2, column: 3}"
+
+# Verify TF frames exist
+ros2 run tf2_ros tf2_echo world box_l_1_2_3_base_link
+ros2 run tf2_ros tf2_echo world box_l_1_2_3_dept_1_link
+
+# Despawn the box
+ros2 service call /manipulator/box_spawn/despawn manipulator_control/srv/DespawnBox \
+  "{box_id: 'box_l_1_2_3'}"
+
+# Verify no orphan processes
+ps aux | grep robot_state_publisher
+```
+
+**Features:**
+- Generates URDF with base_link and N department child links
+- Launches robot_state_publisher subprocess for TF broadcasting
+- Attaches box to gripper_magnet frame via static transform
+- (Simulation) Spawns visual model in Gazebo with DetachableJoint plugin
+- Department Y positions follow formula: `y = offset_y + (dept_num - 1) * step_y`
+
+**TF Frame Structure:**
+```
+world
+  └── left_gripper_magnet
+        └── box_l_1_2_3_base_link (static transform)
+              ├── box_l_1_2_3_dept_1_link
+              ├── box_l_1_2_3_dept_2_link
+              └── ... (N departments based on cabinet config)
+```
+
+**Configuration:**
+Box spawner parameters are defined in `config/box_spawner.yaml`
+
 ## Usage Examples
 
 **Using action interfaces (Python):**

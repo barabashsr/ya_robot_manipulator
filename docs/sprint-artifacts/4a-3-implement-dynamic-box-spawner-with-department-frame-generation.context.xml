@@ -1,0 +1,298 @@
+<story-context id="bmad/story-context" v="1.0">
+  <metadata>
+    <epicId>4A</epicId>
+    <storyId>3</storyId>
+    <title>Implement Dynamic Box Spawner with Department Frame Generation</title>
+    <status>ready-for-dev</status>
+    <generatedAt>2025-12-08</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/4a-3-implement-dynamic-box-spawner-with-department-frame-generation.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>to dynamically add box URDF with department child links to the ROS2 TF tree</iWant>
+    <soThat>department positions are available for item detection and picking in both hardware and simulation modes</soThat>
+    <tasks>
+      <task id="1" ac="1">
+        <title>Define Service Interfaces</title>
+        <subtasks>
+          <subtask>Create manipulator_control/srv/SpawnBox.srv with fields: box_id, side, cabinet_num, row, column, num_departments</subtask>
+          <subtask>Create manipulator_control/srv/DespawnBox.srv with field: box_id</subtask>
+          <subtask>Update CMakeLists.txt to generate service interfaces</subtask>
+          <subtask>Build and verify services appear in ros2 interface list</subtask>
+        </subtasks>
+      </task>
+      <task id="2" ac="9">
+        <title>Create Box Spawner Configuration</title>
+        <subtasks>
+          <subtask>Create manipulator_control/config/box_spawner.yaml with parameters: tf_publish_rate, gazebo_world_name, spawn_service, delete_service, box_mass, department_marker_radius</subtask>
+        </subtasks>
+      </task>
+      <task id="3" ac="2,7">
+        <title>Implement URDF Generator Utility</title>
+        <subtasks>
+          <subtask>Create src/utils/box_urdf_generator.py</subtask>
+          <subtask>Load box dimensions from storage_params.yaml based on cabinet configuration</subtask>
+          <subtask>Generate URDF XML string with base_link (box geometry, mass, inertia)</subtask>
+          <subtask>Generate N department child links with small sphere visuals</subtask>
+          <subtask>Generate fixed joints with Y-offsets per department configuration</subtask>
+          <subtask>(Simulation) Include DetachableJoint Gazebo plugin in URDF</subtask>
+          <subtask>Unit test: verify URDF is valid XML with expected link/joint count</subtask>
+        </subtasks>
+      </task>
+      <task id="4" ac="3,4,5,6,8">
+        <title>Implement Box Spawn Manager Node</title>
+        <subtasks>
+          <subtask>Create src/box_spawn_manager_node.py</subtask>
+          <subtask>Service servers for /manipulator/box_spawn/spawn and /manipulator/box_spawn/despawn</subtask>
+          <subtask>TF2 buffer and StaticTransformBroadcaster for gripper->box transform</subtask>
+          <subtask>Internal tracking dict: active_boxes: Dict[str, ActiveBox] with RSP process handles</subtask>
+          <subtask>Detection of simulation vs hardware mode via Gazebo service availability</subtask>
+          <subtask>Implement _spawn_box() handler with phases: URDF generation, RSP launch, static transform, Gazebo spawn</subtask>
+          <subtask>Implement _despawn_box() handler: detach, kill RSP, stop transform, Gazebo delete</subtask>
+        </subtasks>
+      </task>
+      <task id="5" ac="10">
+        <title>Add Node to Launch Configuration</title>
+        <subtasks>
+          <subtask>Add box_spawn_manager_node to manipulator_simulation.launch.py</subtask>
+          <subtask>Use simulation-only condition (only launch when use_sim_time=true)</subtask>
+          <subtask>Pass config file path as parameter</subtask>
+        </subtasks>
+      </task>
+      <task id="6" ac="all">
+        <title>Developer Self-Testing (MANDATORY)</title>
+        <subtasks>
+          <subtask>Unit Test 1: Verify URDF generation produces valid XML with correct link count</subtask>
+          <subtask>Unit Test 2: Verify department Y-offset calculation matches formula</subtask>
+          <subtask>Integration Test 1: Launch simulation, call SpawnBox, verify TF frames exist</subtask>
+          <subtask>Integration Test 2: With box spawned, verify box moves with gripper</subtask>
+          <subtask>Integration Test 3: Call DespawnBox, verify TF frames removed and no orphan RSP</subtask>
+          <subtask>Integration Test 4: Verify Gazebo shows box model attached to gripper</subtask>
+          <subtask>CLI Test: Document commands in README for manual testing</subtask>
+        </subtasks>
+      </task>
+      <task id="7" ac="docs">
+        <title>Documentation Sync (MANDATORY)</title>
+        <subtasks>
+          <subtask>Update ros2_ws/src/manipulator_control/README.md with box spawner documentation</subtask>
+          <subtask>Add docstrings to box_urdf_generator.py and box_spawn_manager_node.py</subtask>
+          <subtask>Document SpawnBox/DespawnBox service interfaces</subtask>
+        </subtasks>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1">SpawnBox.srv and DespawnBox.srv are defined in manipulator_control/srv/</criterion>
+    <criterion id="AC2">When SpawnBox is called, URDF is generated with base_link and N department child links based on storage_params.yaml dimensions</criterion>
+    <criterion id="AC3">When SpawnBox completes, robot_state_publisher is running and department TF frames are queryable via ros2 run tf2_ros tf2_echo</criterion>
+    <criterion id="AC4">Box base_link is attached to gripper_magnet frame via static transform (box follows gripper motion)</criterion>
+    <criterion id="AC5">In simulation mode, box model is spawned in Gazebo at gripper position using ros_gz_interfaces/srv/SpawnEntity</criterion>
+    <criterion id="AC6">In simulation, box spawns with DetachableJoint plugin configured and initially attached to gripper</criterion>
+    <criterion id="AC7">Department frame Y positions follow: y = offset_y + (dept_num - 1) * step_y from storage_params.yaml</criterion>
+    <criterion id="AC8">When DespawnBox is called, robot_state_publisher is terminated, static transform stops, and (simulation) Gazebo model is deleted</criterion>
+    <criterion id="AC9">All box dimensions, department configurations, and spawner parameters load from YAML files</criterion>
+    <criterion id="AC10">Services callable via ros2 service call /manipulator/box_spawn/spawn ...</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-4a.md</path>
+        <title>Epic Technical Specification: Box Extraction Core</title>
+        <section>AC-4A.3: Box Spawner</section>
+        <snippet>When SpawnBox is called, URDF is generated with base_link and N department child links. When SpawnBox completes, robot_state_publisher is running and department TF frames are available.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/4a-3-implement-dynamic-box-spawner-with-department-frame-generation.md</path>
+        <title>Story 4A.3: Implement Dynamic Box Spawner</title>
+        <section>Core Concepts</section>
+        <snippet>TF Tree as Source of Truth - department TF frames are essential for knowing where items are located within extracted boxes. URDF Generation with Department Child Links for robot_state_publisher broadcasting.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>ros2_ws/src/manipulator_control/srv/SpawnBox.srv</path>
+        <kind>service-interface</kind>
+        <symbol>SpawnBox</symbol>
+        <reason>Service interface for spawning boxes - already defined, needs implementation</reason>
+      </artifact>
+      <artifact>
+        <path>ros2_ws/src/manipulator_control/srv/DespawnBox.srv</path>
+        <kind>service-interface</kind>
+        <symbol>DespawnBox</symbol>
+        <reason>Service interface for despawning boxes - already defined, needs implementation</reason>
+      </artifact>
+      <artifact>
+        <path>ros2_ws/src/manipulator_control/src/electromagnet_simulator_node.py</path>
+        <kind>node</kind>
+        <symbol>ElectromagnetSimulatorNode</symbol>
+        <reason>Reference implementation for TF2 patterns, DetachableJoint integration, config loading, and node structure</reason>
+      </artifact>
+      <artifact>
+        <path>ros2_ws/src/manipulator_description/config/storage_params.yaml</path>
+        <kind>config</kind>
+        <symbol>box_configurations, department_configurations</symbol>
+        <reason>Source for box dimensions and department Y-offset formula parameters</reason>
+      </artifact>
+      <artifact>
+        <path>ros2_ws/src/manipulator_control/config/electromagnet.yaml</path>
+        <kind>config</kind>
+        <symbol>gripper frames, DetachableJoint topic pattern</symbol>
+        <reason>Reference for gripper frame names (left_gripper_magnet, right_gripper_magnet) and DetachableJoint topic pattern</reason>
+      </artifact>
+      <artifact>
+        <path>ros2_ws/src/manipulator_control/launch/manipulator_simulation.launch.py</path>
+        <kind>launch</kind>
+        <symbol>TimerAction, Node</symbol>
+        <reason>Launch integration pattern - add box_spawn_manager_node following electromagnet_simulator_node pattern</reason>
+      </artifact>
+      <artifact>
+        <path>ros2_ws/src/manipulator_control/CMakeLists.txt</path>
+        <kind>build</kind>
+        <symbol>install(PROGRAMS ...)</symbol>
+        <reason>Add install rule for box_spawn_manager_node executable</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <ros2>
+        <package name="ros_gz_interfaces">SpawnEntity and DeleteEntity services for Gazebo Harmonic</package>
+        <package name="robot_state_publisher">TF broadcasting from URDF - launched as subprocess per box</package>
+        <package name="tf2_ros">Transform lookups (Buffer, TransformListener) and StaticTransformBroadcaster</package>
+        <package name="rclpy">ROS2 Python client library</package>
+        <package name="std_msgs">Empty message for DetachableJoint attach/detach topics</package>
+      </ros2>
+      <internal>
+        <dep name="storage_params.yaml">Box dimensions and department configurations from manipulator_description</dep>
+        <dep name="electromagnet_simulator_node">Story 4a-2 - controls DetachableJoint attach/detach, provides reference patterns</dep>
+      </internal>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="naming">
+      <title>Box ID Format</title>
+      <pattern>box_{side}_{cabinet}_{row}_{col}</pattern>
+      <examples>box_l_1_2_3, box_r_2_5_4</examples>
+      <description>Side is 'l' or 'r', all numbers are 1-indexed. TF frame: {box_id}_base_link</description>
+    </constraint>
+    <constraint type="naming">
+      <title>Department Frame Format</title>
+      <pattern>{box_id}_dept_{n}_link</pattern>
+      <examples>box_l_1_2_3_dept_1_link, box_l_1_2_3_dept_5_link</examples>
+    </constraint>
+    <constraint type="timing">
+      <title>TF Frame Availability</title>
+      <requirement>TF frames must appear within 2 seconds of SpawnBox completion</requirement>
+    </constraint>
+    <constraint type="timing">
+      <title>Service Response Time</title>
+      <requirement>All service calls must complete within 5 seconds</requirement>
+    </constraint>
+    <constraint type="process">
+      <title>No Orphan Processes</title>
+      <requirement>DespawnBox must leave no orphan robot_state_publisher processes</requirement>
+      <verification>ps aux | grep robot_state_publisher</verification>
+    </constraint>
+    <constraint type="attachment">
+      <title>Gripper Frame Attachment</title>
+      <requirement>Box attached to left_gripper_magnet or right_gripper_magnet, NOT world frame</requirement>
+      <description>Static transform from gripper_magnet frame to box_base_link makes box follow gripper</description>
+    </constraint>
+    <constraint type="formula">
+      <title>Department Position Formula</title>
+      <formula>y = offset_y + (dept_num - 1) * step_y</formula>
+      <source>storage_params.yaml department_configurations</source>
+    </constraint>
+  </constraints>
+
+  <interfaces>
+    <service name="SpawnBox" path="ros2_ws/src/manipulator_control/srv/SpawnBox.srv">
+      <endpoint>/manipulator/box_spawn/spawn</endpoint>
+      <request>
+        <field name="box_id" type="string">Box identifier (format: "box_{side}_{cabinet}_{row}_{col}")</field>
+        <field name="side" type="string">Cabinet side: "left" or "right"</field>
+        <field name="cabinet_num" type="uint8">Cabinet number (1-4)</field>
+        <field name="row" type="uint8">Row within cabinet (1-N)</field>
+        <field name="column" type="uint8">Column within cabinet (1-N)</field>
+      </request>
+      <response>
+        <field name="success" type="bool">True if box spawned successfully</field>
+        <field name="box_id" type="string">Confirmed box identifier</field>
+        <field name="department_count" type="uint8">Number of departments within spawned box</field>
+        <field name="message" type="string">Human-readable status message</field>
+      </response>
+    </service>
+    <service name="DespawnBox" path="ros2_ws/src/manipulator_control/srv/DespawnBox.srv">
+      <endpoint>/manipulator/box_spawn/despawn</endpoint>
+      <request>
+        <field name="box_id" type="string">Box identifier to remove</field>
+      </request>
+      <response>
+        <field name="success" type="bool">True if box removed successfully</field>
+        <field name="message" type="string">Human-readable status message</field>
+      </response>
+    </service>
+    <topic name="DetachableJoint Attach" type="std_msgs/Empty">
+      <pattern>/model/{box_id}/detachable_joint/attach</pattern>
+      <description>Publishing Empty triggers physics attachment in Gazebo</description>
+    </topic>
+    <topic name="DetachableJoint Detach" type="std_msgs/Empty">
+      <pattern>/model/{box_id}/detachable_joint/detach</pattern>
+      <description>Publishing Empty triggers physics detachment in Gazebo</description>
+    </topic>
+    <service name="SpawnEntity" package="ros_gz_interfaces">
+      <endpoint>/world/{world_name}/create</endpoint>
+      <description>Gazebo Harmonic service to spawn models</description>
+    </service>
+    <service name="DeleteEntity" package="ros_gz_interfaces">
+      <endpoint>/world/{world_name}/remove</endpoint>
+      <description>Gazebo Harmonic service to delete models</description>
+    </service>
+  </interfaces>
+
+  <tests>
+    <standards>
+      <framework>pytest for unit tests, launch_testing for ROS2 integration tests</framework>
+      <pattern>Developer self-testing is MANDATORY before story completion</pattern>
+      <coverage>All 10 acceptance criteria must have corresponding test verification</coverage>
+    </standards>
+    <locations>
+      <location>ros2_ws/src/manipulator_control/test/</location>
+      <location>ros2_ws/src/manipulator_control/scripts/</location>
+    </locations>
+    <ideas>
+      <idea ac="AC1">Verify SpawnBox.srv and DespawnBox.srv in ros2 interface list after build</idea>
+      <idea ac="AC2">Unit test URDF generation: parse XML, verify link count = 1 + num_departments</idea>
+      <idea ac="AC3">Integration test: call SpawnBox, then ros2 run tf2_ros tf2_echo world {box_id}_dept_1_link</idea>
+      <idea ac="AC4">Integration test: spawn box, navigate gripper, verify box TF moved with gripper</idea>
+      <idea ac="AC5">Integration test in simulation: verify Gazebo model exists after SpawnBox</idea>
+      <idea ac="AC6">Verify DetachableJoint plugin in generated URDF XML string</idea>
+      <idea ac="AC7">Unit test: verify department Y positions match formula for multiple department counts</idea>
+      <idea ac="AC8">Integration test: call DespawnBox, verify no orphan RSP (ps aux | grep robot_state_publisher)</idea>
+      <idea ac="AC9">Unit test: verify config loading from YAML files</idea>
+      <idea ac="AC10">CLI test: ros2 service call /manipulator/box_spawn/spawn manipulator_control/srv/SpawnBox "{...}"</idea>
+    </ideas>
+  </tests>
+
+  <learnings>
+    <learning source="4a-2">
+      Service ToggleElectromagnet.srv was placed in manipulator_control/srv/, not manipulator_interfaces.
+      SpawnBox.srv and DespawnBox.srv are already defined there.
+    </learning>
+    <learning source="4a-2">
+      Node loads config from install share directory via get_package_share_directory('manipulator_control').
+    </learning>
+    <learning source="4a-2">
+      TF2 box frame pattern regex: box_[lr]_\d+_\d+_\d+_base_link
+    </learning>
+    <learning source="4a-2">
+      DetachableJoint publishers are cached in dict to avoid recreating for same box.
+    </learning>
+    <learning source="4a-2">
+      Launch integration uses TimerAction with 3.0 second delay for TF tree population.
+    </learning>
+  </learnings>
+</story-context>
