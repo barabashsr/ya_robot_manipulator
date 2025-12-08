@@ -3,7 +3,39 @@
 Date: 2025-11-27
 Author: BMad
 Epic ID: 4A
-Status: Draft
+Status: In Progress
+
+---
+
+## Implementation Status
+
+**Last Updated:** 2025-12-05
+
+| Story | Status | Implementation |
+|-------|--------|----------------|
+| 4a-1 | DONE | `src/utils/yz_trajectory_generator.py` - Trajectory generation utility |
+| 4a-1a | DONE | `scripts/test_trajectory_with_markers.py` - Visualization test script |
+| 4a-2 | Backlog | Electromagnet simulator (planned) |
+| 4a-3 | Backlog | Box spawner with department frames (planned) |
+| 4a-4 | Backlog | ExtractBox action server (planned) |
+| 4a-5 | Backlog | ReturnBox action server (planned) |
+
+### Implemented Files (Stories 4a-1, 4a-1a)
+
+**Utilities:**
+- `ros2_ws/src/manipulator_control/src/utils/yz_trajectory_generator.py`
+  - Loads waypoints from YAML, transforms for side/position
+  - Builds JointTrajectory messages for YZ coordinated motion
+  - Methods: `load_trajectory()`, `transform_waypoints()`, `build_joint_trajectory()`
+
+**Scripts:**
+- `ros2_ws/src/manipulator_control/scripts/test_trajectory_with_markers.py`
+  - Publishes `/trajectory_markers` (MarkerArray) for RViz visualization
+  - Supports `--side`, `--trajectory`, `--address`, `--no-execute` args
+
+**Config:**
+- `ros2_ws/src/manipulator_control/config/extraction_trajectories.yaml` - Waypoint data
+- `ros2_ws/src/manipulator_control/config/trajectory_config.yaml` - Timing parameters
 
 ---
 
@@ -379,6 +411,12 @@ Phase 5: Cleanup (95-100%)
 4. Given transformed waypoints, when execute_trajectory() is called, then JointTrajectoryController executes smooth motion and method returns success/failure
 5. SVG source files exist for extraction with insertion and extraction paths (unitless curves, scaling in config)
 
+**AC-4A.1a: End Effector Trajectory Visualization (Hotfix)**
+1. Given side='left', when publish_trajectory_markers() is called, then markers are published in `left_gripper_magnet` frame
+2. Given side='right', when publish_trajectory_markers() is called, then markers are published in `right_gripper_magnet` frame
+3. Waypoint positions are relative to end effector frame origin (Y = forward into cabinet, Z = vertical clearance)
+4. Test script works without requiring `--address` parameter (uses end effector frame by default)
+
 **AC-4A.2: Electromagnet Simulation**
 1. When ToggleElectromagnet(activate=true) is called with box within 5cm, then DetachableJoint attach message is published and engaged state is true
 2. When ToggleElectromagnet(activate=false) is called with box attached, then DetachableJoint detach message is published and engaged state is false
@@ -411,6 +449,10 @@ Phase 5: Cleanup (95-100%)
 | AC-4A.1.3 | YZ Trajectory | yz_trajectory_generator.py | Unit test waypoint loading and transformation |
 | AC-4A.1.4 | YZ Trajectory | yz_trajectory_generator.py | Integration test with JointTrajectoryController |
 | AC-4A.1.5 | YZ Trajectory | config/trajectories/*.svg | File existence and path validity check |
+| AC-4A.1a.1 | YZ Trajectory | yz_trajectory_generator.py | Unit test marker frame selection (left side) |
+| AC-4A.1a.2 | YZ Trajectory | yz_trajectory_generator.py | Unit test marker frame selection (right side) |
+| AC-4A.1a.3 | YZ Trajectory | yz_trajectory_generator.py | Unit test relative coordinate calculation |
+| AC-4A.1a.4 | YZ Trajectory | test_trajectory_with_markers.py | Integration test without --address |
 | AC-4A.2.1 | Electromagnet | electromagnet_simulator_node.py | Service call test with proximity |
 | AC-4A.2.2 | Electromagnet | electromagnet_simulator_node.py | Service call test for detachment |
 | AC-4A.2.3 | Electromagnet | electromagnet_simulator_node.py | Topic monitoring test |

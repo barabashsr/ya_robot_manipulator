@@ -159,6 +159,38 @@ All stories that implement code MUST include:
 
 **Rule:** Story is NOT complete until documentation reflects all implemented functionality. Reviewers should be able to understand what was added by reading the README.
 
+### Epic-Level Documentation Sync
+
+**CRITICAL REQUIREMENT:** Upon completing the LAST story of an epic, developer MUST sync implementation details to project documentation.
+
+**Required Sync Updates:**
+
+1. **Epic Tech Spec** (`docs/sprint-artifacts/tech-spec-epic-{N}.md`)
+   - Add "Implementation Status" section with actual file locations
+   - Update any planned vs. actual deviations
+   - List all implemented nodes, services, actions with source paths
+
+2. **Epic Implementation Summary** (this file - `docs/epics.md`)
+   - Update the epic's "Implementation Summary" section (see template below)
+   - Verify all stories marked as `done` in sprint-status.yaml
+
+3. **Architecture Document** (if architectural decisions changed)
+   - Update relevant sections if implementation deviated from plan
+   - Add learned patterns to Architecture Decision Records
+
+**Implementation Summary Template (add after epic Goal section):**
+```markdown
+#### Implementation Summary (COMPLETED)
+**Nodes:** `node_name` → `src/path/to/file.py`
+**Services:** `/service_name` (SrvType) → `src/path/to/file.py`
+**Actions:** `/action_name` (ActionType) → `src/path/to/file.py`
+**Topics:** `/topic_name` (MsgType) published by `node_name`
+**Config:** `config/file.yaml` - purpose description
+**Utilities:** `utility_name` → `src/path/to/file.py`
+```
+
+**Rule:** Future developers and AI agents MUST be able to understand what exists by reading docs - don't make them rediscover implemented code.
+
 ### Story Completion Checklist
 
 Before marking any story as `done`, verify:
@@ -171,6 +203,7 @@ Before marking any story as `done`, verify:
 - [ ] Code has appropriate docstrings
 - [ ] Config files have header comments
 - [ ] Dev Agent Record section filled with test results
+- [ ] **(If last story in epic)** Epic-level documentation sync completed
 
 ---
 
@@ -232,6 +265,30 @@ Before marking any story as `done`, verify:
 **Goal:** Establish the foundational ROS2 package structure and define all action/service/message interfaces required for the manipulator control system. This epic creates the scaffolding that enables all subsequent development.
 
 **Value Delivered:** Development environment ready with validated, testable interfaces - developers can begin implementation immediately after Epic 1.
+
+#### Implementation Summary (COMPLETED)
+
+**Package:** `manipulator_control` → `ros2_ws/src/manipulator_control/`
+
+**Actions Defined:**
+- `MoveJoint.action` - Single joint positioning (goal: joint_name, target_position, max_velocity)
+- `MoveJointGroup.action` - Multi-joint coordinated motion (goal: joint_names[], target_positions[])
+- `NavigateToAddress.action` - Warehouse address navigation (goal: side, cabinet_num, row, column)
+- `ExtractBox.action`, `ReturnBox.action`, `PutBox.action`, `MoveBoxToLoad.action` - Box operations
+- `ManipulateContainer.action`, `GetContainer.action`, `PlaceContainer.action`, `PickItem.action` - Item ops
+- `PickItemFromStorage.action` - High-level orchestration
+
+**Services Defined:**
+- `GetAddressCoordinates.srv` - Address to world pose resolution
+- `ToggleElectromagnet.srv`, `SpawnBox.srv`, `DespawnBox.srv`, `ValidateAddress.srv`
+
+**Messages Defined:**
+- `Address.msg` - Warehouse address structure (side, cabinet_num, row, column)
+- `JointCommand.msg`, `LimitSwitchState.msg`
+
+**Config Files:**
+- `config/action_servers.yaml` - Action server parameters (timeouts, tolerances)
+- `config/kinematic_chains.yaml` - Joint groups (navigation, gripper, picker, container)
 
 ### Story 1.1: Create ROS2 Package Structure
 
@@ -330,6 +387,35 @@ So that utilities and nodes have standardized communication contracts.
 **Goal:** Establish simulation infrastructure for limit switches, electromagnets, and basic joint control actions. This epic enables testing of all subsequent functionality in Gazebo without hardware dependencies.
 
 **Value Delivered:** Complete simulation environment with observable joint control, state visualization, and foundational action servers ready for mid-level action composition.
+
+#### Implementation Summary (COMPLETED)
+
+**Nodes:**
+- `virtual_limit_switches` → `src/virtual_limit_switches.py` - Simulates 18 limit switches (2 per joint)
+- `move_joint_server` → `src/move_joint_server.py` - Single joint positioning action server
+- `move_joint_group_server` → `src/move_joint_group_server.py` - Multi-joint coordinated motion
+- `state_marker_publisher` → `src/state_marker_publisher.py` - RViz visualization markers
+
+**Actions Served:**
+- `/move_joint` (MoveJoint) - Single joint to target position
+- `/move_joint_group` (MoveJointGroup) - Coordinated multi-joint motion with named groups
+
+**Topics Published:**
+- `/manipulator/end_switches/{switch_name}` (Bool) - 18 limit switch states @ 10Hz
+- `/visualization_marker_array` (MarkerArray) - System state visualization
+
+**Utilities:**
+- `ControllerInterface` → `src/controller_interface.py` - Dual-mode controller abstraction
+  - Trajectory joints (7): JointTrajectoryController via actions
+  - Forward command joints (2): ForwardCommandController via topics
+  - Methods: `command_joint()`, `command_joint_group()`, `get_joint_position()`, `wait_for_action_servers()`
+
+**Config:**
+- `config/limit_switches.yaml` - Switch trigger positions and tolerances
+- `config/state_markers.yaml` - Marker visualization parameters
+- `config/manipulator_controllers.yaml` - Hybrid controller definitions
+
+**Architecture Decision:** Migrated from pure ForwardCommandController to hybrid architecture (Story 2.3.1) for smooth trajectory interpolation on motion joints while keeping instant response on container jaws.
 
 ### Story 2.1: Implement Virtual Limit Switch Simulation
 
@@ -1047,6 +1133,37 @@ So that I can validate Epic 2 functionality and train other developers.
 
 **Value Delivered:** Complete navigation capability to 100+ warehouse addresses using existing TF frames, with address validation and coordinate resolution services.
 
+#### Implementation Summary (COMPLETED)
+
+**Nodes:**
+- `address_service_node` → `src/address_service_node.py` - Address coordinate resolution service
+- `navigate_to_address_server` → `src/navigate_to_address_server.py` - High-level navigation action
+
+**Services Provided:**
+- `/manipulator/get_address_coordinates` (GetAddressCoordinates) - Resolve address to world pose
+
+**Actions Served:**
+- `/navigate_to_address` (NavigateToAddress) - Navigate to warehouse address
+  - Dynamic TF-based world-to-joint mapping (no hardcoded offsets)
+  - Computes delta between current and target world position
+  - Calls MoveJointGroup with "navigation" group
+  - Position verification via TF lookup
+
+**Topics Published:**
+- `/manipulator/target_address` (String) - Current target for visualization
+
+**Utilities:**
+- `AddressResolver` → `manipulator_utils/address_resolver.py` - TF2 address lookup
+  - Constructs frame names: `addr_{l|r}_{cabinet}_{row}_{column}`
+  - Validates addresses against storage_params.yaml
+  - Methods: `validate_address()`, `get_address_pose()`
+
+**Config:**
+- `config/kinematic_chains.yaml` - Joint groups including "navigation" group
+- Uses `storage_params.yaml` from manipulator_description for cabinet config
+
+**Key Design:** Uses dynamic TF lookup for world-to-joint coordinate mapping - not hardcoded offsets. End effector position verified via TF after motion.
+
 ### Story 3.1: Implement Address Resolver Utility
 
 As a developer,
@@ -1308,6 +1425,27 @@ So that I can ensure positioning accuracy meets requirements across all cabinet 
 
 **Value Delivered:** Complete box handling capability with 100+ boxes extractable/returnable, enabling all downstream item picking and box relocation workflows.
 
+#### Implementation Summary (IN PROGRESS - Stories 4a-1, 4a-1a DONE)
+
+**Utilities (IMPLEMENTED):**
+- `YZTrajectoryGenerator` → `src/utils/yz_trajectory_generator.py`
+  - Loads waypoints from `config/extraction_trajectories.yaml`
+  - Transforms waypoints based on cabinet side (left/right)
+  - Applies base position offsets for address-specific trajectories
+  - Builds JointTrajectory messages for YZ coordinated motion
+  - Joint mapping: Y-axis = `selector_frame_gripper_joint`, Z-axis = `main_frame_selector_frame_joint`
+
+**Config (IMPLEMENTED):**
+- `config/extraction_trajectories.yaml` - Pre-generated trajectory waypoints (insertion/extraction)
+- `config/trajectory_config.yaml` - Trajectory timing and execution parameters
+
+**Scripts (IMPLEMENTED):**
+- `scripts/test_trajectory_with_markers.py` - Visualization test with RViz markers
+  - Publishes `/trajectory_markers` (MarkerArray) for planned paths
+  - Supports `--no-execute` mode for preview without motion
+
+**REMAINING:** Stories 4a-2 (electromagnet), 4a-3 (box spawner), 4a-4 (ExtractBox), 4a-5 (ReturnBox)
+
 ### Story 4A.1: Implement YZ Trajectory Generator Utility (Parametric Curves)
 
 As a developer,
@@ -1457,6 +1595,63 @@ def load_trajectory(name: str, side: str, base_y: float, base_z: float,
 - **CREATE:** `config/extraction_trajectories.yaml` - Generated waypoints (committed to repo)
 - **CREATE:** `scripts/svg_to_trajectory.py` - Converter tool (dev dependency: svgpathtools)
 - **USE:** JointTrajectoryController from Story 2.3.1 for smooth execution
+
+---
+
+### Story 4A.1a: End Effector Trajectory Visualization (Hotfix)
+
+As a developer,
+I want trajectory markers to be visualized in the end effector frame (left_gripper_magnet/right_gripper_magnet),
+So that I can see the planned path relative to where the gripper will actually move during box extraction/insertion.
+
+**Acceptance Criteria:**
+
+**Given** side='left' or side='right'
+**When** `publish_trajectory_markers()` is called
+**Then** markers are published in the correct end effector frame:
+- left_gripper_magnet for left side cabinets
+- right_gripper_magnet for right side cabinets
+
+**And** the trajectory visualization shows:
+- Green sphere at start (gripper at rest position)
+- Cyan spheres for intermediate waypoints
+- Red sphere at end (full insertion depth)
+- Line strip connecting all waypoints
+- Arrow showing trajectory direction
+
+**And** waypoint positions are relative to the end effector frame origin (not absolute joint positions)
+
+**And** the test script (`test_trajectory_with_markers.py`) works without requiring `--address` parameter
+
+**Prerequisites:** Story 4A.1 (completed)
+
+**Technical Notes:**
+
+**Why End Effector Frame:**
+- Same trajectory shape for both left and right cabinet rows (no mirroring needed)
+- Markers move with robot during navigation
+- TF system handles left/right orientation automatically
+
+**End Effector Frames:**
+```yaml
+# From kinematic_chains.yaml
+left_gripper:
+  end_effector_frame: "left_gripper_magnet"
+right_gripper:
+  end_effector_frame: "right_gripper_magnet"
+```
+
+**Marker Coordinates in End Effector Frame:**
+```python
+# Waypoints directly map to marker positions
+marker.pose.position.x = 0.0    # No lateral movement
+marker.pose.position.y = wp.y   # Forward into cabinet (0 to 0.4m)
+marker.pose.position.z = wp.z   # Vertical clearance offset
+```
+
+**Implementation Notes:**
+- **MODIFY:** `src/utils/yz_trajectory_generator.py` - Update frame selection in `publish_trajectory_markers()`
+- **MODIFY:** `scripts/test_trajectory_with_markers.py` - Make `--address` optional, default to end effector frame
 
 ---
 

@@ -18,6 +18,11 @@ so that {{benefit}}.
   - [ ] Subtask 1.1
 - [ ] Task 2 (AC: #)
   - [ ] Subtask 2.1
+- [ ] **Documentation Sync** (MANDATORY)
+  - [ ] Update package README.md with new nodes/services/actions/topics
+  - [ ] Add docstrings to new Python modules/classes
+  - [ ] If LAST STORY in epic: Update epic tech-spec with Implementation Status section
+  - [ ] If LAST STORY in epic: Update epics.md Implementation Summary for this epic
 
 ## Dev Notes
 
@@ -29,6 +34,17 @@ so that {{benefit}}.
 
 - Alignment with unified project structure (paths, modules, naming)
 - Detected conflicts or variances (with rationale)
+
+### Documentation Sync Requirements
+
+**Per-Story (REQUIRED):**
+- Update `ros2_ws/src/manipulator_control/README.md` with new functionality
+- Add docstrings to all new Python modules/classes/functions
+
+**If Last Story in Epic (REQUIRED):**
+- Add "Implementation Status" section to `docs/sprint-artifacts/tech-spec-epic-{N}.md`
+- Update "Implementation Summary" in `docs/epics.md` for this epic
+- See `docs/epics.md#Epic-Level Documentation Sync` for template
 
 ### References
 

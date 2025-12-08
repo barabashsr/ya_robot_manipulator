@@ -65,10 +65,11 @@ development_status:
   3-6-create-navigation-test-suite: done
   epic-3-retrospective: optional
 
-  # Epic 4A: Box Extraction Core (5 stories)
+  # Epic 4A: Box Extraction Core (5 stories + 1 hotfix)
   epic-4a: contexted
-  4a-1-implement-yz-trajectory-generator-utility: ready-for-dev
-  4a-2-implement-electromagnet-simulator-and-service: backlog
+  4a-1-implement-yz-trajectory-generator-utility: done
+  4a-1a-end-effector-trajectory-visualization: done
+  4a-2-implement-electromagnet-simulator-and-service: drafted
   4a-3-implement-dynamic-box-spawner-with-department-frame-generation: backlog
   4a-4-implement-extractbox-action-server: backlog
   4a-5-implement-returnbox-action-server: backlog

@@ -49,6 +49,22 @@ joint_groups:
     description: "Gripper Y-axis with Z adjustment (generic)"
     default_velocity: 0.3
     default_acceleration: 0.15  # m/s^2
+    # End effector frames for trajectory visualization (Story 4A-1a)
+    # Use side-specific frame: left -> left_gripper_magnet, right -> right_gripper_magnet
+    end_effector_frames:
+      left: "left_gripper_magnet"
+      right: "right_gripper_magnet"
+    # Magnet offset from gripper joint (selector_frame) in Y direction
+    # The magnet tip is this distance ahead of the joint origin
+    # Used to convert end effector positions to joint positions:
+    #   joint_y = end_effector_y - magnet_offset (for left side)
+    magnet_offset: 0.040  # meters (40mm)
+    # Coordinate mapping for trajectory execution
+    coordinate_mapping:
+      selector_frame_gripper_joint:
+        axis: "y"       # Into/out of cabinet
+      main_frame_selector_frame_joint:
+        axis: "z"       # Vertical position
 
   # Left and right gripper magnet groups for box extraction/insertion
   # These define the magnets as end effectors for YZ trajectory execution

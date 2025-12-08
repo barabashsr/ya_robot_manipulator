@@ -159,6 +159,11 @@ class YZTrajectoryGenerator:
         # Transform based on side (AC4: right side = negative Y)
         sign = 1.0 if side == 'left' else -1.0
 
+        # The raw YAML has insertion Z values inverted (negative instead of positive)
+        # Both trajectories should follow the same physical path shape (curve UP)
+        # So we negate Z for insertion to match extraction's shape
+        z_sign = -1.0 if name == 'insertion' else 1.0
+
         transformed = []
         for i, wp in enumerate(waypoints):
             # AC5: Apply base position offsets
@@ -167,7 +172,7 @@ class YZTrajectoryGenerator:
             transformed.append(
                 TransformedWaypoint(
                     y=base_y + sign * wp['y'],
-                    z=base_z + wp['z'],
+                    z=base_z + z_sign * wp['z'],
                     time_from_start=(i + 1) * waypoint_duration,
                 )
             )
@@ -285,17 +290,26 @@ class YZTrajectoryGenerator:
         y_action_client: ActionClient,
         z_action_client: ActionClient,
         timeout_sec: float = 30.0,
+        marker_publisher=None,
+        node: Optional[Node] = None,
+        address_frame: Optional[str] = None,
+        side: str = 'left',
     ) -> bool:
         """Execute YZ trajectory via coordinated joint controllers.
 
         Sends trajectories to both Y and Z controllers in parallel for
-        smooth coordinated motion.
+        smooth coordinated motion. Optionally publishes trajectory markers
+        during execution for RViz visualization.
 
         Args:
             waypoints: Transformed waypoints from load_trajectory()
             y_action_client: ActionClient for Y-axis (selector_frame_gripper_joint)
             z_action_client: ActionClient for Z-axis (main_frame_selector_frame_joint)
             timeout_sec: Timeout for trajectory execution
+            marker_publisher: Optional ROS2 publisher for MarkerArray (/trajectory_markers)
+            node: Optional ROS2 node for timer creation (required if marker_publisher set)
+            address_frame: Optional TF frame for markers (e.g., 'addr_l_1_5_2')
+            side: Cabinet side ('left' or 'right') for marker orientation
 
         Returns:
             True if both trajectories completed successfully
@@ -305,6 +319,22 @@ class YZTrajectoryGenerator:
         z_traj = self.build_single_joint_trajectory(waypoints, self.Z_JOINT, 'z')
 
         logger.info(f"Executing YZ trajectory with {len(waypoints)} waypoints")
+
+        # Set up marker publishing timer if enabled
+        marker_timer = None
+        if marker_publisher is not None and node is not None:
+            def publish_markers():
+                self.publish_trajectory_markers(
+                    waypoints=waypoints,
+                    marker_publisher=marker_publisher,
+                    node=node,
+                    side=side,
+                )
+
+            # Publish immediately, then continue at 2Hz
+            publish_markers()
+            marker_timer = node.create_timer(0.5, publish_markers)
+            logger.info(f"Publishing trajectory markers in {self.END_EFFECTOR_FRAMES[side]} frame")
 
         # Execute both trajectories in parallel
         y_task = asyncio.create_task(
@@ -324,7 +354,15 @@ class YZTrajectoryGenerator:
             logger.error(f"Trajectory execution timed out after {timeout_sec}s")
             y_task.cancel()
             z_task.cancel()
+            if marker_timer is not None:
+                marker_timer.cancel()
+                self.clear_trajectory_markers(marker_publisher, node)
             return False
+
+        # Stop marker publishing and clear markers
+        if marker_timer is not None:
+            marker_timer.cancel()
+            self.clear_trajectory_markers(marker_publisher, node)
 
         # Check results
         y_success = results[0] if not isinstance(results[0], Exception) else False
@@ -348,62 +386,120 @@ class YZTrajectoryGenerator:
         waypoints: List[TransformedWaypoint],
         marker_publisher,
         node: Node,
-        address_frame: str,
         side: str = 'left',
+        address_frame: str = None,
         color: Optional[ColorRGBA] = None,
     ) -> None:
-        """Publish trajectory waypoints as RViz markers relative to target address.
+        """Publish trajectory waypoints as RViz markers in a fixed address frame.
 
-        The trajectory is published in the address frame, showing the fixed path
-        the end effector will follow. The trajectory:
-        - Starts at the address position (where gripper should align)
-        - Extends INTO the cabinet (positive Y for left side, negative for right)
-        - Shows any vertical clearance adjustments
+        The trajectory is published in the address frame (e.g., addr_l_1_5_2),
+        which is fixed in world space. Markers stay stationary while the gripper
+        moves along the path, clearly showing where the end effector will travel.
 
-        Coordinate mapping in address frame:
-        - X axis: not used (along cabinet depth would be X in address frame)
-        - Y axis: lateral (into cabinet = towards center for left, away for right)
-        - Z axis: vertical offset
+        Address frame coordinate system:
+        - Origin: at the box location (inside cabinet, at depth)
+        - Y axis: points OUT of the cabinet (positive = toward robot)
+        - Z axis: vertical (same as world Z)
 
-        Note: The waypoints contain absolute joint positions. We convert them
-        to positions relative to the address frame for visualization.
+        End effector trajectory in address frame:
+        - Extraction: starts at Y=0 (at box), ends at Y=cabinet_depth (outside)
+        - Insertion: starts at Y=cabinet_depth (outside), ends at Y=0 (at box)
+
+        The waypoints contain JOINT positions. To convert to end effector positions
+        in address frame, we need to account for:
+        1. The magnet offset (end effector is ahead of joint by magnet_offset)
+        2. The cabinet depth (address origin is at depth inside cabinet)
+
+        For LEFT cabinet (joint Y positive into cabinet):
+        - End effector Y = joint Y + magnet_offset
+        - Address frame Y = cabinet_depth - end_effector Y
+        - (Y=0 at address origin means at box, Y=cabinet_depth means outside)
+
+        For RIGHT cabinet (joint Y negative into cabinet):
+        - End effector Y = -(joint Y) + magnet_offset (absolute value)
+        - Same address frame mapping applies
 
         Args:
             waypoints: List of TransformedWaypoint to visualize
             marker_publisher: ROS2 publisher for MarkerArray
             node: ROS2 node for getting clock time
-            address_frame: TF frame of target address (e.g., 'addr_l_1_5_2')
-            side: Cabinet side ('left' or 'right')
+            side: Cabinet side ('left' or 'right') - determines Y direction
+            address_frame: Target address frame (e.g., 'addr_l_1_5_2'). If None,
+                          uses 'world' frame with waypoint absolute positions.
             color: Optional color for markers (default: cyan)
         """
         if color is None:
             color = ColorRGBA(r=0.0, g=0.8, b=1.0, a=0.9)  # Cyan
 
         marker_array = MarkerArray()
-        stamp = node.get_clock().now().to_msg()
+        # Use timestamp 0 to tell RViz to use the latest available transform
+        from builtin_interfaces.msg import Time
+        stamp = Time(sec=0, nanosec=0)
 
         if not waypoints:
             return
 
-        # Use address frame - trajectory is fixed relative to the target address
-        frame_id = address_frame
+        # Use address frame if provided, otherwise use odom
+        frame_id = address_frame if address_frame else 'odom'
 
-        # First waypoint is the "home" position at the address
-        # Subsequent waypoints show the path INTO the cabinet
-        first_y = waypoints[0].y
+        # Get the first waypoint's Z as base for relative Z positions
         first_z = waypoints[0].z
 
-        # Direction multiplier: left side goes +Y into cabinet, right goes -Y
-        # But in address frame, we always show trajectory going "forward" (+X or +Y)
-        # The sign is already applied in the waypoints, so relative positions work
+        # Determine sign for side (left = +1, right = -1)
+        sign = 1.0 if side == 'left' else -1.0
 
-        # Direction: left side trajectory goes +Y (into cabinet towards center)
-        # Right side goes -Y. In address frame, we show trajectory going into cabinet.
-        # For left: gripper Y increases -> show as -Y in address frame (towards center)
-        # For right: gripper Y decreases -> show as +Y in address frame (towards center)
-        y_direction = -1.0 if side == 'left' else 1.0
+        # Load config values for magnet offset and cabinet depth
+        # These are needed to convert joint positions to address frame positions
+        traj_config = self.config.get('trajectories', {}).get('extract_left', {})
+        mapping = traj_config.get('mapping', {})
+        y_output = mapping.get('y_output', [0.0, 0.4])
+        cabinet_depth = max(y_output)  # Maximum Y from trajectory = cabinet depth
 
-        # Sphere markers for each waypoint
+        # Magnet offset from kinematic chains config
+        # Default to 0.040m if not available in config
+        magnet_offset = 0.040
+
+        # Convert joint Y positions to address frame Y positions
+        #
+        # The address frame has NO rotation - its axes are aligned with world axes.
+        # Address origin is at the box location (cabinet_depth into the cabinet).
+        #
+        # For LEFT cabinet:
+        # - Robot center is at world Y=0
+        # - Box/address origin is at world Y=0.4 (cabinet_depth)
+        # - Gripper extends in +Y direction to reach box
+        #
+        # In address frame local coordinates:
+        # - Y=0 means at the address origin (at the box, cabinet_depth from robot)
+        # - Y=-0.4 means at robot center (outside cabinet)
+        # - Trajectory going INTO cabinet: Y goes from -0.4 → 0
+        # - Trajectory coming OUT of cabinet: Y goes from 0 → -0.4
+        #
+        # Conversion: address_frame_Y = end_effector_world_Y - cabinet_depth
+        # Since ee_world_Y = joint_Y + magnet_offset (for left):
+        # address_frame_Y = (joint_Y + magnet_offset) - cabinet_depth
+        #
+        # For extraction (left): joint goes from 0.36 → -0.04
+        #   - First: ee_Y = 0.36 + 0.04 = 0.4, addr_Y = 0.4 - 0.4 = 0 (at box)
+        #   - Last:  ee_Y = -0.04 + 0.04 = 0, addr_Y = 0 - 0.4 = -0.4 (outside)
+        #   Shows: start at box (Y=0), end outside (Y=-0.4) - correct!
+        #
+        # For insertion (left): joint goes from -0.04 → 0.36
+        #   - First: ee_Y = -0.04 + 0.04 = 0, addr_Y = 0 - 0.4 = -0.4 (outside)
+        #   - Last:  ee_Y = 0.36 + 0.04 = 0.4, addr_Y = 0.4 - 0.4 = 0 (at box)
+        #   Shows: start outside (Y=-0.4), end at box (Y=0) - correct!
+
+        def joint_to_address_y(joint_y: float) -> float:
+            """Convert joint Y position to address frame Y position."""
+            # End effector position in world Y
+            # For left: magnet is ahead (+Y), so ee_world_Y = joint_Y + offset
+            # For right: joint_Y is negative, so we need to use sign
+            ee_world_y = sign * joint_y + magnet_offset
+            # Address frame Y = ee_world_Y - cabinet_depth
+            # (address origin is at cabinet_depth into cabinet)
+            return ee_world_y - cabinet_depth
+
+        # Sphere markers for each waypoint (AC2, AC3)
         for i, wp in enumerate(waypoints):
             marker = Marker()
             marker.header.frame_id = frame_id
@@ -413,17 +509,12 @@ class YZTrajectoryGenerator:
             marker.type = Marker.SPHERE
             marker.action = Marker.ADD
 
-            # Position relative to address origin
-            # Address frame has same orientation as world:
-            # - X: forward (along robot rail)
-            # - Y: lateral (left cabinet = +Y side, right cabinet = -Y side)
-            # - Z: vertical
-            rel_y = wp.y - first_y  # How far gripper moves
-            rel_z = wp.z - first_z  # Vertical offset (clearance)
+            # Position in address frame
+            addr_y = joint_to_address_y(wp.y)
+            rel_z = wp.z - first_z
 
-            # Map to address frame
-            marker.pose.position.x = 0.0  # No X movement
-            marker.pose.position.y = y_direction * rel_y  # Into cabinet
+            marker.pose.position.x = 0.0   # No lateral movement
+            marker.pose.position.y = addr_y  # Y in address frame
             marker.pose.position.z = rel_z  # Vertical offset
             marker.pose.orientation.w = 1.0
 
@@ -445,11 +536,11 @@ class YZTrajectoryGenerator:
         line_marker.action = Marker.ADD
 
         for wp in waypoints:
-            rel_y = wp.y - first_y
+            addr_y = joint_to_address_y(wp.y)
             rel_z = wp.z - first_z
             p = Point()
             p.x = 0.0
-            p.y = y_direction * rel_y
+            p.y = addr_y
             p.z = rel_z
             line_marker.points.append(p)
 
@@ -459,7 +550,7 @@ class YZTrajectoryGenerator:
 
         marker_array.markers.append(line_marker)
 
-        # Arrow showing direction (start to end)
+        # Arrow showing direction (start to end) (AC2)
         arrow_marker = Marker()
         arrow_marker.header.frame_id = frame_id
         arrow_marker.header.stamp = stamp
@@ -468,11 +559,13 @@ class YZTrajectoryGenerator:
         arrow_marker.type = Marker.ARROW
         arrow_marker.action = Marker.ADD
 
-        last_rel_y = waypoints[-1].y - first_y
-        last_rel_z = waypoints[-1].z - first_z
+        # Arrow from start position to end position
+        start_y = joint_to_address_y(waypoints[0].y)
+        end_y = joint_to_address_y(waypoints[-1].y)
+        end_z = waypoints[-1].z - first_z
 
-        start = Point(x=0.0, y=0.0, z=0.0)
-        end = Point(x=0.0, y=y_direction * last_rel_y, z=last_rel_z)
+        start = Point(x=0.0, y=start_y, z=0.0)
+        end = Point(x=0.0, y=end_y, z=end_z)
         arrow_marker.points = [start, end]
 
         arrow_marker.scale.x = 0.006
@@ -483,7 +576,7 @@ class YZTrajectoryGenerator:
 
         marker_array.markers.append(arrow_marker)
 
-        # Start marker (green sphere at address)
+        # Start marker (green sphere) (AC2)
         start_marker = Marker()
         start_marker.header.frame_id = frame_id
         start_marker.header.stamp = stamp
@@ -492,7 +585,7 @@ class YZTrajectoryGenerator:
         start_marker.type = Marker.SPHERE
         start_marker.action = Marker.ADD
         start_marker.pose.position.x = 0.0
-        start_marker.pose.position.y = 0.0
+        start_marker.pose.position.y = start_y
         start_marker.pose.position.z = 0.0
         start_marker.pose.orientation.w = 1.0
         start_marker.scale.x = 0.02
@@ -502,7 +595,7 @@ class YZTrajectoryGenerator:
         start_marker.lifetime.sec = 0
         marker_array.markers.append(start_marker)
 
-        # End marker (red sphere at deepest point)
+        # End marker (red sphere) (AC2)
         end_marker = Marker()
         end_marker.header.frame_id = frame_id
         end_marker.header.stamp = stamp
@@ -511,8 +604,8 @@ class YZTrajectoryGenerator:
         end_marker.type = Marker.SPHERE
         end_marker.action = Marker.ADD
         end_marker.pose.position.x = 0.0
-        end_marker.pose.position.y = y_direction * last_rel_y
-        end_marker.pose.position.z = last_rel_z
+        end_marker.pose.position.y = end_y
+        end_marker.pose.position.z = end_z
         end_marker.pose.orientation.w = 1.0
         end_marker.scale.x = 0.02
         end_marker.scale.y = 0.02
@@ -539,7 +632,7 @@ class YZTrajectoryGenerator:
         stamp = node.get_clock().now().to_msg()
 
         # Delete all markers in our namespaces
-        for ns in ['trajectory_waypoints', 'trajectory_path', 'trajectory_direction']:
+        for ns in ['trajectory_waypoints', 'trajectory_path', 'trajectory_direction', 'trajectory_endpoints']:
             delete_marker = Marker()
             delete_marker.header.stamp = stamp
             delete_marker.ns = ns

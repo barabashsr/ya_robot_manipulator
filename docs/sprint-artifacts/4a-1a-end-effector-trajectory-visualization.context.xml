@@ -1,0 +1,159 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>4A</epicId>
+    <storyId>4A-1a</storyId>
+    <title>End Effector Trajectory Visualization (Hotfix)</title>
+    <status>drafted</status>
+    <generatedAt>2025-12-04</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/4a-1a-end-effector-trajectory-visualization.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>trajectory markers to be visualized in the end effector frame (left_gripper_magnet/right_gripper_magnet)</iWant>
+    <soThat>I can see the planned path relative to where the gripper will actually move during box extraction/insertion</soThat>
+    <tasks>
+      <task id="1" title="Update publish_trajectory_markers() frame selection">
+        <subtask id="1.1">Change frame_id from address_frame parameter to END_EFFECTOR_FRAMES[side]</subtask>
+        <subtask id="1.2">Calculate waypoint positions relative to end effector (Y = relative depth, Z = clearance offset)</subtask>
+        <subtask id="1.3">Remove coordinate inversion/mirroring logic (end effector frame handles this)</subtask>
+      </task>
+      <task id="2" title="Update test script">
+        <subtask id="2.1">Make --address parameter optional (not required for visualization)</subtask>
+        <subtask id="2.2">Default to end effector frame when no address specified</subtask>
+        <subtask id="2.3">Add --frame option to choose between 'end_effector' and 'address' modes</subtask>
+      </task>
+      <task id="3" title="Validate in simulation">
+        <subtask id="3.1">Launch simulation and run test script with --side left</subtask>
+        <subtask id="3.2">Verify markers attached to left_gripper_magnet in RViz TF tree</subtask>
+        <subtask id="3.3">Navigate robot to different positions and confirm markers move with gripper</subtask>
+        <subtask id="3.4">Test with --side right and confirm markers on right_gripper_magnet</subtask>
+      </task>
+      <task id="4" title="Update documentation">
+        <subtask id="4.1">Update docstrings in yz_trajectory_generator.py</subtask>
+        <subtask id="4.2">Update test script help text</subtask>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1" title="End Effector Frame Selection">
+      Given side='left', when publish_trajectory_markers() is called, then markers are published in left_gripper_magnet frame.
+      Given side='right', markers use right_gripper_magnet frame.
+    </criterion>
+    <criterion id="AC2" title="Trajectory Path Visualization">
+      Markers show the planned path the end effector will follow, with:
+      - Green sphere at start (Y=0, gripper at rest)
+      - Cyan spheres for intermediate waypoints
+      - Red sphere at end (Y=max insertion depth)
+      - Line strip connecting all waypoints
+      - Arrow showing direction (start to end)
+    </criterion>
+    <criterion id="AC3" title="Frame-Relative Coordinates">
+      Waypoint positions are relative to the end effector frame origin (not absolute joint positions).
+      Y extends forward from gripper tip, Z shows clearance offset.
+    </criterion>
+    <criterion id="AC4" title="Test Script Update">
+      test_trajectory_with_markers.py uses end effector frame by default (remove --address requirement for visualization).
+    </criterion>
+    <criterion id="AC5" title="Gazebo Validation">
+      Markers visible in RViz attached to gripper during simulation, moving with robot as it navigates.
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/tech-spec-epic-4a.md" title="Epic 4A Technical Specification">
+        <section>AC-4A.1a: End Effector Trajectory Visualization (Hotfix)</section>
+        <snippet>Markers should be published in left_gripper_magnet or right_gripper_magnet frame based on side. Waypoint positions are relative to end effector frame origin.</snippet>
+      </doc>
+      <doc path="docs/sprint-artifacts/4a-1-implement-yz-trajectory-generator-utility.md" title="Parent Story 4A-1">
+        <section>Full Implementation Reference</section>
+        <snippet>Story 4A-1 provides base trajectory generator implementation with publish_trajectory_markers() and END_EFFECTOR_FRAMES constant.</snippet>
+      </doc>
+      <doc path="docs/epics.md" title="Epics Master Document">
+        <section>Story 4A-1a</section>
+        <snippet>Hotfix to Story 4A-1 that addresses incomplete trajectory visualization by publishing markers in end effector frame.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact path="ros2_ws/src/manipulator_control/src/utils/yz_trajectory_generator.py" kind="utility" symbol="YZTrajectoryGenerator">
+        <lines>380-567</lines>
+        <reason>Contains publish_trajectory_markers() method and END_EFFECTOR_FRAMES constant. Primary file to modify for frame selection.</reason>
+      </artifact>
+      <artifact path="ros2_ws/src/manipulator_control/src/utils/yz_trajectory_generator.py" kind="utility" symbol="END_EFFECTOR_FRAMES">
+        <lines>374-378</lines>
+        <reason>Existing constant mapping side to end effector frame name. Currently defined but not used in publish_trajectory_markers().</reason>
+      </artifact>
+      <artifact path="ros2_ws/src/manipulator_control/scripts/test_trajectory_with_markers.py" kind="script" symbol="main">
+        <lines>155-269</lines>
+        <reason>Test script with --address parameter that should be made optional. Also has END_EFFECTOR_FRAMES constant at lines 46-49.</reason>
+      </artifact>
+      <artifact path="ros2_ws/src/manipulator_control/config/kinematic_chains.yaml" kind="config" symbol="gripper.end_effector_frames">
+        <lines>52-56</lines>
+        <reason>Configuration for end effector frame lookup. Contains end_effector_frames mapping left/right to gripper magnet frames.</reason>
+      </artifact>
+      <artifact path="ros2_ws/src/manipulator_control/config/extraction_trajectories.yaml" kind="config" symbol="trajectories">
+        <reason>Waypoint data for insertion/extraction trajectories. Y values are relative depth (0.0 to 0.4m), Z values are clearance offset.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <dependency ecosystem="ros2" package="visualization_msgs" version="*">MarkerArray for RViz visualization</dependency>
+      <dependency ecosystem="ros2" package="geometry_msgs" version="*">Point, ColorRGBA for marker positions</dependency>
+      <dependency ecosystem="ros2" package="tf2_ros" version="*">TF frame broadcasting for end effector frames</dependency>
+      <dependency ecosystem="ros2" package="rclpy" version="*">ROS2 Python client library</dependency>
+      <dependency ecosystem="python" package="PyYAML" version="*">YAML config loading</dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="pattern">Use END_EFFECTOR_FRAMES constant or load from kinematic_chains.yaml - do not hardcode frame names</constraint>
+    <constraint type="pattern">Waypoint coordinates should be relative to end effector frame origin (0,0,0), not absolute joint positions</constraint>
+    <constraint type="pattern">Same trajectory shape should work for both left and right sides - TF handles orientation</constraint>
+    <constraint type="layer">Markers must use timestamp 0 (Time(sec=0, nanosec=0)) for static TF frames to work in RViz</constraint>
+    <constraint type="testing">Test with simulation running to verify markers move with gripper during navigation</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface name="publish_trajectory_markers" kind="method">
+      <signature>def publish_trajectory_markers(self, waypoints: List[TransformedWaypoint], marker_publisher, node: Node, address_frame: str, side: str = 'left', color: Optional[ColorRGBA] = None) -> None</signature>
+      <path>ros2_ws/src/manipulator_control/src/utils/yz_trajectory_generator.py:380</path>
+      <notes>Current signature takes address_frame parameter - should be changed to use end effector frame based on side</notes>
+    </interface>
+    <interface name="END_EFFECTOR_FRAMES" kind="constant">
+      <signature>END_EFFECTOR_FRAMES = {'left': 'left_gripper_magnet', 'right': 'right_gripper_magnet'}</signature>
+      <path>ros2_ws/src/manipulator_control/src/utils/yz_trajectory_generator.py:374-378</path>
+      <notes>Already exists in the class - use this for frame lookup instead of address_frame parameter</notes>
+    </interface>
+    <interface name="/trajectory_markers" kind="topic">
+      <signature>Type: visualization_msgs/msg/MarkerArray</signature>
+      <notes>RViz topic for trajectory visualization. Published by test script and execute_trajectory().</notes>
+    </interface>
+    <interface name="kinematic_chains.yaml" kind="config">
+      <signature>gripper.end_effector_frames: {left: "left_gripper_magnet", right: "right_gripper_magnet"}</signature>
+      <path>ros2_ws/src/manipulator_control/config/kinematic_chains.yaml:54-56</path>
+      <notes>Alternative source for end effector frame configuration. Story documentation references this as preferred config source.</notes>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Tests use pytest framework. Integration tests require simulation running.
+      Unit tests should mock ROS2 publishers and nodes.
+      Test files follow pattern test_*.py in ros2_ws/src/manipulator_control/test/.
+    </standards>
+    <locations>
+      <location>ros2_ws/src/manipulator_control/test/</location>
+      <location>ros2_ws/src/manipulator_control/scripts/test_trajectory_with_markers.py</location>
+    </locations>
+    <ideas>
+      <testIdea acId="AC1">Unit test: verify publish_trajectory_markers() uses left_gripper_magnet frame when side='left'</testIdea>
+      <testIdea acId="AC1">Unit test: verify publish_trajectory_markers() uses right_gripper_magnet frame when side='right'</testIdea>
+      <testIdea acId="AC3">Unit test: verify marker positions start at (0,0,0) relative to frame origin</testIdea>
+      <testIdea acId="AC3">Unit test: verify Y coordinates increase for forward trajectory points</testIdea>
+      <testIdea acId="AC4">Integration test: run test script without --address and verify markers publish</testIdea>
+      <testIdea acId="AC5">Manual test: launch simulation, run test script, navigate robot, verify markers follow gripper in RViz</testIdea>
+    </ideas>
+  </tests>
+</story-context>

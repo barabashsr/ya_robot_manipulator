@@ -3,19 +3,23 @@
 
 Demonstrates:
 - Loading a trajectory
-- Publishing trajectory markers to RViz
+- Publishing trajectory markers to RViz in a fixed address frame
 - Executing the trajectory
 
 Usage:
     1. Launch simulation: ros2 launch manipulator_control manipulator_simulation.launch.py
     2. In RViz, add MarkerArray for /trajectory_markers topic
-    3. Run: python3 scripts/test_trajectory_with_markers.py --side left
+    3. Run: python3 scripts/test_trajectory_with_markers.py --side left --address addr_l_1_5_2
 
 The script will:
-1. Publish the trajectory path as markers in RViz
+1. Publish the trajectory path as markers in the address frame (fixed in world)
 2. Wait for you to see it
 3. Execute the trajectory
 4. Clear markers after completion
+
+Story 4A-1a: Markers publish in address frame (e.g., addr_l_1_5_2) so they stay
+fixed in world space while the gripper moves along the trajectory path.
+If no address is specified, markers use 'odom' frame as default.
 """
 import argparse
 import sys
@@ -160,8 +164,8 @@ def main():
                         default='insertion', help='Trajectory type')
     parser.add_argument('--base-z', type=float, default=0.5,
                         help='Base Z position')
-    parser.add_argument('--address', type=str, default='addr_l_1_5_2',
-                        help='Target address frame (e.g., addr_l_1_5_2)')
+    parser.add_argument('--address', type=str, default=None,
+                        help='Target address frame for markers (e.g., addr_l_1_5_2). If not specified, uses odom frame.')
     parser.add_argument('--no-execute', action='store_true',
                         help='Only show markers, do not execute')
     args = parser.parse_args()
@@ -198,14 +202,15 @@ def main():
         f'Loaded {len(waypoints)} waypoints for {args.trajectory} trajectory'
     )
 
-    # Publish markers
-    node.get_logger().info(f'Publishing trajectory markers in address frame: {args.address}')
+    # Publish markers in address frame (fixed in world space)
+    frame_id = args.address if args.address else 'odom'
+    node.get_logger().info(f'Publishing trajectory markers in frame: {frame_id}')
     node.generator.publish_trajectory_markers(
         waypoints=waypoints,
         marker_publisher=node.marker_pub,
         node=node,
-        address_frame=args.address,
         side=args.side,
+        address_frame=args.address,
     )
 
     if args.no_execute:
@@ -218,14 +223,30 @@ def main():
                     waypoints=waypoints,
                     marker_publisher=node.marker_pub,
                     node=node,
-                    address_frame=args.address,
                     side=args.side,
+                    address_frame=args.address,
                 )
         except KeyboardInterrupt:
             pass
     else:
-        node.get_logger().info('Trajectory visible in RViz. Executing in 3 seconds...')
-        time.sleep(3.0)
+        # Create a timer to continuously publish markers
+        def publish_markers():
+            node.generator.publish_trajectory_markers(
+                waypoints=waypoints,
+                marker_publisher=node.marker_pub,
+                node=node,
+                side=args.side,
+                address_frame=args.address,
+            )
+
+        # Start marker publishing timer (publish every 0.5 seconds)
+        marker_timer = node.create_timer(0.5, publish_markers)
+
+        # Initial publish
+        publish_markers()
+
+        node.get_logger().info('Trajectory visible in RViz. Executing in 2 seconds...')
+        time.sleep(2.0)
 
         # Execute trajectory
         node.get_logger().info('Executing trajectory...')
@@ -236,8 +257,11 @@ def main():
         else:
             node.get_logger().error('Trajectory execution failed')
 
-        # Clear markers
-        time.sleep(1.0)
+        # Keep markers visible briefly after completion
+        time.sleep(2.0)
+
+        # Stop marker publishing and clear markers
+        marker_timer.cancel()
         node.generator.clear_trajectory_markers(node.marker_pub, node)
 
     # Cleanup
