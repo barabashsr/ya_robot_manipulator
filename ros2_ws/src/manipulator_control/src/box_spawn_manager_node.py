@@ -101,8 +101,15 @@ class BoxSpawnManagerNode(Node):
             self._despawn_callback
         )
 
-        # DetachableJoint publishers cache
-        self._detachable_joint_pubs: Dict[str, tuple] = {}
+        # Timer to sync box poses from TF to Gazebo (simulation only)
+        # This replaces DetachableJoint - simpler and more reliable
+        if self.simulation_mode:
+            sync_rate = self.config.get('gazebo_sync_rate', 10.0)  # Hz
+            self.pose_sync_timer = self.create_timer(
+                1.0 / sync_rate,
+                self._sync_box_poses_to_gazebo
+            )
+            self.get_logger().info(f'Gazebo pose sync enabled at {sync_rate} Hz')
 
         self.get_logger().info('Box Spawn Manager Node started')
         self.get_logger().info(f"Simulation mode: {self.simulation_mode}")
@@ -292,6 +299,57 @@ class BoxSpawnManagerNode(Node):
             self.get_logger().warn(f'Failed to lookup {gripper_frame} pose: {e}')
             return None
 
+    def _sync_box_poses_to_gazebo(self):
+        """
+        Sync all active box poses from TF to Gazebo.
+
+        Called by timer to keep Gazebo model positions in sync with TF tree.
+        This replaces DetachableJoint plugin for simpler, more reliable attachment.
+        """
+        if not self.active_boxes:
+            return
+
+        world_name = self.config.get('gazebo_world_name', 'empty')
+
+        for box_id, active_box in self.active_boxes.items():
+            try:
+                # Look up box base_link pose in world frame
+                transform = self.tf_buffer.lookup_transform(
+                    'world',
+                    f'{box_id}_base_link',
+                    rclpy.time.Time(),
+                    timeout=Duration(seconds=0.1)
+                )
+
+                # Build pose string for gz service
+                t = transform.transform.translation
+                r = transform.transform.rotation
+                pose_str = (
+                    f'position: {{x: {t.x}, y: {t.y}, z: {t.z}}}, '
+                    f'orientation: {{x: {r.x}, y: {r.y}, z: {r.z}, w: {r.w}}}'
+                )
+
+                # Set model pose in Gazebo
+                req = f'name: "{box_id}", position: {{x: {t.x}, y: {t.y}, z: {t.z}}}, orientation: {{x: {r.x}, y: {r.y}, z: {r.z}, w: {r.w}}}'
+                cmd = [
+                    'gz', 'service',
+                    '-s', f'/world/{world_name}/set_pose',
+                    '--reqtype', 'gz.msgs.Pose',
+                    '--reptype', 'gz.msgs.Boolean',
+                    '--timeout', '1000',
+                    '--req', req
+                ]
+
+                subprocess.run(cmd, capture_output=True, timeout=2.0)
+
+            except TransformException:
+                # TF not ready yet, skip this cycle
+                pass
+            except subprocess.TimeoutExpired:
+                pass
+            except Exception as e:
+                self.get_logger().debug(f'Pose sync error for {box_id}: {e}')
+
     def _spawn_in_gazebo(self, box_id: str, urdf_file_path: str, gripper_frame: str) -> bool:
         """
         Spawn box model in Gazebo simulation using gz service CLI.
@@ -358,24 +416,35 @@ class BoxSpawnManagerNode(Node):
 
     def _attach_in_gazebo(self, box_id: str):
         """
-        Publish attach message to DetachableJoint topic.
+        Publish attach message to DetachableJoint via gz topic CLI.
 
         AC6: Box initially attached to gripper via DetachableJoint.
+
+        Uses gz topic CLI because DetachableJoint plugin listens on Gazebo
+        topics, not ROS2 topics.
         """
         attach_topic = f'/model/{box_id}/detachable_joint/attach'
 
-        if box_id not in self._detachable_joint_pubs:
-            detach_topic = f'/model/{box_id}/detachable_joint/detach'
-            attach_pub = self.create_publisher(Empty, attach_topic, 10)
-            detach_pub = self.create_publisher(Empty, detach_topic, 10)
-            self._detachable_joint_pubs[box_id] = (attach_pub, detach_pub)
+        cmd = [
+            'gz', 'topic',
+            '-t', attach_topic,
+            '-m', 'gz.msgs.Empty',
+            '-p', ''
+        ]
 
-        attach_pub, _ = self._detachable_joint_pubs[box_id]
-
-        # Small delay for publisher to register
-        time.sleep(0.1)
-        attach_pub.publish(Empty())
-        self.get_logger().info(f'Published attach for {box_id}')
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=5.0
+            )
+            if result.returncode == 0:
+                self.get_logger().info(f'Published attach for {box_id}')
+            else:
+                self.get_logger().warn(f'Attach may have failed: {result.stderr}')
+        except Exception as e:
+            self.get_logger().warn(f'Attach error: {e}')
 
     def _delete_from_gazebo(self, box_id: str) -> bool:
         """
@@ -424,12 +493,30 @@ class BoxSpawnManagerNode(Node):
             return False
 
     def _detach_in_gazebo(self, box_id: str):
-        """Publish detach message to DetachableJoint topic."""
-        if box_id in self._detachable_joint_pubs:
-            _, detach_pub = self._detachable_joint_pubs[box_id]
-            detach_pub.publish(Empty())
-            self.get_logger().info(f'Published detach for {box_id}')
+        """Publish detach message to DetachableJoint via gz topic CLI."""
+        detach_topic = f'/model/{box_id}/detachable_joint/detach'
+
+        cmd = [
+            'gz', 'topic',
+            '-t', detach_topic,
+            '-m', 'gz.msgs.Empty',
+            '-p', ''
+        ]
+
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=5.0
+            )
+            if result.returncode == 0:
+                self.get_logger().info(f'Published detach for {box_id}')
+            else:
+                self.get_logger().warn(f'Detach may have failed: {result.stderr}')
             time.sleep(0.2)  # Wait for physics detach
+        except Exception as e:
+            self.get_logger().warn(f'Detach error: {e}')
 
     def _spawn_callback(self, request, response):
         """
@@ -514,12 +601,10 @@ class BoxSpawnManagerNode(Node):
             self._publish_gripper_to_box_transform(box_id, gripper_frame)
 
             # Phase 3 (Simulation): Spawn in Gazebo
+            # Pose sync timer will keep Gazebo model in sync with TF
             if self.simulation_mode:
                 if not self._spawn_in_gazebo(box_id, urdf_file_path, gripper_frame):
                     self.get_logger().warn(f'Gazebo spawn failed, TF frames still available')
-
-                # Attach via DetachableJoint
-                self._attach_in_gazebo(box_id)
 
             # Track active box
             self.active_boxes[box_id] = ActiveBox(
@@ -571,9 +656,8 @@ class BoxSpawnManagerNode(Node):
         active_box = self.active_boxes[box_id]
 
         try:
-            # Phase 1 (Simulation): Detach and delete from Gazebo
+            # Phase 1 (Simulation): Delete from Gazebo
             if self.simulation_mode:
-                self._detach_in_gazebo(box_id)
                 self._delete_from_gazebo(box_id)
 
             # Phase 2: Kill robot_state_publisher

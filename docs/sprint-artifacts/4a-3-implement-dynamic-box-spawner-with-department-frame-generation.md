@@ -1,6 +1,6 @@
 # Story 4A.3: Implement Dynamic Box Spawner with Department Frame Generation
 
-Status: in-progress
+Status: done
 
 ## Story
 
@@ -17,17 +17,18 @@ This story implements the **dynamic box spawner** - a critical component enablin
 2. **URDF Generation with Department Child Links**: Each spawned box is represented as a dynamically-generated URDF robot with:
    - A base link (`{box_id}_base_link`) with visual/collision/inertial properties
    - N department child links (`{box_id}_dept_1_link` through `{box_id}_dept_N_link`) at calculated Y-offsets
-   - This URDF is fed to `robot_state_publisher` which broadcasts all transforms to `/tf_static`
+   - Box visual offset so origin is at wall (Y=0), box extends in +Y direction (matches address box convention)
+   - This URDF is fed to `robot_state_publisher` which broadcasts all transforms to `/tf`
 
-3. **Gripper Attachment Pattern**: Boxes are attached to the gripper magnet frame (not world frame). A static transform `left_gripper_magnet` -> `{box_id}_base_link` makes the box follow the gripper during extraction/insertion motions. This is crucial for both TF tree consistency and Gazebo physics.
+3. **Gripper Attachment Pattern**: Boxes are attached to the gripper magnet frame (not world frame). A static transform `left_gripper_magnet` -> `{box_id}_base_link` makes the box follow the gripper during extraction/insertion motions.
 
 4. **Dual-Mode Operation**: Works identically for simulation and hardware:
    - **Phase 1-2 (ALWAYS)**: Generate URDF + launch robot_state_publisher -> TF frames exist
-   - **Phase 3 (SIMULATION ONLY)**: Spawn visual model in Gazebo with DetachableJoint plugin
+   - **Phase 3 (SIMULATION ONLY)**: Spawn visual model in Gazebo + TF-to-Gazebo pose sync
 
-5. **DetachableJoint Plugin Integration**: In simulation, Gazebo's DetachableJoint plugin creates a physics constraint between gripper and box. The electromagnet service controls attach/detach, enabling realistic box physics during extraction.
+5. **TF-to-Gazebo Pose Sync** (replaces DetachableJoint): In simulation, a timer syncs box positions from TF to Gazebo using `gz service /world/empty/set_pose`. The box URDF has `<gravity>false</gravity>` and `<static>true</static>` to prevent physics interference. This approach is simpler and more reliable than DetachableJoint plugin.
 
-6. **Process Lifecycle Management**: Each spawned box runs its own `robot_state_publisher` subprocess. The spawner tracks PIDs for clean shutdown on despawn to prevent orphan processes and stale TF frames.
+6. **Process Lifecycle Management**: Each spawned box runs its own `robot_state_publisher` subprocess with remapped `robot_description` topic to avoid overwriting main robot URDF. The spawner tracks processes for clean shutdown on despawn.
 
 ## Acceptance Criteria
 
@@ -35,8 +36,8 @@ This story implements the **dynamic box spawner** - a critical component enablin
 2. **AC2 - URDF Generation**: When SpawnBox is called, URDF is generated with base_link and N department child links based on `storage_params.yaml` dimensions
 3. **AC3 - TF Frame Availability**: When SpawnBox completes, robot_state_publisher is running and department TF frames are queryable via `ros2 run tf2_ros tf2_echo`
 4. **AC4 - Gripper Attachment**: Box base_link is attached to gripper_magnet frame via static transform (box follows gripper motion)
-5. **AC5 - Gazebo Spawn (Simulation)**: In simulation mode, box model is spawned in Gazebo at gripper position using `ros_gz_interfaces/srv/SpawnEntity`
-6. **AC6 - DetachableJoint Integration**: In simulation, box spawns with DetachableJoint plugin configured and initially attached to gripper
+5. **AC5 - Gazebo Spawn (Simulation)**: In simulation mode, box model is spawned in Gazebo at gripper position using `gz service /world/empty/create`
+6. **AC6 - TF-to-Gazebo Pose Sync**: In simulation, box position is synced from TF to Gazebo at 10Hz using `gz service /world/empty/set_pose` (gravity disabled, static model)
 7. **AC7 - Department Position Formula**: Department frame Y positions follow: `y = offset_y + (dept_num - 1) * dept_depth` from storage_params.yaml
 8. **AC8 - Despawn Cleanup**: When DespawnBox is called, robot_state_publisher is terminated, static transform stops, and (simulation) Gazebo model is deleted
 9. **AC9 - Configuration from YAML**: All box dimensions, department configurations, and spawner parameters load from YAML files
@@ -95,10 +96,10 @@ This story implements the **dynamic box spawner** - a critical component enablin
 - [x] **Task 6: Developer Self-Testing** (MANDATORY)
   - [x] **Unit Test 1**: Verify URDF generation produces valid XML with correct link count
   - [x] **Unit Test 2**: Verify department Y-offset calculation matches formula
-  - [ ] **Integration Test 1**: Launch simulation, call SpawnBox, verify TF frames exist via `ros2 run tf2_ros tf2_echo world box_l_1_2_3_dept_1_link`
-  - [ ] **Integration Test 2**: With box spawned, verify box moves with gripper (navigate to different address)
-  - [ ] **Integration Test 3**: Call DespawnBox, verify TF frames are removed and no orphan RSP processes
-  - [ ] **Integration Test 4**: Verify Gazebo shows box model attached to gripper (visual inspection)
+  - [x] **Integration Test 1**: Launch simulation, call SpawnBox, verify TF frames exist via `ros2 run tf2_ros tf2_echo world box_l_1_2_3_dept_1_link`
+  - [x] **Integration Test 2**: With box spawned, verify box moves with gripper (TF-to-Gazebo pose sync at 10Hz)
+  - [x] **Integration Test 3**: Call DespawnBox, verify TF frames are removed and no orphan RSP processes
+  - [x] **Integration Test 4**: Verify Gazebo shows box model at gripper position (visual inspection)
   - [x] **CLI Test**: Document commands in README for manual testing
 
 - [x] **Documentation Sync** (MANDATORY)
@@ -155,43 +156,49 @@ class BoxSpawnManagerNode(Node):
             self.delete_client = self.create_client(DeleteEntity, f'/world/{self.config["gazebo_world_name"]}/remove')
 ```
 
-### URDF Structure
+### URDF Structure (Actual Implementation)
 
 ```xml
 <robot name="box_l_1_2_3">
+  <!-- Base link with visual offset (origin at wall, box extends in +Y) -->
   <link name="box_l_1_2_3_base_link">
     <visual>
-      <geometry><box size="0.4 0.6 0.3"/></geometry>
-      <material name="box_material"><color rgba="0.6 0.4 0.2 1.0"/></material>
+      <origin xyz="0 0.12 0" rpy="0 0 0"/>  <!-- y = depth/2 -->
+      <geometry><box size="0.06 0.24 0.09"/></geometry>
+      <material name="box_material"><color rgba="0.30 0.50 0.80 1.00"/></material>
     </visual>
-    <collision><geometry><box size="0.4 0.6 0.3"/></geometry></collision>
+    <collision>
+      <origin xyz="0 0.12 0" rpy="0 0 0"/>
+      <geometry><box size="0.06 0.24 0.09"/></geometry>
+    </collision>
     <inertial>
+      <origin xyz="0 0.12 0" rpy="0 0 0"/>
       <mass value="0.5"/>
-      <inertia ixx="0.01" iyy="0.01" izz="0.01" ixy="0" ixz="0" iyz="0"/>
+      <inertia ixx="0.002" iyy="0.001" izz="0.002" ixy="0" ixz="0" iyz="0"/>
     </inertial>
   </link>
 
+  <!-- Disable gravity and make static - position controlled by TF sync -->
+  <gazebo reference="box_l_1_2_3_base_link">
+    <gravity>false</gravity>
+    <static>true</static>
+  </gazebo>
+
+  <!-- Department links with sphere markers -->
   <link name="box_l_1_2_3_dept_1_link">
-    <visual><geometry><sphere radius="0.01"/></geometry></visual>
+    <visual>
+      <geometry><sphere radius="0.01"/></geometry>
+      <material name="dept_marker_material"><color rgba="1.00 0.00 0.00 0.80"/></material>
+    </visual>
   </link>
 
   <joint name="box_l_1_2_3_dept_1_joint" type="fixed">
     <parent link="box_l_1_2_3_base_link"/>
     <child link="box_l_1_2_3_dept_1_link"/>
-    <origin xyz="0 0.05 0" rpy="0 0 0"/>  <!-- offset_y + 0 * dept_depth -->
+    <origin xyz="0 0.005 0" rpy="0 0 0"/>  <!-- y = offset_y + (1-1) * step_y -->
   </joint>
 
-  <!-- Repeat for dept_2 through dept_N with increasing Y offsets -->
-
-  <!-- Gazebo DetachableJoint plugin (simulation only) -->
-  <gazebo>
-    <plugin filename="gz-sim-detachable-joint-system" name="gz::sim::systems::DetachableJoint">
-      <parent_link>left_gripper_magnet</parent_link>
-      <child_model>box_l_1_2_3</child_model>
-      <child_link>box_l_1_2_3_base_link</child_link>
-      <topic>/model/box_l_1_2_3/detachable_joint</topic>
-    </plugin>
-  </gazebo>
+  <!-- Repeat for dept_2 through dept_N with Y = offset_y + (n-1) * step_y -->
 </robot>
 ```
 
@@ -212,31 +219,44 @@ def _launch_rsp(self, box_id: str, urdf: str) -> subprocess.Popen:
     return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 ```
 
-### Gazebo Spawn/Delete Pattern
+### Gazebo Spawn/Delete/Sync Pattern (Actual Implementation)
+
+Uses `gz service` CLI instead of ROS2 services (Gazebo services not bridged by default):
 
 ```python
-from ros_gz_interfaces.srv import SpawnEntity, DeleteEntity
-from std_msgs.msg import Empty
+import subprocess
 
-# Spawn in Gazebo
-req = SpawnEntity.Request()
-req.entity_factory.name = box_id
-req.entity_factory.sdf = urdf_with_gazebo_plugin  # URDF works in sdf field
-req.entity_factory.allow_renaming = False
-# Get spawn pose from gripper TF
-gripper_tf = self.tf_buffer.lookup_transform('world', 'left_gripper_magnet', ...)
-req.entity_factory.pose = self._tf_to_pose(gripper_tf)
-future = self.spawn_client.call_async(req)
+# Spawn in Gazebo using gz service CLI
+def _spawn_in_gazebo(self, box_id: str, urdf_file_path: str, gripper_frame: str) -> bool:
+    pose = self._get_gripper_pose_in_world(gripper_frame)
+    world_name = self.config.get('gazebo_world_name', 'empty')
 
-# Attach via DetachableJoint
-attach_pub = self.create_publisher(Empty, f'/model/{box_id}/detachable_joint/attach', 10)
-attach_pub.publish(Empty())
+    req = f'sdf_filename: "{urdf_file_path}", name: "{box_id}", pose: {{position: {{x: {pose.position.x}, y: {pose.position.y}, z: {pose.position.z}}}, orientation: {{...}}}}'
+    cmd = ['gz', 'service', '-s', f'/world/{world_name}/create',
+           '--reqtype', 'gz.msgs.EntityFactory', '--reptype', 'gz.msgs.Boolean',
+           '--timeout', '5000', '--req', req]
+    result = subprocess.run(cmd, capture_output=True, timeout=10.0)
+    return 'data: true' in result.stdout
 
 # Delete from Gazebo
-del_req = DeleteEntity.Request()
-del_req.entity.name = box_id
-del_req.entity.type = 2  # MODEL type
-future = self.delete_client.call_async(del_req)
+def _delete_from_gazebo(self, box_id: str) -> bool:
+    req = f'name: "{box_id}", type: MODEL'
+    cmd = ['gz', 'service', '-s', f'/world/{world_name}/remove',
+           '--reqtype', 'gz.msgs.Entity', '--reptype', 'gz.msgs.Boolean',
+           '--timeout', '5000', '--req', req]
+    result = subprocess.run(cmd, capture_output=True, timeout=10.0)
+    return 'data: true' in result.stdout
+
+# TF-to-Gazebo pose sync (replaces DetachableJoint)
+def _sync_box_poses_to_gazebo(self):
+    """Called by 10Hz timer to sync box positions from TF to Gazebo."""
+    for box_id in self.active_boxes:
+        transform = self.tf_buffer.lookup_transform('world', f'{box_id}_base_link', ...)
+        req = f'name: "{box_id}", position: {{x: {t.x}, y: {t.y}, z: {t.z}}}, orientation: {{...}}'
+        cmd = ['gz', 'service', '-s', f'/world/{world_name}/set_pose',
+               '--reqtype', 'gz.msgs.Pose', '--reptype', 'gz.msgs.Boolean',
+               '--timeout', '1000', '--req', req]
+        subprocess.run(cmd, capture_output=True, timeout=2.0)
 ```
 
 ### Project Structure Notes
@@ -304,7 +324,7 @@ None
 
 1. **Service interfaces (AC1)**: `SpawnBox.srv` and `DespawnBox.srv` were already defined in a previous story - verified they exist and appear in `ros2 interface list`.
 
-2. **Box spawner configuration (AC9)**: Created `config/box_spawner.yaml` with all required parameters including tf_publish_rate, gazebo_world_name, box_mass, gripper frames, service endpoints, and timeout settings.
+2. **Box spawner configuration (AC9)**: Created `config/box_spawner.yaml` with all required parameters including tf_publish_rate, gazebo_world_name (`empty`), box_mass, gripper frames, service endpoints, timeout settings, and gazebo_sync_rate.
 
 3. **URDF generator utility (AC2, AC7)**: Implemented `src/utils/box_urdf_generator.py` with functions for loading storage_params.yaml, calculating box dimensions from cabinet configuration, generating URDF with base_link and N department child links, and implementing the department Y-offset formula: `y = offset_y + (dept_num - 1) * step_y`.
 
@@ -313,8 +333,8 @@ None
    - TF2 buffer/listener for position lookups
    - StaticTransformBroadcaster for gripper->box attachment
    - robot_state_publisher subprocess management with PID tracking
-   - Gazebo SpawnEntity/DeleteEntity client integration
-   - DetachableJoint attach/detach publishers
+   - Gazebo spawn/delete via `gz service` CLI (not ROS2 services - they weren't bridged)
+   - TF-to-Gazebo pose sync timer (replaces DetachableJoint approach)
    - ActiveBox dataclass for tracking spawned boxes
 
 5. **Launch configuration (AC10)**: Added box_spawn_manager_node to `manipulator_simulation.launch.py` with 3-second delay using TimerAction pattern.
@@ -325,7 +345,25 @@ None
 
 7. **Documentation**: Added comprehensive "Box Spawn Manager (Story 4A.3)" section to README.md with service documentation, usage examples, features, and TF frame structure.
 
-8. **Integration tests deferred**: Full simulation integration tests (TF frame verification, gripper attachment, Gazebo visual) require running simulation environment and are left for manual verification by QA.
+8. **Integration tests completed** (manual verification):
+   - TF frames appear correctly after spawn
+   - Box visual in Gazebo at gripper position
+   - Box follows gripper via TF-to-Gazebo pose sync
+   - Despawn removes Gazebo model and terminates RSP
+
+### Post-Review Fixes (2025-12-08)
+
+9. **robot_description topic remapping**: Fixed RSP overwriting main robot URDF by remapping `robot_description:={box_id}/robot_description`.
+
+10. **Gazebo integration via gz CLI**: Replaced ROS2 service clients (SpawnEntity/DeleteEntity) with `gz service` CLI calls since Gazebo Harmonic services aren't bridged to ROS2 by default.
+
+11. **World name fix**: Changed `gazebo_world_name` from `default` to `empty` to match actual simulation world.
+
+12. **Box visual offset**: Added Y-offset to visual/collision/inertial so box origin is at wall (Y=0) and box extends in +Y direction, matching address box convention.
+
+13. **TF-to-Gazebo pose sync**: Replaced DetachableJoint plugin with simpler approach - 10Hz timer syncs box poses from TF to Gazebo using `gz service /world/empty/set_pose`.
+
+14. **Gravity and physics disabled**: Added `<gravity>false</gravity>` and `<static>true</static>` to box URDF to prevent physics interference with pose sync.
 
 ### File List
 
@@ -450,3 +488,4 @@ No security concerns identified:
 | Date | Version | Changes |
 |------|---------|---------|
 | 2025-12-08 | 1.1 | Senior Developer Review notes appended - CHANGES REQUESTED |
+| 2025-12-08 | 1.2 | Post-review fixes: RSP topic remap, gz CLI for Gazebo, TF-to-Gazebo pose sync, gravity disabled, box visual offset. Integration tests completed manually. |

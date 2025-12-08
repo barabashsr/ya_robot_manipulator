@@ -224,14 +224,19 @@ def generate_box_urdf(
     iyy = (m / 12.0) * (w**2 + h**2)
     izz = (m / 12.0) * (w**2 + d**2)
 
+    # Box visual offset: origin at wall (Y=0), box extends in +Y direction
+    # This matches address box convention where origin is at the cabinet-facing wall
+    box_y_offset = d / 2.0
+
     # Start URDF
     urdf_lines = [
         f'<?xml version="1.0"?>',
         f'<robot name="{box_id}">',
         f'',
-        f'  <!-- Base link: box body -->',
+        f'  <!-- Base link: box body (origin at wall, box extends in +Y) -->',
         f'  <link name="{base_link}">',
         f'    <visual>',
+        f'      <origin xyz="0 {box_y_offset:.6f} 0" rpy="0 0 0"/>',
         f'      <geometry>',
         f'        <box size="{w:.4f} {d:.4f} {h:.4f}"/>',
         f'      </geometry>',
@@ -241,16 +246,24 @@ def generate_box_urdf(
         f'      </material>',
         f'    </visual>',
         f'    <collision>',
+        f'      <origin xyz="0 {box_y_offset:.6f} 0" rpy="0 0 0"/>',
         f'      <geometry>',
         f'        <box size="{w:.4f} {d:.4f} {h:.4f}"/>',
         f'      </geometry>',
         f'    </collision>',
         f'    <inertial>',
+        f'      <origin xyz="0 {box_y_offset:.6f} 0" rpy="0 0 0"/>',
         f'      <mass value="{m:.3f}"/>',
         f'      <inertia ixx="{ixx:.6f}" iyy="{iyy:.6f}" izz="{izz:.6f}" '
         f'ixy="0" ixz="0" iyz="0"/>',
         f'    </inertial>',
         f'  </link>',
+        f'',
+        f'  <!-- Disable gravity and make static - position controlled by TF sync -->',
+        f'  <gazebo reference="{base_link}">',
+        f'    <gravity>false</gravity>',
+        f'    <static>true</static>',
+        f'  </gazebo>',
         f''
     ]
 
@@ -282,21 +295,8 @@ def generate_box_urdf(
             f''
         ])
 
-    # Add Gazebo DetachableJoint plugin (simulation only)
-    if include_gazebo_plugin:
-        urdf_lines.extend([
-            f'  <!-- Gazebo DetachableJoint plugin for physics attachment -->',
-            f'  <gazebo>',
-            f'    <plugin filename="gz-sim-detachable-joint-system" '
-            f'name="gz::sim::systems::DetachableJoint">',
-            f'      <parent_link>{gripper_frame}</parent_link>',
-            f'      <child_model>{box_id}</child_model>',
-            f'      <child_link>{base_link}</child_link>',
-            f'      <topic>/model/{box_id}/detachable_joint</topic>',
-            f'    </plugin>',
-            f'  </gazebo>',
-            f''
-        ])
+    # Note: DetachableJoint plugin removed - using TF-to-Gazebo pose sync instead
+    # This is simpler and more reliable than physics-based attachment
 
     urdf_lines.append('</robot>')
 
