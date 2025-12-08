@@ -153,6 +153,29 @@ def generate_launch_description():
         ]
     )
 
+    # Electromagnet simulator configuration (Story 4A.2)
+    electromagnet_config = PathJoinSubstitution([
+        manipulator_control_share,
+        'config',
+        'electromagnet.yaml'
+    ])
+
+    # Electromagnet Simulator Node (Story 4A.2)
+    # Simulation-only node providing /manipulator/electromagnet/toggle service
+    # 3 second delay to allow TF tree to populate
+    electromagnet_simulator_node = TimerAction(
+        period=3.0,
+        actions=[
+            Node(
+                package='manipulator_control',
+                executable='electromagnet_simulator_node',
+                name='electromagnet_simulator_node',
+                output='screen',
+                parameters=[{'config_file': electromagnet_config}]
+            )
+        ]
+    )
+
     # Joystick control launch (optional)
     joy_control_launch = TimerAction(
         period=3.0,  # Wait for controllers to be ready
@@ -195,6 +218,9 @@ def generate_launch_description():
 
         # Start NavigateToAddress action server (delayed) - Story 3.4
         navigate_to_address_server_node,
+
+        # Start Electromagnet Simulator Node (delayed) - Story 4A.2
+        electromagnet_simulator_node,
 
         # Start joystick control (optional, delayed)
         joy_control_launch

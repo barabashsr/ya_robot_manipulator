@@ -1,0 +1,170 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>4A</epicId>
+    <storyId>2</storyId>
+    <title>Implement Electromagnet Simulator and Service</title>
+    <status>drafted</status>
+    <generatedAt>2025-12-08</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/4a-2-implement-electromagnet-simulator-and-service.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>simulate electromagnet attachment/detachment in Gazebo</iWant>
+    <soThat>box extraction actions can control magnet state via ROS2 service</soThat>
+    <tasks>
+      <task id="1" ac="1">Define Service Interface - ToggleElectromagnet.srv (ALREADY EXISTS)</task>
+      <task id="2" ac="6">Create electromagnet.yaml configuration file</task>
+      <task id="3" ac="2,3,4,5">Implement ElectromagnetSimulatorNode with service, TF proximity, state publisher</task>
+      <task id="4" ac="7">Add node to manipulator_simulation.launch.py</task>
+      <task id="5" ac="all">Developer self-testing (MANDATORY)</task>
+      <task id="6" ac="all">Documentation sync</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1">Service definition exists: srv/ToggleElectromagnet.srv with bool activate request, bool success + string message response</criterion>
+    <criterion id="AC2">Activation with proximity: When activate=true with box within 5cm, publish to DetachableJoint attach topic, engaged=true</criterion>
+    <criterion id="AC3">Activation without proximity: When activate=true with NO box nearby, return success=false, state remains false</criterion>
+    <criterion id="AC4">Deactivation releases box: When activate=false with box attached, publish to DetachableJoint detach topic, engaged=false</criterion>
+    <criterion id="AC5">State topic: Publish to /manipulator/electromagnet/engaged (std_msgs/Bool) at 10 Hz</criterion>
+    <criterion id="AC6">Configuration from YAML: Load proximity_distance, wait times, topic names from config/electromagnet.yaml</criterion>
+    <criterion id="AC7">CLI testable: Service callable via ros2 service call</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/sprint-artifacts/tech-spec-epic-4a.md</path>
+        <title>Epic 4A Technical Specification</title>
+        <section>AC-4A.2: Electromagnet Simulation</section>
+        <snippet>When ToggleElectromagnet(activate=true) is called with box within 5cm, then DetachableJoint attach message is published. Magnet state publishes to /manipulator/electromagnet/engaged at 10 Hz.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics.md</path>
+        <title>Epic Definitions</title>
+        <section>Story 4A.2: Implement Electromagnet Simulator and Service</section>
+        <snippet>Uses Gazebo Harmonic DetachableJoint plugin. Attach topic: /model/{box_id}/detachable_joint/attach. Proximity check via TF.</snippet>
+      </doc>
+    </docs>
+
+    <code>
+      <file>
+        <path>ros2_ws/src/manipulator_control/srv/ToggleElectromagnet.srv</path>
+        <kind>service-definition</kind>
+        <symbol>ToggleElectromagnet</symbol>
+        <reason>Service interface ALREADY EXISTS. Request: bool activate. Response: bool success, bool magnet_engaged, string message</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/config/kinematic_chains.yaml</path>
+        <kind>config</kind>
+        <symbol>left_gripper, right_gripper</symbol>
+        <lines>71-103</lines>
+        <reason>Defines end_effector_frame: left_gripper_magnet and right_gripper_magnet for proximity checks</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/launch/manipulator_simulation.launch.py</path>
+        <kind>launch</kind>
+        <symbol>generate_launch_description</symbol>
+        <reason>Launch file to extend with electromagnet_simulator_node. Follow existing TimerAction pattern for delayed start.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_control/src/state_marker_publisher.py</path>
+        <kind>node</kind>
+        <symbol>StateMarkerPublisher</symbol>
+        <reason>Reference implementation pattern for ROS2 node with timer-based publishing. May add magnet state visualization.</reason>
+      </file>
+      <file>
+        <path>ros2_ws/src/manipulator_description/urdf/manipulator/manipulator_selector.urdf.xacro</path>
+        <kind>urdf</kind>
+        <symbol>left_gripper_magnet, right_gripper_magnet</symbol>
+        <reason>URDF defines the gripper magnet link frames used for proximity checks</reason>
+      </file>
+    </code>
+
+    <dependencies>
+      <ros2>
+        <package>rclpy</package>
+        <package>std_msgs</package>
+        <package>std_srvs</package>
+        <package>tf2_ros</package>
+        <package>tf2_geometry_msgs</package>
+        <package>ros_gz_interfaces</package>
+        <package>visualization_msgs</package>
+      </ros2>
+      <gazebo>
+        <plugin>gz-sim-detachable-joint-system (DetachableJoint)</plugin>
+        <topic>/model/{box_id}/detachable_joint/attach</topic>
+        <topic>/model/{box_id}/detachable_joint/detach</topic>
+      </gazebo>
+    </dependencies>
+  </artifacts>
+
+  <interfaces>
+    <interface>
+      <name>ToggleElectromagnet</name>
+      <kind>ROS2 Service</kind>
+      <signature>
+        Request: bool activate
+        Response: bool success, bool magnet_engaged, string message
+      </signature>
+      <path>ros2_ws/src/manipulator_control/srv/ToggleElectromagnet.srv</path>
+    </interface>
+    <interface>
+      <name>/manipulator/electromagnet/engaged</name>
+      <kind>ROS2 Topic</kind>
+      <signature>std_msgs/Bool (10 Hz)</signature>
+      <path>Published by electromagnet_simulator_node</path>
+    </interface>
+    <interface>
+      <name>DetachableJoint Attach/Detach</name>
+      <kind>Gazebo Topic</kind>
+      <signature>
+        /model/{box_id}/detachable_joint/attach - std_msgs/Empty
+        /model/{box_id}/detachable_joint/detach - std_msgs/Empty
+      </signature>
+      <path>Gazebo Harmonic built-in plugin</path>
+    </interface>
+    <interface>
+      <name>TF2 Proximity Check</name>
+      <kind>TF2 Lookup</kind>
+      <signature>
+        lookup_transform(left_gripper_magnet, box_*_base_link)
+        Calculate distance, return if &lt; proximity_distance (0.05m)
+      </signature>
+      <path>tf2_ros.Buffer, TransformListener</path>
+    </interface>
+  </interfaces>
+
+  <constraints>
+    <constraint type="pattern">Follow existing node patterns in manipulator_control/src/ - class-based Node with explicit parameters</constraint>
+    <constraint type="pattern">Use TimerAction in launch file with 3-4 second delay for node startup</constraint>
+    <constraint type="pattern">Load configuration from YAML file passed as 'config_file' parameter</constraint>
+    <constraint type="testing">All code paths must be manually tested before marking story complete</constraint>
+    <constraint type="testing">Service must respond correctly for all cases: proximity/no-proximity, engage/disengage</constraint>
+    <constraint type="scope">Simulation-only implementation - hardware GPIO control is out of scope</constraint>
+    <constraint type="gazebo">DetachableJoint plugin requires box models to have plugin configured in URDF/SDF</constraint>
+  </constraints>
+
+  <tests>
+    <standards>
+      ROS2 nodes tested via manual integration tests in simulation environment.
+      Use ros2 service call for service testing, ros2 topic hz for publication rate verification.
+      Create test scripts in scripts/ directory for repeatable verification.
+    </standards>
+    <locations>
+      <location>ros2_ws/src/manipulator_control/scripts/test_electromagnet.py (to be created)</location>
+      <location>Manual CLI testing via ros2 service call and ros2 topic commands</location>
+    </locations>
+    <ideas>
+      <idea ac="AC1">Verify service interface builds: ros2 interface show manipulator_control/srv/ToggleElectromagnet</idea>
+      <idea ac="AC2">Spawn test box near gripper, call activate=true, verify attach topic receives Empty message</idea>
+      <idea ac="AC3">Call activate=true with no box nearby, verify success=false returned</idea>
+      <idea ac="AC4">With box attached, call activate=false, verify detach topic receives message</idea>
+      <idea ac="AC5">Run ros2 topic hz /manipulator/electromagnet/engaged, verify ~10Hz rate</idea>
+      <idea ac="AC6">Modify electromagnet.yaml values, verify node uses updated config</idea>
+      <idea ac="AC7">Run: ros2 service call /manipulator/electromagnet/toggle manipulator_control/srv/ToggleElectromagnet "{activate: true}"</idea>
+    </ideas>
+  </tests>
+</story-context>

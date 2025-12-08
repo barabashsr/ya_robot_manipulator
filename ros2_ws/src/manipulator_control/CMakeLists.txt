@@ -105,6 +105,14 @@ install(
   RENAME navigate_to_address_server
 )
 
+# Install Electromagnet Simulator Node (Story 4A.2)
+install(
+  PROGRAMS
+    src/electromagnet_simulator_node.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME electromagnet_simulator_node
+)
+
 # Install Python modules (utility classes)
 install(
   PROGRAMS

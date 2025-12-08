@@ -170,6 +170,40 @@ ros2 topic hz /manipulator/end_switches/picker_jaw_closed
 **Configuration:**
 Switch trigger positions and tolerances are defined in `config/limit_switches.yaml`
 
+## Electromagnet Simulator (Story 4A.2)
+
+The package includes a simulated electromagnet for box attachment/detachment using Gazebo's DetachableJoint plugin.
+
+**Service:**
+```
+/manipulator/electromagnet/toggle (manipulator_control/srv/ToggleElectromagnet)
+```
+
+**State Topic:**
+```
+/manipulator/electromagnet/engaged (std_msgs/Bool) @ 10 Hz
+```
+
+**Usage:**
+```bash
+# Activate electromagnet (attaches to nearby box if within 5cm)
+ros2 service call /manipulator/electromagnet/toggle manipulator_control/srv/ToggleElectromagnet "{activate: true}"
+
+# Deactivate electromagnet (releases attached box)
+ros2 service call /manipulator/electromagnet/toggle manipulator_control/srv/ToggleElectromagnet "{activate: false}"
+
+# Monitor magnet state
+ros2 topic echo /manipulator/electromagnet/engaged
+```
+
+**Behavior:**
+- Activation requires a box within `proximity_distance` (default 5cm) of gripper magnet
+- Publishes to DetachableJoint attach/detach topics for Gazebo physics
+- Returns success=false if no box in proximity on activation
+
+**Configuration:**
+Electromagnet parameters are defined in `config/electromagnet.yaml`
+
 ## Usage Examples
 
 **Using action interfaces (Python):**

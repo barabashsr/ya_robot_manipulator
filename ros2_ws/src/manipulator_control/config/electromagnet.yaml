@@ -1,0 +1,31 @@
+# Electromagnet Simulator Configuration
+# Story 4A.2: Implement Electromagnet Simulator and Service
+
+# Proximity check settings
+proximity_distance: 0.05  # meters - max distance to engage magnet with box
+
+# Timing settings
+engagement_wait_sec: 0.5    # seconds to wait after publishing attach
+disengagement_wait_sec: 0.3 # seconds to wait after publishing detach
+
+# State publication
+state_topic: "/manipulator/electromagnet/engaged"
+state_publish_rate: 10.0  # Hz
+
+# Gripper frame configuration
+# These frames must exist in URDF and be part of TF tree
+left_gripper_frame: "left_gripper_magnet"
+right_gripper_frame: "right_gripper_magnet"
+
+# Box TF frame pattern
+# Boxes are expected to have frames matching: box_{side}_{cabinet}_{row}_{col}_base_link
+# e.g., box_l_1_2_3_base_link
+box_frame_pattern: "box_*_base_link"
+
+# DetachableJoint topic pattern
+# Format: /model/{box_model_name}/detachable_joint/attach|detach
+# box_model_name derived from box frame: box_l_1_2_3
+detachable_joint_topic_pattern: "/model/{box_id}/detachable_joint"
+
+# Service configuration
+service_name: "/manipulator/electromagnet/toggle"

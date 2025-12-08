@@ -69,8 +69,8 @@ development_status:
   epic-4a: contexted
   4a-1-implement-yz-trajectory-generator-utility: done
   4a-1a-end-effector-trajectory-visualization: done
-  4a-2-implement-electromagnet-simulator-and-service: drafted
-  4a-3-implement-dynamic-box-spawner-with-department-frame-generation: backlog
+  4a-2-implement-electromagnet-simulator-and-service: ready-for-dev
+  4a-3-implement-dynamic-box-spawner-with-department-frame-generation: drafted
   4a-4-implement-extractbox-action-server: backlog
   4a-5-implement-returnbox-action-server: backlog
   epic-4a-retrospective: optional
